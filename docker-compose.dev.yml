@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Docker Compose para desarrollo con hot reload y volúmenes en vivo
 services:
   # Base de datos PostgreSQL

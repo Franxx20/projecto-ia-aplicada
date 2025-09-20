@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: ${PROJECT_NAME:-projecto-ia}_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-proyecto_ia_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${DB_BACKUP_PATH:-./backups}:/backups
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-proyecto_ia_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-projecto-ia}_backend
+    restart: unless-stopped
+    environment:
+      # Base de datos
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@db:5432/${POSTGRES_DB:-proyecto_ia_db}
+      
+      # Configuración de la app
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200,http://localhost:80}
+      
+      # Configuración de entorno
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-true}
+      
+      # IA Configuration
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      
+    volumes:
+      - ${BACKEND_CODE_PATH:-./backend}:/app
+      - ${BACKEND_LOGS_PATH:-./logs}:/app/logs
+      - ${UPLOAD_PATH:-./uploads}:/app/uploads
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Angular
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - API_URL=${API_URL:-http://localhost:8000}
+    container_name: ${PROJECT_NAME:-projecto-ia}_frontend
+    restart: unless-stopped
+    environment:
+      - API_URL=${API_URL:-http://localhost:8000}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      - ${FRONTEND_CODE_PATH:-./frontend}:/app
+      - ${FRONTEND_DIST_PATH:-./frontend/dist}:/usr/share/nginx/html
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Adminer para gestión de base de datos (opcional)
+  adminer:
+    image: adminer:latest
+    container_name: ${PROJECT_NAME:-projecto-ia}_adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    depends_on:
+      - db
+    networks:
+      - app-network
+    profiles:
+      - tools
+
+  # Redis para cache (opcional)
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME:-projecto-ia}_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - app-network
+    profiles:
+      - cache
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
+  
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${REDIS_DATA_PATH:-./data/redis}
+
+networks:
+  app-network:
+    driver: bridge
+    name: ${PROJECT_NAME:-projecto-ia}_network

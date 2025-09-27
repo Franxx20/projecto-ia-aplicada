@@ -1,0 +1,17 @@
+# Dependencias básicas para FastAPI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Base de datos
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+
+# Validación
+pydantic==2.4.2
+pydantic-settings==2.0.3
+
+# Variables de entorno
+python-dotenv==1.0.0
+
+# Cliente HTTP para health checks
+httpx==0.25.1

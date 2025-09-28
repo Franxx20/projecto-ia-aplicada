@@ -147,8 +147,12 @@ Refactorizar lógica compleja en funciones separadas
 - SOLID principles en diseño de clases
 
 # Git Workflow:
+- utiliza el sistema de creacion de ramas de git llamado GITFLOW
 - Commits descriptivos en español
 - Feature branches para nuevas funcionalidades
 - Pull requests con revisión de código
 - No commits directos a main/master
 - Conventional commits: feat:, fix:, docs:, etc.
+
+# Modelo de ciclo de vida de desarrollo de software: 
+- agile

@@ -156,3 +156,5 @@ Refactorizar lógica compleja en funciones separadas
 
 # Modelo de ciclo de vida de desarrollo de software: 
 - agile
+
+Este projecto usa Azure DevOps. Checkea siempre si el servidor Azure DevOps MCP tiene las herramientrtras relevantes para las requests del usuario

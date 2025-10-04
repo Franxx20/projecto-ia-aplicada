@@ -2,6 +2,27 @@
 
 Esta guía te ayudará a implementar el proyecto ágil "Asistente de Jardinería y Cuidado de Plantas" en Azure DevOps paso a paso.
 
+## 🔧 Configuración de Acceso a Azure DevOps
+
+Antes de comenzar, asegúrate de tener acceso configurado a Azure DevOps:
+
+### Acceso Web
+- Accede a https://dev.azure.com/tu-organizacion
+- Verifica que puedes ver proyectos y work items
+
+### Acceso desde Editores (MCP)
+Si necesitas conectar VS Code u otros editores con Azure DevOps:
+
+**📚 Guía completa:** [Azure DevOps MCP Setup](azure-devops-mcp-setup.md)
+
+**Solución rápida de errores:** [Solución Error Autenticación](SOLUCION-ERROR-AUTENTICACION.md)
+
+### Errores Comunes de Autenticación
+
+Si recibes el error `AADSTS900021: Invalid tenant identifier`, consulta:
+- [SOLUCION-ERROR-AUTENTICACION.md](SOLUCION-ERROR-AUTENTICACION.md) - Solución rápida
+- [azure-devops-mcp-setup.md](azure-devops-mcp-setup.md) - Guía completa
+
 ## 📋 PASO 1: Configuración Inicial de Azure DevOps
 
 ### 1.1 Crear Proyecto

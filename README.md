@@ -566,6 +566,30 @@ tests/
 - Scripts de gestión automatizados
 - Documentación completa
 
+## 🔧 Azure DevOps
+
+### Configuración de Azure DevOps MCP
+
+Para configurar la integración con Azure DevOps a través de MCP (Model Context Protocol):
+
+**📚 Guía completa:** [Azure DevOps MCP Setup](.azure/azure-devops-mcp-setup.md)
+
+**Configuración rápida:**
+1. Crea un Personal Access Token en Azure DevOps
+2. Configura el archivo `~/.aitk/mcp.json` (o `C:\Users\{usuario}\.aitk\mcp.json` en Windows)
+3. Reinicia tu editor (VS Code)
+
+**Solución de problemas comunes:**
+- Error `AADSTS900021`: Ver [guía de troubleshooting](.azure/azure-devops-mcp-setup.md#-solución-de-problemas)
+- Token inválido o expirado: Regenerar PAT y actualizar configuración
+- Organización no encontrada: Verificar nombre exacto en `https://dev.azure.com`
+
+### Documentación del Proyecto Ágil
+
+- **Plan Ágil**: [.azure/proyecto-agile-plan.md](.azure/proyecto-agile-plan.md)
+- **Work Items**: [.azure/azure-devops-workitems.md](.azure/azure-devops-workitems.md)
+- **Guía de Implementación**: [.azure/guia-implementacion.md](.azure/guia-implementacion.md)
+
 ## 🆘 Soporte
 
 ### Recursos Útiles
@@ -574,6 +598,7 @@ tests/
 - **Documentación Angular**: https://angular.io/docs
 - **Docker Compose**: https://docs.docker.com/compose/
 - **PostgreSQL**: https://www.postgresql.org/docs/
+- **Azure DevOps**: https://learn.microsoft.com/en-us/azure/devops/
 
 ### Contacto
 

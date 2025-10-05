@@ -1,198 +1,226 @@
 """
-Aplicación principal FastAPI - Backend Básico
+Aplicación principal FastAPI - Asistente Plantitas
 
-Servidor básico para pruebas de funcionamiento con Docker y comunicación
-con frontend y base de datos.
+Servidor completo con autenticación JWT, gestión de usuarios y upload de imágenes.
+Implementación del Sprint 1 con todas las funcionalidades requeridas.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 import datetime
+import logging
 import os
 
-# Importar configuración
-try:
-    from .core.config import obtener_configuracion
-    configuracion = obtener_configuracion()
-except ImportError:
-    # Fallback si hay problemas con imports
-    class ConfiguracionBasica:
-        nombre_app = "Backend FastAPI - Proyecto IA Aplicada"
-        version = "0.1.0"
-        descripcion = "API backend básica para proyecto de IA aplicada"
-        origenes_cors = ["*"]  # Permitir todos para pruebas
-        debug = True
+# Imports de la aplicación
+from .core.config import configuracion, crear_directorios_necesarios
+from .db import crear_tablas
+from .api import auth_router, usuarios_router
+from .api.imagenes import router as imagenes_router
+
+# Configurar logging
+logging.basicConfig(
+    level=getattr(logging, configuracion.nivel_log),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Gestión del ciclo de vida de la aplicación
     
-    configuracion = ConfiguracionBasica()
+    Se ejecuta al inicio y fin de la aplicación para configurar
+    recursos necesarios como base de datos y directorios.
+    """
+    # Startup
+    logger.info("🚀 Iniciando Asistente Plantitas API...")
+    
+    try:
+        # Crear directorios necesarios
+        crear_directorios_necesarios()
+        logger.info("📁 Directorios creados correctamente")
+        
+        # Crear tablas de base de datos
+        crear_tablas()
+        logger.info("🗄️ Base de datos inicializada")
+        
+        logger.info("✅ Aplicación iniciada exitosamente")
+        
+    except Exception as e:
+        logger.error(f"❌ Error durante el startup: {e}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    logger.info("🛑 Cerrando Asistente Plantitas API...")
 
 
-# Crear instancia de FastAPI
+# Crear instancia de FastAPI con configuración completa
 app = FastAPI(
     title=configuracion.nombre_app,
     description=configuracion.descripcion,
     version=configuracion.version,
-    debug=configuracion.debug
+    debug=configuracion.debug,
+    lifespan=lifespan,
+    docs_url="/docs" if configuracion.debug else None,
+    redoc_url="/redoc" if configuracion.debug else None
 )
 
-# Configurar CORS para comunicación con frontend
+# === CONFIGURAR MIDDLEWARE ===
+
+# CORS para comunicación con frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=configuracion.origenes_cors,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
+# === MANEJADORES DE ERROR GLOBALES ===
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Manejador global de HTTPException
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail,
+            "status_code": exc.status_code,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "path": str(request.url)
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """
+    Manejador global de excepciones generales
+    """
+    logger.error(f"Error no manejado: {exc}", exc_info=True)
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "Error interno del servidor",
+            "detail": str(exc) if configuracion.debug else "Ha ocurrido un error interno",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "path": str(request.url)
+        }
+    )
+
+
+# === INCLUIR ROUTERS ===
+
+# APIs de autenticación
+app.include_router(auth_router, prefix="/api/v1")
+
+# APIs de usuarios
+app.include_router(usuarios_router, prefix="/api/v1")
+
+# APIs de imágenes
+app.include_router(imagenes_router, prefix="/api/v1")
+
+# === MONTAR ARCHIVOS ESTÁTICOS ===
+
+# Servir archivos subidos (uploads)
+if os.path.exists(configuracion.directorio_uploads):
+    app.mount("/uploads", StaticFiles(directory=configuracion.directorio_uploads), name="uploads")
+
+
+# === ENDPOINTS BÁSICOS ===
 
 @app.get("/", 
          summary="Endpoint raíz",
-         description="Endpoint de bienvenida del backend")
+         description="Endpoint de bienvenida del Asistente Plantitas",
+         tags=["General"])
 async def endpoint_raiz():
     """
-    Endpoint raíz que confirma que el backend está funcionando
+    Endpoint raíz que confirma que la API está funcionando
     
     Returns:
-        dict: Información básica del backend
+        dict: Información básica de la API
     """
     return {
-        "mensaje": f"¡Hola desde {configuracion.nombre_app}!",
+        "mensaje": f"¡Bienvenido a {configuracion.nombre_app}!",
         "version": configuracion.version,
         "estado": "funcionando",
+        "descripcion": configuracion.descripcion,
         "timestamp": datetime.datetime.now().isoformat(),
-        "endpoints_disponibles": {
-            "salud": "/salud",
-            "info": "/info",
-            "test_db": "/test-db",
-            "test_frontend": "/test-frontend"
+        "documentacion": {
+            "swagger": "/docs",
+            "redoc": "/redoc"
+        },
+        "endpoints_principales": {
+            "autenticacion": "/api/v1/auth",
+            "usuarios": "/api/v1/usuarios",
+            "salud": "/health"
         }
     }
 
 
-@app.get("/salud",
+@app.get("/health",
          summary="Health Check",
-         description="Endpoint para verificar el estado del servidor")
+         description="Endpoint para verificar el estado del servidor",
+         tags=["General"])
 async def health_check():
     """
     Health check endpoint para verificar que el servidor está funcionando
     
+    Útil para monitoreo, load balancers y deployment pipelines.
+    
     Returns:
-        dict: Estado del servidor
+        dict: Estado detallado del servidor
     """
     return {
         "estado": "saludable",
-        "servicio": "backend-fastapi",
-        "timestamp": datetime.datetime.now().isoformat(),
+        "servicio": "asistente-plantitas-api",
         "version": configuracion.version,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "entorno": configuracion.entorno,
+        "base_datos": "conectada",  # TODO: Verificar conexión real en futuras versiones
         "uptime": "funcionando correctamente"
     }
 
 
 @app.get("/info",
          summary="Información del sistema",
-         description="Información detallada del sistema y configuración")
+         description="Información detallada del sistema y configuración",
+         tags=["General"])
 async def info_sistema():
     """
-    Información del sistema para debugging
+    Información del sistema para debugging y monitoreo
     
     Returns:
-        dict: Información del sistema
+        dict: Información detallada del sistema
     """
     return {
         "aplicacion": {
             "nombre": configuracion.nombre_app,
             "version": configuracion.version,
             "descripcion": configuracion.descripcion,
-            "debug": configuracion.debug
+            "debug": configuracion.debug,
+            "entorno": configuracion.entorno
+        },
+        "configuracion": {
+            "base_datos": configuracion.tipo_base_datos,
+            "cors_origins": len(configuracion.origenes_cors),
+            "rate_limiting": configuracion.limite_requests_por_minuto,
+            "directorio_uploads": configuracion.directorio_uploads
         },
         "sistema": {
             "python_version": f"{os.sys.version}",
             "directorio_actual": os.getcwd(),
-            "variables_entorno": {
-                "PATH_exists": "PATH" in os.environ,
-                "HOME_exists": "HOME" in os.environ or "USERPROFILE" in os.environ
-            }
-        },
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-
-
-@app.get("/test-db",
-         summary="Test de base de datos",
-         description="Prueba básica de conexión a base de datos")
-async def test_base_datos():
-    """
-    Test básico de base de datos
-    
-    Returns:
-        dict: Estado de la conexión a base de datos
-    """
-    try:
-        # Simulación de conexión a BD - en implementación real usaríamos SQLAlchemy
-        estado_bd = "conectado"
-        mensaje = "Base de datos SQLite funcionando correctamente"
-        
-        return {
-            "estado": estado_bd,
-            "mensaje": mensaje,
-            "tipo_bd": "SQLite (desarrollo)",
-            "url_bd": "sqlite:///./test_db.sqlite",
             "timestamp": datetime.datetime.now().isoformat()
         }
-    except Exception as e:
-        return {
-            "estado": "error",
-            "mensaje": f"Error de conexión: {str(e)}",
-            "timestamp": datetime.datetime.now().isoformat()
-        }
-
-
-@app.get("/test-frontend",
-         summary="Test de comunicación con frontend",
-         description="Endpoint para probar la comunicación con el frontend")
-async def test_comunicacion_frontend():
-    """
-    Endpoint para probar la comunicación con el frontend
-    
-    Returns:
-        dict: Datos de prueba para el frontend
-    """
-    return {
-        "mensaje": "Comunicación exitosa con el backend",
-        "datos_prueba": {
-            "usuarios_activos": 5,
-            "estadisticas": {
-                "requests_hoy": 42,
-                "uptime_horas": 1.5
-            },
-            "configuracion_cors": configuracion.origenes_cors
-        },
-        "timestamp": datetime.datetime.now().isoformat(),
-        "backend_url": "http://localhost:8000"
-    }
-
-
-@app.get("/api/test",
-         summary="Test API endpoint",
-         description="Endpoint de prueba para APIs")
-async def test_api():
-    """
-    Endpoint de prueba para verificar rutas API
-    
-    Returns:
-        dict: Respuesta de prueba de API
-    """
-    return {
-        "api_status": "funcionando",
-        "mensaje": "API endpoint funcionando correctamente",
-        "rutas_disponibles": [
-            "/",
-            "/salud", 
-            "/info",
-            "/test-db",
-            "/test-frontend",
-            "/api/test"
-        ],
-        "timestamp": datetime.datetime.now().isoformat()
     }
 
 
@@ -200,16 +228,24 @@ async def test_api():
 if __name__ == "__main__":
     import uvicorn
     
-    print("🚀 Iniciando servidor FastAPI...")
+    print("=" * 60)
+    print("🌱 ASISTENTE PLANTITAS - BACKEND API")
+    print("=" * 60)
     print(f"📝 Aplicación: {configuracion.nombre_app}")
-    print(f"🌐 URL: http://localhost:8000")
-    print(f"📚 Documentación: http://localhost:8000/docs")
-    print("🔧 Para detener: Ctrl+C")
-    print("-" * 50)
+    print(f"🔧 Versión: {configuracion.version}")
+    print(f"🌐 URL: http://localhost:{configuracion.puerto}")
+    print(f"📚 Documentación: http://localhost:{configuracion.puerto}/docs")
+    print(f"🔍 ReDoc: http://localhost:{configuracion.puerto}/redoc")
+    print(f"⚙️ Entorno: {configuracion.entorno}")
+    print(f"�️ Base de datos: {configuracion.tipo_base_datos}")
+    print("")
+    print("🚀 Para detener el servidor: Ctrl+C")
+    print("=" * 60)
     
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
+        host=configuracion.host,
+        port=configuracion.puerto,
+        reload=configuracion.debug,
+        log_level=configuracion.nivel_log.lower()
     )

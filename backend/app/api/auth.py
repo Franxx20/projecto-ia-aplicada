@@ -8,7 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.auth import UserRegisterRequest, UserResponse, UserLoginRequest, TokenResponse
+from app.schemas.auth import (
+    UserRegisterRequest, UserResponse, UserLoginRequest, TokenResponse,
+    RefreshTokenRequest, RefreshTokenResponse, LogoutRequest
+)
 from app.services.auth_service import AuthService
 
 # Crear router de autenticación
@@ -272,3 +275,194 @@ async def login_usuario(
     token_response = AuthService.login_usuario(db, datos_login)
     
     return token_response
+
+
+@router.post(
+    "/refresh",
+    response_model=RefreshTokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Renovar token JWT",
+    description="Renueva un token JWT existente con uno de mayor duración (7 días)",
+    response_description="Nuevo token JWT con expiración extendida",
+    responses={
+        200: {
+            "description": "Token renovado exitosamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "token_type": "bearer",
+                        "expires_in": 604800
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Token inválido, expirado o en blacklist",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Token inválido o expirado"
+                    }
+                }
+            }
+        },
+        403: {
+            "description": "Usuario desactivado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "La cuenta de usuario está desactivada"
+                    }
+                }
+            }
+        }
+    },
+    tags=["Autenticación"]
+)
+async def refresh_token(
+    datos_refresh: RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Renovar un token JWT existente con uno de mayor duración
+    
+    Permite renovar un token JWT válido con uno nuevo que tiene una expiración
+    extendida de 7 días. Útil para mantener sesiones activas sin requerir
+    login frecuente del usuario.
+    
+    **Proceso de renovación:**
+    1. Valida que el token actual sea válido y no esté expirado
+    2. Verifica que el token no esté en la blacklist (logout)
+    3. Verifica que el usuario existe y está activo
+    4. Genera un nuevo token con expiración de 7 días
+    
+    **Validaciones:**
+    - El token debe ser válido y no estar expirado
+    - El token no debe estar en la blacklist
+    - El usuario debe existir en el sistema
+    - La cuenta del usuario debe estar activa
+    
+    Args:
+        datos_refresh: Token JWT actual a renovar
+        db: Sesión de base de datos (inyectada automáticamente)
+        
+    Returns:
+        RefreshTokenResponse: Nuevo token JWT con expiración extendida y tiempo de expiración en segundos
+        
+    Raises:
+        HTTPException 401: Si el token es inválido, expirado o está en blacklist
+        HTTPException 403: Si la cuenta del usuario está desactivada
+        
+    Example:
+        ```python
+        # Request
+        POST /auth/refresh
+        {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        }
+        
+        # Response 200 OK
+        {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "token_type": "bearer",
+            "expires_in": 604800
+        }
+        ```
+    """
+    # Renovar token usando el servicio de autenticación
+    resultado = AuthService.refresh_token(db, datos_refresh.access_token)
+    
+    return resultado
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="Cerrar sesión (invalidar token)",
+    description="Invalida un token JWT agregándolo a la blacklist",
+    response_description="Token invalidado exitosamente",
+    responses={
+        200: {
+            "description": "Logout exitoso - Token invalidado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Logout exitoso",
+                        "detail": "El token ha sido invalidado correctamente"
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Token inválido o ya invalidado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "El token ya ha sido invalidado"
+                    }
+                }
+            }
+        }
+    },
+    tags=["Autenticación"]
+)
+async def logout(datos_logout: LogoutRequest):
+    """
+    Cerrar sesión invalidando el token JWT
+    
+    Invalida un token JWT agregándolo a una blacklist, previniendo su uso
+    en peticiones futuras. El token no podrá ser usado nuevamente hasta
+    que expire naturalmente.
+    
+    **Proceso de logout:**
+    1. Valida que el token sea válido
+    2. Verifica que el token no esté ya en la blacklist
+    3. Agrega el token a la blacklist
+    
+    **Nota sobre blacklist:**
+    - En desarrollo: Blacklist en memoria (se limpia al reiniciar servidor)
+    - En producción: Se recomienda usar Redis o tabla de base de datos
+    
+    **Seguridad:**
+    - Un token invalidado no puede ser usado nuevamente
+    - Los tokens no pueden ser "reactivados" después de logout
+    - La blacklist previene el uso de tokens robados después del logout
+    
+    Args:
+        datos_logout: Token JWT a invalidar
+        
+    Returns:
+        dict: Mensaje de confirmación del logout
+        
+    Raises:
+        HTTPException 401: Si el token es inválido o ya está en la blacklist
+        
+    Example:
+        ```python
+        # Request
+        POST /auth/logout
+        {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        }
+        
+        # Response 200 OK
+        {
+            "message": "Logout exitoso",
+            "detail": "El token ha sido invalidado correctamente"
+        }
+        
+        # Intentar usar el token después del logout
+        GET /api/plantas
+        Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        
+        # Response 401 Unauthorized
+        {
+            "detail": "El token ha sido invalidado (logout)"
+        }
+        ```
+    """
+    # Invalidar token usando el servicio de autenticación
+    resultado = AuthService.logout(datos_logout.access_token)
+    
+    return resultado

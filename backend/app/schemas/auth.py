@@ -196,3 +196,71 @@ class TokenResponse(BaseModel):
                 }
             }
         }
+
+
+class RefreshTokenRequest(BaseModel):
+    """
+    Schema para request de refresh token
+    
+    Attributes:
+        access_token: Token JWT actual que se desea renovar
+    """
+    access_token: str = Field(
+        ...,
+        description="Token JWT actual que se desea renovar",
+        examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."]
+    )
+
+    class Config:
+        """Configuración del schema"""
+        json_schema_extra = {
+            "example": {
+                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            }
+        }
+
+
+class RefreshTokenResponse(BaseModel):
+    """
+    Schema para response de refresh token
+    
+    Attributes:
+        access_token: Nuevo token JWT con expiración extendida
+        token_type: Tipo de token (siempre "bearer")
+        expires_in: Tiempo de expiración en segundos
+    """
+    access_token: str = Field(..., description="Nuevo token JWT de acceso")
+    token_type: str = Field(default="bearer", description="Tipo de token")
+    expires_in: int = Field(..., description="Tiempo de expiración en segundos")
+
+    class Config:
+        """Configuración del schema"""
+        json_schema_extra = {
+            "example": {
+                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "token_type": "bearer",
+                "expires_in": 604800
+            }
+        }
+
+
+class LogoutRequest(BaseModel):
+    """
+    Schema para request de logout
+    
+    Attributes:
+        access_token: Token JWT que se desea invalidar
+    """
+    access_token: str = Field(
+        ...,
+        description="Token JWT que se desea invalidar",
+        examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."]
+    )
+
+    class Config:
+        """Configuración del schema"""
+        json_schema_extra = {
+            "example": {
+                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            }
+        }

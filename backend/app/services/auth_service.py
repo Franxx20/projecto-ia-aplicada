@@ -11,8 +11,43 @@ from datetime import datetime
 
 from app.db.models import Usuario
 from app.schemas.auth import UserRegisterRequest, UserResponse, UserLoginRequest, TokenResponse
-from app.utils.jwt import crear_token_acceso
+from app.utils.jwt import crear_token_acceso, crear_refresh_token, validar_refresh_token, decodificar_token
 from app.core.config import obtener_configuracion
+
+
+# Blacklist en memoria para tokens invalidados (logout)
+# En producción, usar Redis o una tabla de base de datos
+_token_blacklist: set = set()
+
+
+def agregar_token_a_blacklist(token: str) -> None:
+    """
+    Agregar un token a la blacklist de tokens invalidados
+    
+    Args:
+        token: Token JWT a invalidar
+    """
+    _token_blacklist.add(token)
+
+
+def token_esta_en_blacklist(token: str) -> bool:
+    """
+    Verificar si un token está en la blacklist
+    
+    Args:
+        token: Token JWT a verificar
+        
+    Returns:
+        bool: True si el token está invalidado, False en caso contrario
+    """
+    return token in _token_blacklist
+
+
+def limpiar_blacklist() -> None:
+    """
+    Limpiar la blacklist (útil para testing)
+    """
+    _token_blacklist.clear()
 
 
 class AuthService:
@@ -307,3 +342,130 @@ class AuthService:
         db.commit()
         
         return True
+
+    @staticmethod
+    def refresh_token(
+        db: Session,
+        token_actual: str
+    ) -> dict:
+        """
+        Renovar un token JWT existente con uno de mayor duración
+        
+        Validaciones:
+        - El token actual debe ser válido y no expirado
+        - El token no debe estar en la blacklist (logout)
+        - El usuario debe existir y estar activo
+        
+        Args:
+            db: Sesión de base de datos SQLAlchemy
+            token_actual: Token JWT actual a renovar
+            
+        Returns:
+            dict: Diccionario con access_token (nuevo token) y expires_in (segundos)
+            
+        Raises:
+            HTTPException 401: Si el token es inválido, está en blacklist, o el usuario no existe/inactivo
+        """
+        # Verificar si el token está en la blacklist
+        if token_esta_en_blacklist(token_actual):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="El token ha sido invalidado (logout)",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
+        # Decodificar y validar el token actual
+        payload = decodificar_token(token_actual)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido o expirado",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
+        # Extraer email del token
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido: no contiene subject (email)",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
+        # Verificar que el usuario existe y está activo
+        usuario = AuthService.obtener_usuario_por_email(db, email)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario no encontrado",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
+        if not usuario.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="La cuenta de usuario está desactivada"
+            )
+        
+        # Generar nuevo refresh token con expiración extendida
+        config = obtener_configuracion()
+        token_data = {
+            "sub": usuario.email,
+            "user_id": usuario.id,
+            "nombre": usuario.nombre,
+        }
+        
+        nuevo_token = crear_refresh_token(
+            datos=token_data,
+            expiracion_dias=config.jwt_refresh_expiracion_dias
+        )
+        
+        # Calcular tiempo de expiración en segundos
+        expires_in_seconds = config.jwt_refresh_expiracion_dias * 24 * 60 * 60
+        
+        return {
+            "access_token": nuevo_token,
+            "token_type": "bearer",
+            "expires_in": expires_in_seconds
+        }
+
+    @staticmethod
+    def logout(token: str) -> dict:
+        """
+        Invalidar un token JWT (logout)
+        
+        Agrega el token a la blacklist para que no pueda ser usado nuevamente
+        
+        Args:
+            token: Token JWT a invalidar
+            
+        Returns:
+            dict: Mensaje de confirmación
+            
+        Raises:
+            HTTPException 401: Si el token es inválido o ya está en la blacklist
+        """
+        # Verificar si el token ya está en la blacklist
+        if token_esta_en_blacklist(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="El token ya ha sido invalidado",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
+        # Validar que el token es válido antes de agregarlo a la blacklist
+        payload = decodificar_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido o expirado",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        
+        # Agregar token a la blacklist
+        agregar_token_a_blacklist(token)
+        
+        return {
+            "message": "Logout exitoso",
+            "detail": "El token ha sido invalidado correctamente"
+        }

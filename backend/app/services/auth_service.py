@@ -7,9 +7,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 from typing import Optional
+from datetime import datetime
 
 from app.db.models import Usuario
-from app.schemas.auth import UserRegisterRequest, UserResponse
+from app.schemas.auth import UserRegisterRequest, UserResponse, UserLoginRequest, TokenResponse
+from app.utils.jwt import crear_token_acceso
+from app.core.config import obtener_configuracion
 
 
 class AuthService:
@@ -86,6 +89,102 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error interno al registrar usuario. Por favor, intente nuevamente."
+            )
+
+    @staticmethod
+    def login_usuario(
+        db: Session,
+        datos_login: UserLoginRequest
+    ) -> TokenResponse:
+        """
+        Autenticar usuario y generar token JWT
+        
+        Validaciones:
+        - Email existe en el sistema
+        - Contraseña es correcta
+        - Usuario está activo (no desactivado)
+        
+        Args:
+            db: Sesión de base de datos SQLAlchemy
+            datos_login: Credenciales del usuario (email y password)
+            
+        Returns:
+            TokenResponse: Token JWT y datos del usuario
+            
+        Raises:
+            HTTPException 401: Si las credenciales son inválidas o el usuario está inactivo
+            HTTPException 500: Si hay un error inesperado
+        """
+        try:
+            # Buscar usuario por email (normalizado a minúsculas)
+            usuario = db.query(Usuario).filter(
+                Usuario.email == datos_login.email.lower()
+            ).first()
+            
+            # Verificar que el usuario existe
+            if not usuario:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Credenciales inválidas",
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
+            
+            # Verificar la contraseña
+            if not usuario.verify_password(datos_login.password):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Credenciales inválidas",
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
+            
+            # Verificar que la cuenta esté activa
+            if not usuario.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="La cuenta de usuario está desactivada. Contacte al administrador."
+                )
+            
+            # Actualizar último acceso
+            usuario.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(usuario)
+            
+            # Generar token JWT
+            config = obtener_configuracion()
+            token_data = {
+                "sub": usuario.email,  # Subject: email del usuario
+                "user_id": usuario.id,
+                "nombre": usuario.nombre,
+            }
+            
+            access_token = crear_token_acceso(
+                datos=token_data,
+                expiracion_minutos=config.jwt_expiracion_minutos
+            )
+            
+            # Crear response con token y datos del usuario
+            return TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                user=UserResponse(
+                    id=usuario.id,
+                    email=usuario.email,
+                    nombre=usuario.nombre,
+                    is_active=usuario.is_active,
+                    created_at=usuario.created_at,
+                    updated_at=usuario.updated_at
+                )
+            )
+            
+        except HTTPException:
+            # Re-lanzar excepciones HTTP sin modificar
+            raise
+        except Exception as e:
+            # Log del error en producción
+            print(f"Error inesperado al hacer login: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error interno al procesar login. Por favor, intente nuevamente."
             )
 
     @staticmethod

@@ -8,6 +8,7 @@ psycopg2-binary==2.9.9
 alembic==1.12.1
 
 # Seguridad y autenticación
+bcrypt==4.2.0
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.6
@@ -15,6 +16,7 @@ python-multipart==0.0.6
 # Validación
 pydantic==2.4.2
 pydantic-settings==2.0.3
+email-validator==2.1.0
 
 # Variables de entorno
 python-dotenv==1.0.0

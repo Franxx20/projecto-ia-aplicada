@@ -141,3 +141,74 @@ def calcular_expiracion(minutos: int) -> datetime:
         datetime.datetime(2025, 10, 5, 15, 0, 0)
     """
     return datetime.utcnow() + timedelta(minutes=minutos)
+
+
+def crear_refresh_token(
+    datos: Dict[str, Any],
+    expiracion_dias: Optional[int] = None
+) -> str:
+    """
+    Crear un refresh token JWT con expiración extendida
+    
+    Args:
+        datos: Diccionario con los datos a codificar en el token (claims)
+        expiracion_dias: Días hasta que expire el token (usa config por defecto si no se especifica)
+        
+    Returns:
+        str: Refresh token JWT codificado
+        
+    Example:
+        >>> refresh_token = crear_refresh_token({"sub": "usuario@ejemplo.com"})
+        >>> print(refresh_token)
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    """
+    config = obtener_configuracion()
+    
+    # Crear copia de los datos para no modificar el original
+    datos_token = datos.copy()
+    
+    # Calcular tiempo de expiración en días
+    if expiracion_dias:
+        expiracion = datetime.utcnow() + timedelta(days=expiracion_dias)
+    else:
+        expiracion = datetime.utcnow() + timedelta(days=config.jwt_refresh_expiracion_dias)
+    
+    # Agregar claims estándar y tipo de token
+    datos_token.update({
+        "exp": expiracion,
+        "iat": datetime.utcnow(),
+        "type": "refresh"  # Identificar como refresh token
+    })
+    
+    # Codificar el token
+    token_codificado = jwt.encode(
+        datos_token,
+        config.jwt_secret_key,
+        algorithm=config.jwt_algorithm
+    )
+    
+    return token_codificado
+
+
+def validar_refresh_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Validar que un token sea un refresh token válido
+    
+    Args:
+        token: Token JWT a validar
+        
+    Returns:
+        Optional[Dict[str, Any]]: Datos decodificados si es un refresh token válido, None en caso contrario
+        
+    Example:
+        >>> datos = validar_refresh_token(refresh_token)
+        >>> print(datos["sub"])
+        'usuario@ejemplo.com'
+    """
+    payload = decodificar_token(token)
+    
+    # Verificar que sea un refresh token
+    if payload and payload.get("type") == "refresh":
+        return payload
+    
+    return None

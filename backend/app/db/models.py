@@ -141,7 +141,9 @@ class Usuario(Base):
             >>> print(len(hashed))  # Longitud típica del hash
             60
         """
-        return pwd_context.hash(password)
+        # Bcrypt tiene un límite de 72 bytes. Truncar para evitar errores.
+        # Este es el comportamiento estándar recomendado.
+        return pwd_context.hash(password[:72])
     
     def set_password(self, password: str) -> None:
         """

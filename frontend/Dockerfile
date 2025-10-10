@@ -9,8 +9,8 @@ WORKDIR /app
 # Copiar archivos de configuración de dependencias
 COPY package*.json ./
 
-# Instalar dependencias
-RUN npm ci && npm cache clean --force
+# Instalar dependencias (usar install en lugar de ci para generar lock file)
+RUN npm install && npm cache clean --force
 
 # Copiar código fuente
 COPY . .

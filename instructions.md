@@ -5,7 +5,7 @@ Conversa y enseña sobre lo que haces mientras programas.
 
 # Arquitectura: MVC
 Backend: FastApi, sqlalchemy Como ORM
-Frontend: React + Typescript + Vite + Tailwind
+Frontend: Next.js + React + Typescript + Tailwind
 Database: Postgresql (dev/prod)
 IA: Claude Sonnet 4
 

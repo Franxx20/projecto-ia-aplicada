@@ -1,33 +1,31 @@
 # Dockerfile multi-stage para Next.js Frontend
-# Optimizado para output standalone y Docker
+# Optimizado para producción con standalone output
 
-# Stage 1: Dependencies - Instalar solo dependencias de producción
+# Stage 1: Dependencias - Instalar todas las dependencias
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copiar archivos de dependencias
 COPY package.json package-lock.json* ./
 
-# Instalar dependencias (solo producción para optimizar tamaño)
-RUN npm ci --only=production && npm cache clean --force
+# Instalar TODAS las dependencias (necesarias para build)
+RUN npm ci && npm cache clean --force
 
 # Stage 2: Builder - Build de la aplicación Next.js
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copiar dependencias desde stage anterior
+# Copiar dependencias desde deps
 COPY --from=deps /app/node_modules ./node_modules
+
+# Copiar código fuente
 COPY . .
 
 # Variables de entorno necesarias para build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Instalar todas las dependencias (incluidas dev para build)
-RUN npm ci
-
-# Build de Next.js con output standalone
+# Build de Next.js con standalone output
 RUN npm run build
 
 # Stage 3: Runner - Imagen final optimizada
@@ -36,29 +34,29 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=4200
-ENV HOSTNAME=0.0.0.0
 
 # Crear usuario no-root para seguridad
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copiar archivos públicos
+# Copiar archivos necesarios para standalone
 COPY --from=builder /app/public ./public
-
-# Copiar standalone output (Next.js genera estructura optimizada)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Cambiar a usuario no-root
 USER nextjs
 
-# Exponer puerto configurado
+# Exponer puerto 4200
 EXPOSE 4200
 
+# Variables de entorno de runtime
+ENV PORT=4200
+ENV HOSTNAME="0.0.0.0"
+
 # Health check para verificar que Next.js responde
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:4200/api/health', (r) => {if(r.statusCode !== 200) throw new Error(r.statusCode)})"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:4200/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
 # Comando por defecto - Next.js standalone server
 CMD ["node", "server.js"]

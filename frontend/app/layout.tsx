@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 /**
  * Metadata de la aplicación
@@ -50,8 +51,10 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased">
         {/* Contenedor principal de la aplicación */}
         <div className="relative flex min-h-screen flex-col">
-          {/* Aquí irán los providers (Auth, Theme, etc.) */}
-          {children}
+          {/* Provider de autenticación global */}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </div>
       </body>
     </html>

@@ -7,25 +7,24 @@
  * @date 2025-10-10
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import LoginPage from '@/app/login/page'
 
 // Mock del router de Next.js
-const mockPush = vi.fn()
-vi.mock('next/navigation', () => ({
+const mockPush = jest.fn()
+jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
 }))
 
 // Mock de fetch global
-global.fetch = vi.fn()
+global.fetch = jest.fn()
 
 describe('LoginPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     localStorage.clear()
   })
 
@@ -46,7 +45,8 @@ describe('LoginPage', () => {
       const registerLink = screen.getByRole('button', { name: /regístrate/i })
       fireEvent.click(registerLink)
       
-      expect(screen.getByText('Crear Cuenta')).toBeInTheDocument()
+      // Verificar que cambió a modo registro checando el botón de submit
+      expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument()
       expect(screen.getByText('Comienza tu viaje en el cuidado de plantas hoy')).toBeInTheDocument()
       expect(screen.getByLabelText('Nombre Completo')).toBeInTheDocument()
     })
@@ -77,7 +77,7 @@ describe('LoginPage', () => {
         },
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       })
@@ -99,7 +99,7 @@ describe('LoginPage', () => {
     })
 
     it('debe manejar errores de login', async () => {
-      ;(global.fetch as any).mockResolvedValueOnce({
+      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         json: async () => ({ detail: 'Credenciales inválidas' }),
       })
@@ -142,13 +142,13 @@ describe('LoginPage', () => {
         ultimo_acceso: null,
       }
 
-      ;(global.fetch as any).mockResolvedValueOnce({
+      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       })
 
       // Mock de window.alert
-      const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {})
 
       const nombreInput = screen.getByLabelText('Nombre Completo')
       const emailInput = screen.getByLabelText('Email')
@@ -169,7 +169,7 @@ describe('LoginPage', () => {
     })
 
     it('debe manejar errores de registro', async () => {
-      ;(global.fetch as any).mockResolvedValueOnce({
+      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         json: async () => ({ detail: 'El email ya está registrado' }),
       })
@@ -192,7 +192,7 @@ describe('LoginPage', () => {
 
   describe('Estados de carga', () => {
     it('debe deshabilitar el botón durante el login', async () => {
-      ;(global.fetch as any).mockImplementation(() => 
+      ;(global.fetch as jest.Mock).mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve({ ok: true, json: async () => ({}) }), 100))
       )
 

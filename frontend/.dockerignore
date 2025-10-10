@@ -44,8 +44,11 @@ environment.*.ts
 # Documentation
 README.md
 docs/
+MIGRATION.md
 
-# Angular specific
+# Angular backup files (legacy)
+*.angular.backup
+src/app.angular.backup/
 .angular/
 .sass-cache/
 /connect.lock
@@ -53,6 +56,12 @@ docs/
 /libpeerconnection.log
 testem.log
 /typings
+angular.json
+
+# React/Vite specific
+*.local
+.cache/
+.vite/
 
 # Misc
 *.tgz

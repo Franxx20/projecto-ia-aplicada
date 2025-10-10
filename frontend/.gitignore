@@ -41,10 +41,6 @@ testem.log
 .DS_Store
 Thumbs.db
 
-# Angular specific
-*.tgz
-*.tar.gz
-
 # Environment files
 .env
 .env.local
@@ -95,12 +91,16 @@ jspm_packages/
 .cache
 .parcel-cache
 
+# Vite
+.vite
+dist-ssr
+*.local
+
 # Next.js build output
 .next
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Storybook build outputs
 .out
@@ -117,13 +117,11 @@ temp/
 /e2e/reports/
 /e2e/screenshots/
 
-# Angular CLI cache
-.angular/
+# Legacy Angular files (mantener para referencia)
+# .angular/
 
-# Package files
+# Package backup files
 *.tgz
 *.tar.gz
-
-# Local configuration files
 angular.json.bak
 package-lock.json.bak

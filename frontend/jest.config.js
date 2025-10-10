@@ -53,7 +53,7 @@ const customJestConfig = {
   ],
   
   // Límites de cobertura
-  coverageThresholds: {
+  coverageThreshold: {
     global: {
       statements: 70,
       branches: 70,

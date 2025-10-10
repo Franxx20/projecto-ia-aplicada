@@ -4,13 +4,13 @@
  * Página de Login y Registro
  * 
  * Componente que permite a los usuarios iniciar sesión o registrarse
- * Conecta con el backend FastAPI para autenticación JWT
+ * Usa AuthContext para manejar la autenticación de forma centralizada
  * 
  * @author GitHub Copilot
  * @date 2025-10-10
  */
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,11 +18,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Leaf } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { iniciarSesion, registrarse, estaAutenticado, estaCargando: authLoading } = useAuth()
   const [isLogin, setIsLogin] = useState(true)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   
   // Formulario de login
@@ -39,67 +40,41 @@ export default function LoginPage() {
   })
 
   /**
+   * Redirigir al dashboard si ya está autenticado
+   */
+  useEffect(() => {
+    if (estaAutenticado) {
+      router.push('/dashboard')
+    }
+  }, [estaAutenticado, router])
+
+  /**
    * Maneja el envío del formulario de login
-   * Conecta con /auth/login del backend FastAPI
+   * Usa el AuthContext para iniciar sesión
    */
   const manejarLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    setLoading(true)
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(loginData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Error al iniciar sesión')
-      }
-
-      const data = await response.json()
-      
-      // Guardar token en localStorage
-      localStorage.setItem('access_token', data.access_token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-      
-      // Redirigir al dashboard
+      await iniciarSesion(loginData.email, loginData.password)
+      // El AuthContext manejará la navegación
       router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
-    } finally {
-      setLoading(false)
     }
   }
 
   /**
    * Maneja el envío del formulario de registro
-   * Conecta con /auth/register del backend FastAPI
+   * Usa el AuthContext para registrarse
    */
   const manejarRegistro = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    setLoading(true)
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registerData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Error al registrarse')
-      }
-
-      await response.json()
+      await registrarse(registerData.email, registerData.password, registerData.nombre)
       
       // Después de registrarse exitosamente, cambiar a modo login
       setIsLogin(true)
@@ -108,8 +83,6 @@ export default function LoginPage() {
       alert('Registro exitoso. Por favor, inicie sesión.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrarse')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -152,7 +125,7 @@ export default function LoginPage() {
                   value={registerData.nombre}
                   onChange={(e) => setRegisterData({...registerData, nombre: e.target.value})}
                   required={!isLogin}
-                  disabled={loading}
+                  disabled={authLoading}
                 />
               </div>
             )}
@@ -173,7 +146,7 @@ export default function LoginPage() {
                   }
                 }}
                 required
-                disabled={loading}
+                disabled={authLoading}
               />
             </div>
 
@@ -193,7 +166,7 @@ export default function LoginPage() {
                   }
                 }}
                 required
-                disabled={loading}
+                disabled={authLoading}
               />
               {!isLogin && (
                 <p className="text-xs text-muted-foreground">
@@ -212,8 +185,8 @@ export default function LoginPage() {
             )}
 
             {/* Botón submit */}
-            <Button className="w-full" size="lg" type="submit" disabled={loading}>
-              {loading 
+            <Button className="w-full" size="lg" type="submit" disabled={authLoading}>
+              {authLoading 
                 ? "Procesando..." 
                 : isLogin 
                   ? "Iniciar Sesión" 

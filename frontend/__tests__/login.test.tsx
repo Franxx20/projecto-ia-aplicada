@@ -10,6 +10,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import LoginPage from '@/app/login/page'
+import { AuthProvider } from '@/contexts/AuthContext'
+import { authService } from '@/lib/auth.service'
 
 // Mock del router de Next.js
 const mockPush = jest.fn()
@@ -19,8 +21,29 @@ jest.mock('next/navigation', () => ({
   }),
 }))
 
+// Mock del authService
+jest.mock('@/lib/auth.service', () => ({
+  authService: {
+    login: jest.fn(),
+    register: jest.fn(),
+    logout: jest.fn(),
+    refreshToken: jest.fn(),
+    getCurrentUser: jest.fn(),
+    getToken: jest.fn(),
+  },
+}))
+
 // Mock de fetch global
 global.fetch = jest.fn()
+
+// Helper para renderizar con AuthProvider
+const renderWithAuth = (component: React.ReactElement) => {
+  return render(
+    <AuthProvider>
+      {component}
+    </AuthProvider>
+  )
+}
 
 describe('LoginPage', () => {
   beforeEach(() => {
@@ -29,18 +52,25 @@ describe('LoginPage', () => {
   })
 
   describe('Renderizado inicial', () => {
-    it('debe renderizar el formulario de login por defecto', () => {
-      render(<LoginPage />)
+    it('debe renderizar el formulario de login por defecto', async () => {
+      renderWithAuth(<LoginPage />)
       
-      expect(screen.getByText('Bienvenido de Nuevo')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText('Bienvenido de Nuevo')).toBeInTheDocument()
+      })
+      
       expect(screen.getByText('Inicia sesión para continuar cuidando tus plantas')).toBeInTheDocument()
       expect(screen.getByLabelText('Email')).toBeInTheDocument()
       expect(screen.getByLabelText('Contraseña')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /iniciar sesión/i })).toBeInTheDocument()
     })
 
-    it('debe cambiar a modo registro al hacer clic en "Regístrate"', () => {
-      render(<LoginPage />)
+    it('debe cambiar a modo registro al hacer clic en "Regístrate"', async () => {
+      renderWithAuth(<LoginPage />)
+      
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /regístrate/i })).toBeInTheDocument()
+      })
       
       const registerLink = screen.getByRole('button', { name: /regístrate/i })
       fireEvent.click(registerLink)
@@ -54,7 +84,7 @@ describe('LoginPage', () => {
 
   describe('Formulario de Login', () => {
     it('debe validar campos requeridos', async () => {
-      render(<LoginPage />)
+      renderWithAuth(<LoginPage />)
       
       const submitButton = screen.getByRole('button', { name: /iniciar sesión/i })
       fireEvent.click(submitButton)
@@ -66,6 +96,7 @@ describe('LoginPage', () => {
     it('debe manejar login exitoso', async () => {
       const mockResponse = {
         access_token: 'test-token-123',
+        refresh_token: 'test-refresh-123',
         token_type: 'bearer',
         user: {
           id: 1,
@@ -77,12 +108,10 @@ describe('LoginPage', () => {
         },
       }
 
-      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      })
+      // Mock del authService.login
+      ;(authService.login as jest.Mock).mockResolvedValueOnce(mockResponse)
 
-      render(<LoginPage />)
+      renderWithAuth(<LoginPage />)
       
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByLabelText('Contraseña')
@@ -93,18 +122,16 @@ describe('LoginPage', () => {
       fireEvent.click(submitButton)
 
       await waitFor(() => {
-        expect(localStorage.getItem('access_token')).toBe('test-token-123')
+        expect(authService.login).toHaveBeenCalledWith({ email: 'test@example.com', password: 'Password123' })
         expect(mockPush).toHaveBeenCalledWith('/dashboard')
-      })
+      }, { timeout: 3000 })
     })
 
     it('debe manejar errores de login', async () => {
-      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ detail: 'Credenciales inválidas' }),
-      })
+      // Mock del authService.login que lanza error
+      ;(authService.login as jest.Mock).mockRejectedValueOnce(new Error('Credenciales inválidas'))
 
-      render(<LoginPage />)
+      renderWithAuth(<LoginPage />)
       
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByLabelText('Contraseña')
@@ -116,13 +143,13 @@ describe('LoginPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Credenciales inválidas')).toBeInTheDocument()
-      })
+      }, { timeout: 3000 })
     })
   })
 
   describe('Formulario de Registro', () => {
     beforeEach(() => {
-      render(<LoginPage />)
+      renderWithAuth(<LoginPage />)
       const registerLink = screen.getByRole('button', { name: /regístrate/i })
       fireEvent.click(registerLink)
     })
@@ -169,10 +196,8 @@ describe('LoginPage', () => {
     })
 
     it('debe manejar errores de registro', async () => {
-      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ detail: 'El email ya está registrado' }),
-      })
+      // Mock del authService.register que lanza error
+      ;(authService.register as jest.Mock).mockRejectedValueOnce(new Error('El email ya está registrado'))
 
       const nombreInput = screen.getByLabelText('Nombre Completo')
       const emailInput = screen.getByLabelText('Email')
@@ -186,7 +211,7 @@ describe('LoginPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText('El email ya está registrado')).toBeInTheDocument()
-      })
+      }, { timeout: 3000 })
     })
   })
 
@@ -196,7 +221,7 @@ describe('LoginPage', () => {
         new Promise(resolve => setTimeout(() => resolve({ ok: true, json: async () => ({}) }), 100))
       )
 
-      render(<LoginPage />)
+      renderWithAuth(<LoginPage />)
       
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByLabelText('Contraseña')

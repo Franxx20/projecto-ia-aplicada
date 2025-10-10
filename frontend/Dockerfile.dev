@@ -1,0 +1,33 @@
+# Dockerfile para desarrollo de Next.js con hot reload
+FROM node:20-alpine
+
+# Instalar herramientas necesarias
+RUN apk add --no-cache libc6-compat curl
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY package.json package-lock.json* ./
+
+# Instalar dependencias (incluyendo devDependencies)
+RUN npm ci
+
+# Copiar el resto del código (se sobrescribirá con volumen en docker-compose)
+COPY . .
+
+# Variables de entorno para desarrollo
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=4200
+ENV HOSTNAME=0.0.0.0
+
+# Exponer puerto de desarrollo
+EXPOSE 4200
+
+# Health check simple
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:4200/api/health || exit 1
+
+# Comando para iniciar Next.js en modo desarrollo con hot reload
+CMD ["npm", "run", "dev"]

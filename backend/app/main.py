@@ -237,7 +237,7 @@ async def info_sistema():
             "directorio_uploads": configuracion.directorio_uploads,
         },
         "base_datos": {
-            "url": configuracion.url_base_datos.split("://")[0] + "://*****",  # Ocultar credenciales
+            "url": configuracion.database_url.split("://")[0] + "://*****",  # Ocultar credenciales
             "pool_size": configuracion.db_pool_size,
             "echo": configuracion.db_echo
         },

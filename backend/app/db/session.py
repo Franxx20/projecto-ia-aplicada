@@ -19,9 +19,9 @@ configuracion = obtener_configuracion()
 # Para SQLite: check_same_thread=False permite usar la misma conexión en múltiples threads
 # Para PostgreSQL en producción, esto no es necesario
 engine = create_engine(
-    configuracion.url_base_datos,
+    configuracion.database_url,
     echo=configuracion.db_echo,  # Mostrar queries SQL en logs si está activado
-    connect_args={"check_same_thread": False} if "sqlite" in configuracion.url_base_datos else {},
+    connect_args={"check_same_thread": False} if "sqlite" in configuracion.database_url else {},
     pool_pre_ping=True,  # Verificar conexión antes de usar
 )
 

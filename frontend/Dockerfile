@@ -1,15 +1,15 @@
 # Dockerfile multi-stage para Next.js Frontend
 # Optimizado para producción con standalone output
 
-# Stage 1: Dependencias - Instalar solo dependencias de producción
+# Stage 1: Dependencias - Instalar todas las dependencias
 FROM node:20-alpine AS deps
 WORKDIR /app
 
 # Copiar archivos de dependencias
 COPY package.json package-lock.json* ./
 
-# Instalar dependencias de producción
-RUN npm ci --only=production && npm cache clean --force
+# Instalar TODAS las dependencias (necesarias para build)
+RUN npm ci && npm cache clean --force
 
 # Stage 2: Builder - Build de la aplicación Next.js
 FROM node:20-alpine AS builder
@@ -36,16 +36,13 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Crear usuario no-root para seguridad
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 # Copiar archivos necesarios para standalone
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
-# Cambiar ownership de archivos al usuario nextjs
-RUN chown -R nextjs:nodejs /app
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Cambiar a usuario no-root
 USER nextjs

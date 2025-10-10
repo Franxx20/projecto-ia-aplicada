@@ -8,13 +8,20 @@ lerna-debug.log*
 # Build outputs
 dist/
 build/
-.angular/
 .next/
+out/
 
 # Testing
 coverage/
 .nyc_output/
 *.lcov
+__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+jest.config.js
+jest.setup.js
 
 # IDE
 .vscode/
@@ -33,39 +40,30 @@ Thumbs.db
 
 # Docker
 Dockerfile
+Dockerfile.dev
 .dockerignore
 docker-compose*.yml
-# nginx.conf se necesita en el build, no excluir
 
-# Environment files
-.env
-.env.*
-environment.*.ts
+# Environment files (mantener .env.local.example)
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Documentation
 README.md
 docs/
 MIGRATION.md
+*.md
 
-# Angular/Next.js backup files (legacy)
+# Legacy files from Vite/Angular
 *.angular.backup
-src/app.angular.backup/
-.angular/
-.sass-cache/
-/connect.lock
-/coverage
-/libpeerconnection.log
-testem.log
-/typings
+src/
+vite.config.ts
+tsconfig.node.json
+tsconfig.app.json
 angular.json
-app/
-next.config.ts
-next-env.d.ts
-
-# React/Vite specific
-*.local
-.cache/
-.vite/
+index.html
 
 # Misc
 *.tgz

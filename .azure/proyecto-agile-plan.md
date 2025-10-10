@@ -75,30 +75,32 @@ gantt
 ### 🔧 Tasks Técnicas por Área
 
 #### Backend (FastAPI) - 34 puntos
-- **T-001**: Configurar proyecto FastAPI con estructura MVC (5pts)
-- **T-002**: Implementar modelos de usuario con SQLAlchemy (8pts)
-- **T-003**: Crear endpoints de autenticación JWT (13pts)
+- **T-001**: ✅ Configurar proyecto FastAPI con estructura MVC (5pts) - **COMPLETADO**
+- **T-002**: ✅ Implementar modelos de usuario con SQLAlchemy (8pts) - **COMPLETADO**
+- **T-003**: ✅ Crear endpoints de autenticación JWT (13pts) - **COMPLETADO**
 - **T-004**: Desarrollar API de subida de imágenes (8pts)
 
-#### Frontend (Angular) - 29 puntos
-- **T-005**: Setup Angular 17 con Tailwind CSS (5pts)
+#### Frontend (React) - 29 puntos
+- **T-005**: ✅ Setup React + Vite + Tailwind CSS (5pts) - **COMPLETADO (migrado de Angular)**
 - **T-006**: Implementar componentes de login/registro (13pts)
 - **T-007**: Crear servicio de autenticación (8pts)
 - **T-008**: Desarrollar componente de subida de fotos (8pts)
 
 #### Infraestructura/DevOps - 21 puntos
-- **T-009**: Configurar Docker Compose para desarrollo (5pts)
-- **T-010**: Setup PostgreSQL con migraciones (8pts)
+- **T-009**: ✅ Configurar Docker Compose para desarrollo (5pts) - **COMPLETADO**
+- **T-010**: ✅ Setup PostgreSQL con migraciones (8pts) - **COMPLETADO**
 - **T-011**: Configurar Azure DevOps pipelines (8pts)
 
 ### ✅ Criterios de Aceptación MVP
 
 | Criterio | Estado | Prioridad |
 |----------|--------|-----------|
-| Usuario puede registrarse y hacer login | 🔲 | Crítico |
+| Usuario puede registrarse y hacer login | ⏳ 80% (Backend ✅, Frontend pendiente) | Crítico |
 | Usuario puede subir imágenes desde dispositivo/cámara | 🔲 | Crítico |
 | Sistema guarda imágenes en el servidor | 🔲 | Crítico |
-| Interfaz responsiva básica | 🔲 | Alta |
+| Interfaz responsiva básica | ✅ | Alta |
+
+**Progreso Sprint 1**: 40% completado (6/15 tareas) - 46 story points de 102
 
 ---
 

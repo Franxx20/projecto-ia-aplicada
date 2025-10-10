@@ -5,7 +5,7 @@
 Proyecto de Inteligencia Artificial Aplicada desarrollado con arquitectura moderna y escalable:
 
 - **Backend**: FastAPI + SQLAlchemy + PostgreSQL
-- **Frontend**: Angular + TypeScript + Tailwind CSS
+- **Frontend**: Next.js 15 + React 19 + TypeScript + Tailwind CSS
 - **IA**: Claude Sonnet 4
 - **Containerización**: Docker + Docker Compose
 - **Base de Datos**: PostgreSQL
@@ -15,13 +15,13 @@ Proyecto de Inteligencia Artificial Aplicada desarrollado con arquitectura moder
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │                 │    │                 │    │                 │
-│   Angular SPA   │────│   FastAPI API   │────│   PostgreSQL    │
+│   Next.js 15    │────│   FastAPI API   │────│   PostgreSQL    │
 │   (Frontend)    │    │   (Backend)     │    │   (Database)    │
 │                 │    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         │                        │                        │
         │                        │                        │
-    Port 80/4200             Port 8000                Port 5432
+    Port 4200                Port 8000                Port 5432
 ```
 
 ## 📁 Estructura del Proyecto
@@ -39,20 +39,24 @@ projecto-ia-aplicada/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── .dockerignore
-├── frontend/                # Aplicación Angular
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── components/ # Componentes reutilizables
-│   │   │   ├── pages/      # Páginas principales
-│   │   │   ├── services/   # Servicios Angular
-│   │   │   ├── guards/     # Guards de rutas
-│   │   │   ├── models/     # Interfaces TypeScript
-│   │   │   └── utils/      # Utilidades
-│   │   ├── assets/         # Recursos estáticos
-│   │   └── environments/   # Configuraciones
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   └── .dockerignore
+├── frontend/                # Aplicación Next.js
+│   ├── app/
+│   │   ├── api/            # API Routes de Next.js
+│   │   ├── layout.tsx      # Layout principal
+│   │   ├── page.tsx        # Página principal
+│   │   └── globals.css     # Estilos globales
+│   ├── components/
+│   │   ├── ui/             # Componentes UI (shadcn)
+│   │   └── ...             # Componentes personalizados
+│   ├── lib/                # Utilidades y helpers
+│   ├── models/             # Interfaces TypeScript
+│   ├── public/             # Recursos estáticos
+│   ├── Dockerfile          # Dockerfile producción
+│   ├── Dockerfile.dev      # Dockerfile desarrollo
+│   ├── next.config.ts      # Configuración Next.js
+│   ├── tailwind.config.ts  # Configuración Tailwind
+│   ├── package.json        # Dependencias NPM
+│   └── .env.local          # Variables de entorno
 ├── tests/                   # Tests del proyecto
 │   ├── backend/            # Tests Python
 │   ├── frontend/           # Tests Angular
@@ -151,9 +155,10 @@ manage.bat dev
 ```
 
 **URLs de desarrollo:**
-- Frontend: http://localhost:4200
-- Backend: http://localhost:8000
-- Documentación API: http://localhost:8000/docs
+- Frontend (Next.js): http://localhost:4200
+- Backend (FastAPI): http://localhost:8000
+- API Docs (Swagger): http://localhost:8000/docs
+- API Docs (ReDoc): http://localhost:8000/redoc
 
 ### Producción
 
@@ -168,9 +173,9 @@ manage.bat prod
 ```
 
 **URLs de producción:**
-- Frontend: http://localhost:80
-- Backend: http://localhost:8000
-- Admin BD: http://localhost:8080
+- Frontend (Next.js): http://localhost:4200
+- Backend (FastAPI): http://localhost:8000
+- Admin BD (Adminer): http://localhost:8080
 
 ### Otros Comandos Útiles
 
@@ -207,6 +212,102 @@ manage.bat test
 
 ## 🛠️ Desarrollo
 
+### 🎨 Frontend con Next.js 15
+
+Este proyecto utiliza **Next.js 15** con las últimas características:
+
+#### Características Principales
+- **App Router**: Enrutamiento moderno basado en carpetas
+- **React Server Components**: Componentes del servidor por defecto
+- **Streaming**: Renderizado progresivo con Suspense
+- **TypeScript**: Tipado estricto en todo el proyecto
+- **Tailwind CSS v3**: Estilos utility-first
+- **shadcn/ui**: Componentes UI accesibles y customizables
+
+#### Comandos de Desarrollo
+
+```bash
+# Desarrollo local (fuera de Docker)
+cd frontend
+npm install
+npm run dev
+
+# Build de producción
+npm run build
+
+# Iniciar servidor de producción
+npm start
+
+# Linting
+npm run lint
+
+# Tests
+npm test
+```
+
+#### Variables de Entorno
+
+El frontend requiere estas variables en `.env.local`:
+
+```env
+# URL del backend (cambiar según entorno)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# Otras variables públicas (opcionales)
+NEXT_PUBLIC_APP_NAME=Asistente Plantitas
+NEXT_PUBLIC_APP_VERSION=1.0.0
+```
+
+#### Agregar Componentes shadcn/ui
+
+```bash
+# Instalar CLI de shadcn
+npx shadcn@latest init
+
+# Agregar componentes individuales
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add input
+npx shadcn@latest add form
+
+# Ver todos los componentes disponibles
+npx shadcn@latest add
+```
+
+#### Estructura de Rutas
+
+```
+app/
+├── page.tsx              # → /
+├── layout.tsx            # Layout global
+├── login/
+│   └── page.tsx          # → /login
+├── dashboard/
+│   ├── page.tsx          # → /dashboard
+│   └── layout.tsx        # Layout del dashboard
+└── api/
+    └── health/
+        └── route.ts      # → /api/health (API Route)
+```
+
+#### Docker con Next.js
+
+El proyecto incluye dos Dockerfiles:
+
+- **`Dockerfile`**: Build optimizado para producción con output standalone
+- **`Dockerfile.dev`**: Desarrollo con hot reload y volume mounting
+
+```bash
+# Build de producción
+docker build -t frontend-prod -f Dockerfile .
+
+# Build de desarrollo
+docker build -t frontend-dev -f Dockerfile.dev .
+
+# Ejecutar contenedor de desarrollo
+docker run -p 4200:4200 -v $(pwd):/app frontend-dev
+```
+
 ### Estructura de Desarrollo
 
 #### Backend (FastAPI)
@@ -230,17 +331,30 @@ backend/
 └── requirements.txt      # Dependencias
 ```
 
-#### Frontend (Angular)
+#### Frontend (Next.js 15)
 
 ```bash
-frontend/src/app/
-├── components/           # Componentes reutilizables
-├── pages/               # Páginas principales
-├── services/            # Servicios HTTP
-├── guards/              # Guards de rutas
-├── interceptors/        # HTTP interceptors
-├── models/              # Interfaces TypeScript
-└── utils/               # Utilidades
+frontend/
+├── app/
+│   ├── layout.tsx        # Layout principal con metadata
+│   ├── page.tsx          # Página de inicio (/)
+│   ├── globals.css       # Estilos globales Tailwind
+│   └── api/
+│       └── health/
+│           └── route.ts  # Health check endpoint
+├── components/
+│   ├── ui/               # Componentes shadcn/ui
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   └── ...
+│   └── ...               # Componentes personalizados
+├── lib/
+│   └── utils.ts          # Utilidades (cn, etc.)
+├── models/               # Interfaces TypeScript
+├── public/               # Assets estáticos
+├── next.config.ts        # Configuración Next.js
+├── tailwind.config.ts    # Configuración Tailwind
+└── package.json          # Dependencias
 ```
 
 ### Flujo de Desarrollo
@@ -285,15 +399,21 @@ pytest tests/test_auth.py -v
 ### Tests del Frontend
 
 ```bash
-# Unit tests
+# Unit tests con Vitest
 manage.bat shell frontend
 npm test
 
-# E2E tests
-npm run e2e
+# Tests en modo watch
+npm run test:watch
 
 # Tests con coverage
 npm run test:coverage
+
+# Build de producción
+npm run build
+
+# Desarrollo local
+npm run dev
 ```
 
 ### Tests End-to-End
@@ -371,12 +491,16 @@ psql -U postgres -l
 
 #### 5. Frontend No Carga
 ```bash
-# Verificar build de Angular
+# Verificar build de Next.js
 manage.bat shell frontend
 npm run build
 
-# Verificar nginx
+# Verificar logs del contenedor
 manage.bat logs frontend
+
+# Verificar variables de entorno
+cat .env.local  # Linux/Mac
+type .env.local # Windows
 ```
 
 ### Comandos de Diagnóstico
@@ -522,10 +646,11 @@ GET    /api/v1/ia/models       # Modelos disponibles
 - **Tests**: pytest con cobertura mínima 80%
 
 #### TypeScript (Frontend)
-- **Estilo**: Angular Style Guide
-- **Linting**: ESLint + Prettier
-- **Naming**: camelCase para variables, PascalCase para clases
-- **Tests**: Jasmine + Karma
+- **Estilo**: Next.js conventions
+- **Linting**: ESLint con eslint-config-next
+- **Naming**: camelCase para variables, PascalCase para componentes
+- **Tests**: Vitest + React Testing Library
+- **Componentes**: Usar shadcn/ui como base
 
 #### Git Commits
 ```bash
@@ -557,21 +682,30 @@ tests/
 
 ## 📝 Changelog
 
-### [1.0.0] - 2025-09-19
+### [1.0.0] - 2025-10-10
 #### Added
 - Configuración inicial del proyecto
 - Backend FastAPI con autenticación JWT
-- Frontend Angular con Tailwind CSS
+- Frontend Next.js 15 con React 19
+- Migración de Vite a Next.js
+- Componentes UI con shadcn/ui
 - Containerización completa con Docker
 - Scripts de gestión automatizados
 - Documentación completa
+
+#### Changed
+- Frontend migrado de Angular/Vite a Next.js 15
+- Tailwind CSS actualizado a v3.4
+- Puerto frontend estandarizado a 4200
 
 ## 🆘 Soporte
 
 ### Recursos Útiles
 
 - **Documentación FastAPI**: https://fastapi.tiangolo.com/
-- **Documentación Angular**: https://angular.io/docs
+- **Documentación Next.js**: https://nextjs.org/docs
+- **Documentación React**: https://react.dev/
+- **shadcn/ui Components**: https://ui.shadcn.com/
 - **Docker Compose**: https://docs.docker.com/compose/
 - **PostgreSQL**: https://www.postgresql.org/docs/
 
@@ -586,7 +720,7 @@ tests/
 **P: ¿Cómo cambio la base de datos a MySQL?**
 R: Modifica `docker-compose.yml` y cambia las configuraciones de conexión en `backend/app/core/database.py`
 
-**P: ¿Puedo usar Vue en lugar de Angular?**
+**P: ¿Puedo usar Vue en lugar de Next.js?**
 R: Sí, reemplaza el contenido de `frontend/` con tu proyecto Vue y ajusta el `Dockerfile`
 
 **P: ¿Cómo agrego nuevos servicios?**
@@ -601,7 +735,9 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 ## 🙏 Agradecimientos
 
 - **FastAPI** por el excelente framework de API
-- **Angular** por el robusto framework frontend
+- **Next.js** por el poderoso framework React
+- **React** por la librería UI innovadora
+- **shadcn/ui** por los componentes UI elegantes
 - **PostgreSQL** por la confiable base de datos
 - **Docker** por la containerización seamless
 - **Claude AI** por la asistencia en desarrollo

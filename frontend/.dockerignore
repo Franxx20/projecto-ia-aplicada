@@ -34,7 +34,7 @@ Thumbs.db
 Dockerfile
 .dockerignore
 docker-compose*.yml
-nginx.conf
+# nginx.conf se necesita en el build, no excluir
 
 # Environment files
 .env

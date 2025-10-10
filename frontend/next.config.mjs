@@ -1,5 +1,3 @@
-import type { NextConfig } from "next";
-
 /**
  * Configuración de Next.js para Asistente Plantitas
  * 
@@ -8,8 +6,10 @@ import type { NextConfig } from "next";
  * - Integración con Backend FastAPI
  * - Build de producción optimizado
  * - Variables de entorno configuradas
+ * 
+ * @type {import('next').NextConfig}
  */
-const nextConfig: NextConfig = {
+const nextConfig = {
   // Output standalone para Docker (optimiza el tamaño de la imagen)
   output: 'standalone',
 

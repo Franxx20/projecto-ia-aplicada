@@ -1,40 +1,65 @@
-# Dockerfile multi-stage para React + Vite Frontend
-# Optimizado para producción con nginx
+# Dockerfile multi-stage para Next.js Frontend
+# Optimizado para producción con standalone output
 
-# Stage 1: Builder - Build de la aplicación Vite
-FROM node:20-alpine AS builder
+# Stage 1: Dependencias - Instalar solo dependencias de producción
+FROM node:20-alpine AS deps
 WORKDIR /app
 
 # Copiar archivos de dependencias
 COPY package.json package-lock.json* ./
 
-# Instalar todas las dependencias (incluidas dev para build)
-RUN npm ci
+# Instalar dependencias de producción
+RUN npm ci --only=production && npm cache clean --force
+
+# Stage 2: Builder - Build de la aplicación Next.js
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copiar dependencias desde deps
+COPY --from=deps /app/node_modules ./node_modules
 
 # Copiar código fuente
 COPY . .
 
 # Variables de entorno necesarias para build
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Build de Vite - genera carpeta dist/
+# Build de Next.js con standalone output
 RUN npm run build
 
-# Stage 2: Runner - Imagen final optimizada con nginx
-FROM nginx:alpine AS runner
+# Stage 3: Runner - Imagen final optimizada
+FROM node:20-alpine AS runner
+WORKDIR /app
 
-# Copiar configuración de nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copiar archivos estáticos compilados desde builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Crear usuario no-root para seguridad
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copiar archivos necesarios para standalone
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Cambiar ownership de archivos al usuario nextjs
+RUN chown -R nextjs:nodejs /app
+
+# Cambiar a usuario no-root
+USER nextjs
 
 # Exponer puerto 4200
 EXPOSE 4200
 
-# Health check para verificar que nginx responde
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:4200/ || exit 1
+# Variables de entorno de runtime
+ENV PORT=4200
+ENV HOSTNAME="0.0.0.0"
 
-# Comando por defecto - nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Health check para verificar que Next.js responde
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:4200/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Comando por defecto - Next.js standalone server
+CMD ["node", "server.js"]

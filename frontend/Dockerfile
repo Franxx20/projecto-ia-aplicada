@@ -1,46 +1,64 @@
-# Dockerfile multi-stage para React Frontend con Vite
+# Dockerfile multi-stage para Next.js Frontend
+# Optimizado para output standalone y Docker
 
-# Stage 1: Build de la aplicación React
-FROM node:18-alpine AS build
-
-# Configurar directorio de trabajo
+# Stage 1: Dependencies - Instalar solo dependencias de producción
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copiar archivos de configuración de dependencias
-COPY package*.json ./
+# Copiar archivos de dependencias
+COPY package.json package-lock.json* ./
 
-# Instalar dependencias (usar install en lugar de ci para generar lock file)
-RUN npm install && npm cache clean --force
+# Instalar dependencias (solo producción para optimizar tamaño)
+RUN npm ci --only=production && npm cache clean --force
 
-# Copiar código fuente
+# Stage 2: Builder - Build de la aplicación Next.js
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copiar dependencias desde stage anterior
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build de la aplicación con Vite
+# Variables de entorno necesarias para build
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Instalar todas las dependencias (incluidas dev para build)
+RUN npm ci
+
+# Build de Next.js con output standalone
 RUN npm run build
 
-# Stage 2: Servir con Nginx
-FROM nginx:alpine
+# Stage 3: Runner - Imagen final optimizada
+FROM node:20-alpine AS runner
+WORKDIR /app
 
-# Copiar configuración personalizada de nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=4200
+ENV HOSTNAME=0.0.0.0
 
-# Copiar archivos built desde stage anterior (Vite genera en /dist)
-COPY --from=build /app/dist /usr/share/nginx/html
+# Crear usuario no-root para seguridad
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Crear directorios con permisos apropiados para nginx
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chown -R nginx:nginx /var/log/nginx && \
-    chown -R nginx:nginx /etc/nginx/conf.d && \
-    touch /var/run/nginx.pid && \
-    chown -R nginx:nginx /var/run/nginx.pid
+# Copiar archivos públicos
+COPY --from=builder /app/public ./public
 
-# Exponer puerto
-EXPOSE 80
+# Copiar standalone output (Next.js genera estructura optimizada)
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+# Cambiar a usuario no-root
+USER nextjs
 
-# Comando por defecto (nginx se ejecuta con el usuario nginx por defecto)
-CMD ["nginx", "-g", "daemon off;"]
+# Exponer puerto configurado
+EXPOSE 4200
+
+# Health check para verificar que Next.js responde
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:4200/api/health', (r) => {if(r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Comando por defecto - Next.js standalone server
+CMD ["node", "server.js"]

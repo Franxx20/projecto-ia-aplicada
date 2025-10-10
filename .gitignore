@@ -46,6 +46,7 @@ pickle-email-*.html
 .rvmrc
 /config/master.key
 /config/credentials.yml.enc
+/proyecto-plantitas/*
 
 # ===============================================
 # PYTHON / FASTAPI

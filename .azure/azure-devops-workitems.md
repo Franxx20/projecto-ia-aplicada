@@ -329,13 +329,16 @@ Epic
   "description": "Setup inicial de FastAPI con estructura MVC",
   "assignedTo": "Backend Developer",
   "effort": 5,
+  "status": "Done",
+  "completedDate": "2025-10-05",
   "tags": "backend;setup;fastapi;mvc",
   "acceptanceCriteria": [
-    "Proyecto FastAPI inicializado",
-    "Estructura de carpetas según convenciones",
-    "Configuración básica completada",
-    "Health check endpoint funcional"
-  ]
+    "✅ Proyecto FastAPI inicializado",
+    "✅ Estructura de carpetas según convenciones",
+    "✅ Configuración básica completada",
+    "✅ Health check endpoint funcional"
+  ],
+  "notes": "Completado con 84.16% de cobertura de tests. 31 tests pasando."
 }
 ```
 
@@ -348,13 +351,16 @@ Epic
   "description": "Implementar modelos de usuario con SQLAlchemy ORM",
   "assignedTo": "Backend Developer",
   "effort": 8,
+  "status": "Done",
+  "completedDate": "2025-10-06",
   "tags": "backend;models;sqlalchemy;database",
   "acceptanceCriteria": [
-    "Modelo User con campos requeridos",
-    "Migraciones de Alembic configuradas", 
-    "Relaciones de BD definidas",
-    "Validaciones a nivel modelo"
-  ]
+    "✅ Modelo User con campos requeridos",
+    "✅ Migraciones de Alembic configuradas", 
+    "✅ Relaciones de BD definidas",
+    "✅ Validaciones a nivel modelo"
+  ],
+  "notes": "Incluye hashing de contraseñas con bcrypt, métodos de activación/desactivación, índices optimizados."
 }
 ```
 
@@ -367,13 +373,18 @@ Epic
   "description": "Crear endpoints de autenticación con JWT tokens",
   "assignedTo": "Backend Developer", 
   "effort": 13,
+  "status": "Done",
+  "completedDate": "2025-10-08",
   "tags": "backend;auth;jwt;api",
   "acceptanceCriteria": [
-    "POST /auth/register implementado",
-    "POST /auth/login implementado", 
-    "Middleware JWT funcional",
-    "Validaciones y rate limiting"
-  ]
+    "✅ POST /auth/register implementado",
+    "✅ POST /auth/login implementado", 
+    "✅ POST /auth/refresh implementado",
+    "✅ POST /auth/logout implementado",
+    "✅ Middleware JWT funcional",
+    "⏳ Rate limiting (pendiente)"
+  ],
+  "notes": "Sistema completo con blacklist de tokens, refresh token de 7 días, validaciones de contraseña segura."
 }
 ```
 
@@ -382,19 +393,24 @@ Epic
 ```json
 {
   "workItemType": "Task",
-  "title": "Setup Angular 17 + Tailwind",
+  "title": "Setup React + Vite + Tailwind",
   "id": "T-005",
   "parentUserStory": "US-001",
-  "description": "Configuración inicial de Angular con Tailwind CSS",
+  "description": "Configuración de React 18 con Vite y Tailwind CSS (migrado desde Angular)",
   "assignedTo": "Frontend Developer",
   "effort": 5,
-  "tags": "frontend;angular;tailwind;setup",
+  "status": "Done",
+  "completedDate": "2025-10-09",
+  "tags": "frontend;react;vite;tailwind;setup;migration",
   "acceptanceCriteria": [
-    "Angular 17 configurado correctamente",
-    "Tailwind CSS integrado", 
-    "Estructura de componentes creada",
-    "Routing básico implementado"
-  ]
+    "✅ React 18 + TypeScript configurado",
+    "✅ Vite 5 como build tool",
+    "✅ Tailwind CSS integrado", 
+    "✅ Estructura de carpetas creada",
+    "✅ Tests con Vitest configurados",
+    "✅ Landing page funcionando"
+  ],
+  "notes": "Migración exitosa de Angular a React. Stack más moderno y performante. Incluye ESLint, PostCSS."
 }
 ```
 

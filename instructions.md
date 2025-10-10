@@ -5,7 +5,7 @@ Conversa y enseña sobre lo que haces mientras programas.
 
 # Arquitectura: MVC
 Backend: FastApi, sqlalchemy Como ORM
-Frontend: Angular + Typescript + Angular CLI + Tailwind
+Frontend: React + Typescript + Vite + Tailwind
 Database: Postgresql (dev/prod)
 IA: Claude Sonnet 4
 
@@ -21,19 +21,17 @@ IA: Claude Sonnet 4
     /utils        # Utilidades y helpers
 /frontend
   /src
-    /app
-      /components   # Componentes reutilizables
-      /pages        # Páginas/Vistas principales
-      /services     # Servicios e inyección de dependencias
-      /guards       # Guards para rutas y autenticación
-      /interceptors # HTTP interceptors
-      /models       # Interfaces y tipos TypeScript
-      /utils        # Utilidades del frontend
-    /assets         # Recursos estáticos
-    /environments   # Configuraciones de entorno
+    /components   # Componentes reutilizables
+    /pages        # Páginas/Vistas principales
+    /services     # Servicios y lógica de negocio
+    /hooks        # Custom hooks de React
+    /context      # Context API para estado global
+    /models       # Interfaces y tipos TypeScript
+    /utils        # Utilidades del frontend
+    /assets       # Recursos estáticos
 /tests
   /backend       # Tests de Python
-  /frontend      # Tests de Angular/TypeScript
+  /frontend      # Tests de React/TypeScript
   /e2e          # Tests end-to-end con Cypress
 ```
 
@@ -42,8 +40,8 @@ Utilizar la nomenclatura tradicional de cada lenguaje/framework. Las funciones t
 
 ## Convenciones Específicas:
 - **Python**: snake_case para funciones y variables, PascalCase para clases
-- **TypeScript/Angular**: camelCase para variables y funciones, PascalCase para clases/componentes, kebab-case para selectores
-- **Archivos**: kebab-case para nombres de archivos y carpetas
+- **TypeScript/React**: camelCase para variables y funciones, PascalCase para componentes y clases
+- **Archivos**: kebab-case para nombres de archivos y carpetas, PascalCase para componentes React
 - **Rutas API**: kebab-case (/usuarios/crear-perfil)
 - **Variables de entorno**: UPPER_SNAKE_CASE
 
@@ -53,7 +51,7 @@ Agregar comentarios claros y concisos en el código
 ## Estándares de Documentación:
 - **Python**: Docstrings con formato Google Style
 - **TypeScript**: JSDoc para funciones complejas
-- **Angular**: Comentarios descriptivos en templates complejos y decoradores
+- **React**: Comentarios descriptivos en componentes complejos y PropTypes/TypeScript interfaces
 - **README**: Mantener documentación de setup y deployment actualizada
 
 # Idioma: 
@@ -88,30 +86,30 @@ Siempre responde y pregunta en español
 - Documenta las apis con comentarios
 
 # Frontend Guidelines:
-- Servicios para lógica reutilizable e inyección de dependencias
-- @Input() y @Output() tipados en componentes
-- EventEmitter con tipos definidos
-- Observables y reactive forms
-- Lazy loading para módulos y componentes
-- OnPush change detection strategy cuando sea apropiado
-- Standalone components para mejor tree-shaking
+- Componentes funcionales con TypeScript
+- Custom hooks para lógica reutilizable
+- Props tipadas con interfaces TypeScript
+- Context API o state management library para estado global
+- Observables y manejo asíncrono con async/await
+- Code splitting y lazy loading cuando sea apropiado
+- Memoization con useMemo y useCallback para optimización
 
-## Patrones Angular Específicos:
-- **Inyección de Dependencias**: Usar servicios singleton para estado compartido
-- **RxJS**: Observables para manejo asíncrono, unsubscribe en OnDestroy
-- **Reactive Forms**: FormBuilder y validaciones personalizadas
-- **Guards**: CanActivate, CanDeactivate para protección de rutas
-- **Interceptors**: Para manejo global de HTTP requests/responses
-- **Pipes**: Para transformación de datos en templates
-- **Directives**: Para comportamientos reutilizables del DOM
+## Patrones React Específicos:
+- **Custom Hooks**: Extraer lógica reutilizable en hooks personalizados
+- **Context API**: Para estado global y evitar prop drilling
+- **React Hook Form**: Para manejo de formularios con validaciones
+- **Error Boundaries**: Para manejo de errores en componentes
+- **Suspense y Lazy**: Para code splitting y carga diferida
+- **useEffect cleanup**: Limpiar efectos secundarios apropiadamente
+- **TypeScript strict mode**: Tipado estricto en todo el proyecto
 
 # Test:
 Pytest para python unit testing
 pytest-asyncio para probar rutas FastAPI (async)
-Jasmine + Karma para unit testing de Angular
-@angular/testing librería oficial para testear componentes Angular
-Protractor/Cypress para end-to-end testing en el navegador
-TestBed para configuración de tests de Angular
+Jest + React Testing Library para unit testing de React
+Vitest como alternativa moderna a Jest
+Testing Library para testear componentes React
+Cypress para end-to-end testing en el navegador
 
 ## Cobertura de Tests:
 - Mínimo 80% de cobertura en lógica de negocio

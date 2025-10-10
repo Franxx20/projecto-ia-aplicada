@@ -23,7 +23,7 @@ export default function HomePage() {
               <Button variant="ghost">Iniciar Sesión</Button>
             </Link>
             <Link href="/login">
-              <Button>Comenzar</Button>
+              <Button>Registrarse</Button>
             </Link>
           </nav>
         </div>

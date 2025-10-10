@@ -17,15 +17,18 @@ Date: Octubre 2025
 Version: 0.1.0 (Sprint 1 - T-001)
 """
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 import datetime
 import os
 import sys
 
 # Importar configuración
 from .core.config import obtener_configuracion
+from .db.session import get_db
 
 # Obtener configuración de la aplicación
 configuracion = obtener_configuracion()
@@ -120,7 +123,7 @@ async def endpoint_raiz():
             "openapi_json": "/openapi.json"
         },
         "endpoints_disponibles": {
-            "salud": "/salud",
+            "health": "/health",
             "info": "/info",
             "metricas": "/metricas"
         }
@@ -128,19 +131,22 @@ async def endpoint_raiz():
 
 
 @app.get(
-    "/salud",
+    "/health",
     summary="Health Check",
     description="Endpoint de health check para verificar el estado del servicio",
     response_description="Estado del servicio y sus dependencias",
     status_code=status.HTTP_200_OK,
     tags=["Sistema"]
 )
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
     """
     Health check endpoint
     
     Verifica el estado del servicio y sus dependencias (base de datos, APIs externas).
     Usado por sistemas de monitoreo, orchestradores (Kubernetes), y load balancers.
+    
+    Args:
+        db: Sesión de base de datos inyectada por FastAPI
     
     Returns:
         dict: Estado detallado del servicio
@@ -150,38 +156,42 @@ async def health_check():
         503: Servicio no disponible
     """
     
-    # TODO: Agregar checks de base de datos cuando se implemente en T-002
-    # db_status = await verificar_conexion_base_datos()
+    # Verificar conexión a base de datos
+    db_estado = "operacional"
+    db_mensaje = "Base de datos conectada y funcionando"
+    
+    try:
+        # Ejecutar query simple para verificar conexión
+        db.execute(text("SELECT 1"))
+        db_estado = "operacional"
+    except Exception as e:
+        db_estado = "error"
+        db_mensaje = f"Error de conexión: {str(e)[:100]}"
     
     estado_servicio = {
-        "estado": "saludable",
-        "servicio": "asistente-plantitas-api",
+        "status": "healthy" if db_estado == "operacional" else "unhealthy",
+        "service": "asistente-plantitas-api",
         "version": configuracion.version,
-        "entorno": configuracion.entorno,
+        "environment": configuracion.entorno,
         "timestamp": datetime.datetime.now().isoformat(),
-        "componentes": {
+        "checks": {
             "api": {
-                "estado": "operacional",
-                "mensaje": "API REST funcionando correctamente"
+                "status": "up",
+                "message": "API REST funcionando correctamente"
             },
-            "base_datos": {
-                "estado": "pendiente",
-                "mensaje": "Configuración pendiente (T-002)"
+            "database": {
+                "status": "up" if db_estado == "operacional" else "down",
+                "message": db_mensaje
             },
-            "almacenamiento": {
-                "estado": "operacional",
-                "mensaje": f"Directorio uploads: {configuracion.directorio_uploads}"
+            "storage": {
+                "status": "up",
+                "message": f"Directorio uploads: {configuracion.directorio_uploads}"
             }
         }
     }
     
-    # Verificar si todos los componentes están operacionales
-    todos_operacionales = all(
-        comp["estado"] in ["operacional", "pendiente"]
-        for comp in estado_servicio["componentes"].values()
-    )
-    
-    if not todos_operacionales:
+    # Si algún componente crítico falla, retornar 503
+    if db_estado != "operacional":
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content=estado_servicio

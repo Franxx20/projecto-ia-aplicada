@@ -59,7 +59,7 @@ projecto-ia-aplicada/
 │   └── .env.local          # Variables de entorno
 ├── tests/                   # Tests del proyecto
 │   ├── backend/            # Tests Python
-│   ├── frontend/           # Tests Angular
+│   ├── frontend/           # Tests Next.js/React
 │   └── e2e/               # Tests end-to-end
 ├── data/                   # Datos persistentes
 ├── logs/                   # Logs de aplicación

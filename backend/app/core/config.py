@@ -43,7 +43,7 @@ class Configuracion(BaseSettings):
     # URL de conexión a la base de datos
     # Desarrollo: SQLite (por defecto)
     # Producción: PostgreSQL (desde variable de entorno DATABASE_URL)
-    url_base_datos: str = "sqlite:///./plantitas_dev.db"
+    database_url: str = "sqlite:///./plantitas_dev.db"
     
     # Pool de conexiones (solo para PostgreSQL)
     db_pool_size: int = 5

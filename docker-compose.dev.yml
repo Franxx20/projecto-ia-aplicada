@@ -46,11 +46,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+      args:
+        # Pasar variables de build para Next.js
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: ${PROJECT_NAME:-projecto-ia}_frontend_dev
     restart: unless-stopped
     environment:
       # Variables de entorno para Next.js en desarrollo
-      - NEXT_PUBLIC_API_URL=${API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - NODE_ENV=development
       - PORT=4200
       - HOSTNAME=0.0.0.0

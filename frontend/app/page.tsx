@@ -22,7 +22,7 @@ export default function HomePage() {
             <Link href="/login">
               <Button variant="ghost">Iniciar Sesión</Button>
             </Link>
-            <Link href="/login">
+            <Link href="/login?mode=register">
               <Button>Registrarse</Button>
             </Link>
           </nav>
@@ -115,7 +115,7 @@ export default function HomePage() {
             Únete a miles de jardineros que ya usan Asistente Plantitas para cuidar
             mejor de sus plantas.
           </p>
-          <Link href="/login">
+          <Link href="/login?mode=register">
             <Button size="lg" className="gap-2">
               Crear Cuenta Gratis
             </Button>

@@ -12,7 +12,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,8 +22,12 @@ import { useAuth } from "@/hooks/useAuth"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { iniciarSesion, registrarse, estaAutenticado, estaCargando: authLoading } = useAuth()
-  const [isLogin, setIsLogin] = useState(true)
+  
+  // Detectar el modo desde la URL: /login?mode=register
+  const modeParam = searchParams?.get('mode')
+  const [isLogin, setIsLogin] = useState(modeParam !== 'register')
   const [error, setError] = useState("")
   
   // Formulario de login

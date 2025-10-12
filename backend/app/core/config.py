@@ -89,6 +89,14 @@ class Configuracion(BaseSettings):
     max_tamano_archivo_mb: int = 10  # Tamaño máximo de archivo en MB
     formatos_imagen_permitidos: List[str] = ["jpg", "jpeg", "png", "webp"]
     
+    # ==================== Azure Blob Storage ====================
+    # Configuración para Azure Blob Storage (T-004)
+    azure_storage_connection_string: str = ""
+    azure_storage_account_name: str = ""
+    azure_storage_account_key: str = ""
+    azure_storage_container_name: str = "plantitas-imagenes"
+    azure_storage_use_emulator: bool = False  # True para usar Azurite en desarrollo
+    
     # ==================== APIs Externas ====================
     # PlantNet API (para Sprint 2)
     plantnet_api_key: str = ""

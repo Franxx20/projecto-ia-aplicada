@@ -7,8 +7,16 @@ Funciones para crear, validar y decodificar tokens JWT usando python-jose.
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
 
 from app.core.config import obtener_configuracion
+from app.db.session import get_db
+
+
+# Esquema de seguridad HTTP Bearer
+security = HTTPBearer()
 
 
 def crear_token_acceso(
@@ -212,3 +220,77 @@ def validar_refresh_token(token: str) -> Optional[Dict[str, Any]]:
         return payload
     
     return None
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """
+    Dependencia de FastAPI para obtener el usuario autenticado actual.
+    
+    Extrae y valida el token JWT del header Authorization,
+    luego obtiene el usuario correspondiente de la base de datos.
+    
+    Args:
+        credentials: Credenciales HTTP Bearer del header Authorization
+        db: Sesión de base de datos
+        
+    Returns:
+        Usuario: Modelo del usuario autenticado
+        
+    Raises:
+        HTTPException: Si el token es inválido o el usuario no existe
+        
+    Example:
+        ```python
+        @router.get("/perfil")
+        async def obtener_perfil(
+            usuario_actual = Depends(get_current_user)
+        ):
+            return {"email": usuario_actual.email}
+        ```
+    """
+    # Importar aquí para evitar importación circular
+    from app.db.models import Usuario
+    
+    # Extraer token del header
+    token = credentials.credentials
+    
+    # Decodificar token
+    payload = decodificar_token(token)
+    
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Extraer email del payload
+    email: str = payload.get("sub")
+    if email is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido: falta el subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Buscar usuario en base de datos
+    usuario = db.query(Usuario).filter(Usuario.email == email).first()
+    
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario no encontrado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Verificar que el usuario esté activo
+    if not usuario.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario inactivo",
+        )
+    
+    return usuario

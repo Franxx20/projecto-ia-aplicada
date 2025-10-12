@@ -63,6 +63,8 @@ class Configuracion(BaseSettings):
     # ==================== CORS ====================
     # Orígenes permitidos para CORS
     origenes_cors: List[str] = [
+        "http://localhost",            # Localhost sin puerto
+        "http://127.0.0.1",            # 127.0.0.1 sin puerto
         "http://localhost:4200",       # Angular dev server
         "http://localhost:3000",       # Alternativo
         "http://127.0.0.1:4200",

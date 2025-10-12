@@ -355,6 +355,12 @@ test-results/
 /uploads/plantas/
 /uploads/temp/
 
+# Imágenes de prueba
+backend/test_potus.jpg
+backend/potus_test.jpg
+backend/test_plantnet_quick.py
+*.test.jpg
+
 # Backups de la aplicación  
 /app-backups/
 

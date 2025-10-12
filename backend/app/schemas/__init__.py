@@ -33,6 +33,15 @@ from .planta import (
     RegistrarRiegoRequest
 )
 
+from .plantnet import (
+    PlantNetIdentificacionRequest,
+    PlantNetIdentificacionResponse,
+    PlantNetResultadoSimplificado,
+    PlantNetRespuestaFormateada,
+    PlantNetQuotaInfo,
+    PlantNetResult
+)
+
 __all__ = [
     # Auth schemas
     "UserRegisterRequest",
@@ -51,4 +60,11 @@ __all__ = [
     "PlantaStats",
     "PlantaListResponse",
     "RegistrarRiegoRequest",
+    # PlantNet schemas
+    "PlantNetIdentificacionRequest",
+    "PlantNetIdentificacionResponse",
+    "PlantNetResultadoSimplificado",
+    "PlantNetRespuestaFormateada",
+    "PlantNetQuotaInfo",
+    "PlantNetResult",
 ]

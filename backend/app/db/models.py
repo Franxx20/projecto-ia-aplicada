@@ -767,3 +767,413 @@ class Planta(Base):
         self.updated_at = datetime.utcnow()
 
 
+# ==================== MODELO ESPECIE ====================
+
+class Especie(Base):
+    """
+    Modelo para almacenar información de especies de plantas.
+    
+    Representa una especie botánica con sus características, requisitos
+    de cuidado y relaciones con identificaciones.
+    
+    Attributes:
+        id (int): Identificador único de la especie
+        nombre_comun (str): Nombre común de la especie
+        nombre_cientifico (str): Nombre científico (único)
+        familia (str): Familia taxonómica
+        descripcion (str): Descripción de la especie
+        cuidados_basicos (str): JSON con cuidados básicos
+        nivel_dificultad (str): facil, medio, dificil
+        luz_requerida (str): baja, media, alta
+        riego_frecuencia (str): Descripción de frecuencia de riego
+        temperatura_min (int): Temperatura mínima en grados Celsius
+        temperatura_max (int): Temperatura máxima en grados Celsius
+        humedad_requerida (str): baja, media, alta
+        toxicidad (str): ninguna, leve, moderada, alta
+        origen_geografico (str): Región de origen
+        imagen_referencia_url (str): URL de imagen de referencia
+        created_at (datetime): Fecha de creación
+        updated_at (datetime): Fecha de última actualización
+        is_active (bool): Indica si está activa
+        
+    Relations:
+        identificaciones: Lista de identificaciones de esta especie
+    """
+    
+    __tablename__ = "especies"
+    
+    # Campos del modelo
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único de la especie"
+    )
+    
+    nombre_comun = Column(
+        String(255),
+        nullable=False,
+        index=True,
+        comment="Nombre común de la especie"
+    )
+    
+    nombre_cientifico = Column(
+        String(255),
+        nullable=False,
+        unique=True,
+        index=True,
+        comment="Nombre científico (único)"
+    )
+    
+    familia = Column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Familia taxonómica"
+    )
+    
+    descripcion = Column(
+        Text,
+        nullable=True,
+        comment="Descripción detallada de la especie"
+    )
+    
+    cuidados_basicos = Column(
+        Text,
+        nullable=True,
+        comment="JSON con cuidados básicos"
+    )
+    
+    nivel_dificultad = Column(
+        String(50),
+        nullable=False,
+        default="medio",
+        comment="Nivel de dificultad: facil, medio, dificil"
+    )
+    
+    luz_requerida = Column(
+        String(50),
+        nullable=True,
+        comment="Nivel de luz: baja, media, alta"
+    )
+    
+    riego_frecuencia = Column(
+        String(255),
+        nullable=True,
+        comment="Descripción de frecuencia de riego"
+    )
+    
+    temperatura_min = Column(
+        Integer,
+        nullable=True,
+        comment="Temperatura mínima en grados Celsius"
+    )
+    
+    temperatura_max = Column(
+        Integer,
+        nullable=True,
+        comment="Temperatura máxima en grados Celsius"
+    )
+    
+    humedad_requerida = Column(
+        String(50),
+        nullable=True,
+        comment="Nivel de humedad: baja, media, alta"
+    )
+    
+    toxicidad = Column(
+        String(50),
+        nullable=True,
+        comment="Nivel de toxicidad: ninguna, leve, moderada, alta"
+    )
+    
+    origen_geografico = Column(
+        String(255),
+        nullable=True,
+        comment="Región geográfica de origen"
+    )
+    
+    imagen_referencia_url = Column(
+        String(500),
+        nullable=True,
+        comment="URL de imagen de referencia"
+    )
+    
+    # Timestamps
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de creación"
+    )
+    
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de última actualización"
+    )
+    
+    is_active = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="Indica si la especie está activa"
+    )
+    
+    # Relaciones
+    identificaciones = relationship(
+        "Identificacion",
+        back_populates="especie",
+        cascade="all, delete-orphan"
+    )
+    
+    # Índices
+    __table_args__ = (
+        Index('idx_especie_familia', 'familia'),
+        Index('idx_especie_dificultad', 'nivel_dificultad'),
+        Index('idx_especie_activa', 'is_active'),
+    )
+    
+    @property
+    def nombre_display(self) -> str:
+        """Retorna el nombre para mostrar con formato: Nombre Común (nombre científico)."""
+        if self.nombre_comun and self.nombre_cientifico:
+            return f"{self.nombre_comun} ({self.nombre_cientifico})"
+        return self.nombre_comun if self.nombre_comun else self.nombre_cientifico
+    
+    def __repr__(self) -> str:
+        """Representación en string del objeto."""
+        return f"<Especie(id={self.id}, nombre_comun='{self.nombre_comun}', nombre_cientifico='{self.nombre_cientifico}')>"
+    
+    def __str__(self) -> str:
+        """String para display."""
+        return self.nombre_comun
+    
+    def to_dict(self) -> dict:
+        """
+        Convierte el modelo a diccionario.
+        
+        Returns:
+            dict: Diccionario con los datos de la especie
+        """
+        return {
+            'id': self.id,
+            'nombre_comun': self.nombre_comun,
+            'nombre_cientifico': self.nombre_cientifico,
+            'nombre_display': self.nombre_display,
+            'familia': self.familia,
+            'descripcion': self.descripcion,
+            'cuidados_basicos': self.cuidados_basicos,
+            'nivel_dificultad': self.nivel_dificultad,
+            'luz_requerida': self.luz_requerida,
+            'riego_frecuencia': self.riego_frecuencia,
+            'temperatura_min': self.temperatura_min,
+            'temperatura_max': self.temperatura_max,
+            'humedad_requerida': self.humedad_requerida,
+            'toxicidad': self.toxicidad,
+            'origen_geografico': self.origen_geografico,
+            'imagen_referencia_url': self.imagen_referencia_url,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'is_active': self.is_active
+        }
+
+
+# ==================== MODELO IDENTIFICACION ====================
+
+class Identificacion(Base):
+    """
+    Modelo para registrar identificaciones de plantas.
+    
+    Almacena los resultados de identificación de plantas, ya sea por IA
+    (PlantNet) o manual por el usuario.
+    
+    Attributes:
+        id (int): Identificador único
+        usuario_id (int): ID del usuario que realizó la identificación
+        imagen_id (int): ID de la imagen identificada
+        especie_id (int): ID de la especie identificada
+        confianza (int): Nivel de confianza (0-100)
+        origen (str): Origen: ia_plantnet, manual
+        validado (bool): Si fue validado por el usuario
+        fecha_identificacion (datetime): Fecha de la identificación
+        fecha_validacion (datetime): Fecha de validación
+        notas_usuario (str): Notas del usuario
+        metadatos_ia (str): JSON con metadatos de la IA
+        created_at (datetime): Fecha de creación
+        updated_at (datetime): Fecha de actualización
+        
+    Relations:
+        usuario: Relación con Usuario
+        imagen: Relación con Imagen
+        especie: Relación con Especie
+    """
+    
+    __tablename__ = "identificaciones"
+    
+    # Campos del modelo
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único"
+    )
+    
+    usuario_id = Column(
+        Integer,
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID del usuario"
+    )
+    
+    imagen_id = Column(
+        Integer,
+        ForeignKey("imagenes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID de la imagen"
+    )
+    
+    especie_id = Column(
+        Integer,
+        ForeignKey("especies.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID de la especie identificada"
+    )
+    
+    confianza = Column(
+        Integer,
+        nullable=False,
+        comment="Nivel de confianza (0-100)"
+    )
+    
+    origen = Column(
+        String(50),
+        nullable=False,
+        comment="Origen: ia_plantnet, manual"
+    )
+    
+    validado = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Si fue validado por el usuario"
+    )
+    
+    fecha_identificacion = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de la identificación"
+    )
+    
+    fecha_validacion = Column(
+        DateTime,
+        nullable=True,
+        comment="Fecha de validación por el usuario"
+    )
+    
+    notas_usuario = Column(
+        Text,
+        nullable=True,
+        comment="Notas del usuario sobre la identificación"
+    )
+    
+    metadatos_ia = Column(
+        Text,
+        nullable=True,
+        comment="JSON con metadatos de la IA (score, versión, etc.)"
+    )
+    
+    # Timestamps
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de creación"
+    )
+    
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de actualización"
+    )
+    
+    # Relaciones
+    usuario = relationship("Usuario", backref="identificaciones")
+    imagen = relationship("Imagen", backref="identificaciones")
+    especie = relationship("Especie", back_populates="identificaciones")
+    
+    # Índices
+    __table_args__ = (
+        Index('idx_identificacion_usuario', 'usuario_id'),
+        Index('idx_identificacion_imagen', 'imagen_id'),
+        Index('idx_identificacion_especie', 'especie_id'),
+        Index('idx_identificacion_origen', 'origen'),
+        Index('idx_identificacion_fecha', 'fecha_identificacion'),
+    )
+    
+    @property
+    def es_confiable(self) -> bool:
+        """Retorna True si la confianza es >= 70%."""
+        return self.confianza >= 70
+    
+    @property
+    def confianza_porcentaje(self) -> str:
+        """Retorna la confianza como string con formato de porcentaje."""
+        return f"{self.confianza}%"
+    
+    def validar(self, notas: Optional[str] = None) -> None:
+        """
+        Marca la identificación como validada por el usuario.
+        
+        Args:
+            notas (Optional[str]): Notas de validación
+        """
+        self.validado = True
+        self.fecha_validacion = datetime.utcnow()
+        if notas:
+            self.notas_usuario = notas
+        self.updated_at = datetime.utcnow()
+    
+    def __repr__(self) -> str:
+        """Representación en string del objeto."""
+        return (
+            f"<Identificacion(id={self.id}, usuario_id={self.usuario_id}, "
+            f"especie_id={self.especie_id}, confianza={self.confianza}%)>"
+        )
+    
+    def __str__(self) -> str:
+        """String para display."""
+        return f"Identificación #{self.id} - {self.confianza}% confianza"
+    
+    def to_dict(self) -> dict:
+        """
+        Convierte el modelo a diccionario.
+        
+        Returns:
+            dict: Diccionario con los datos de la identificación
+        """
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'imagen_id': self.imagen_id,
+            'especie_id': self.especie_id,
+            'confianza': self.confianza,
+            'confianza_porcentaje': self.confianza_porcentaje,
+            'es_confiable': self.es_confiable,
+            'origen': self.origen,
+            'validado': self.validado,
+            'fecha_identificacion': self.fecha_identificacion.isoformat() if self.fecha_identificacion else None,
+            'fecha_validacion': self.fecha_validacion.isoformat() if self.fecha_validacion else None,
+            'notas_usuario': self.notas_usuario,
+            'metadatos_ia': self.metadatos_ia,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

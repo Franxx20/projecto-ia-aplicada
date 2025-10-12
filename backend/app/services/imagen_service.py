@@ -211,6 +211,48 @@ class AzureBlobService:
                 detail=f"Error al eliminar archivo de Azure Storage: {str(e)}"
             )
     
+    def descargar_blob(self, nombre_blob: str) -> bytes:
+        """
+        Descarga el contenido de un blob desde Azure Blob Storage.
+        
+        Args:
+            nombre_blob (str): Nombre del blob a descargar
+            
+        Returns:
+            bytes: Contenido del blob en bytes
+            
+        Raises:
+            HTTPException: Si hay un error al descargar el archivo
+            
+        Example:
+            >>> service = AzureBlobService()
+            >>> contenido = service.descargar_blob("archivo.jpg")
+            >>> print(len(contenido))
+            12345
+        """
+        try:
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=nombre_blob
+            )
+            
+            # Descargar el contenido del blob
+            downloader = blob_client.download_blob()
+            contenido = downloader.readall()
+            
+            return contenido
+            
+        except ResourceNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Blob '{nombre_blob}' no encontrado en Azure Storage"
+            )
+        except AzureError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al descargar archivo de Azure Storage: {str(e)}"
+            )
+    
     def obtener_url_blob(self, nombre_blob: str) -> str:
         """
         Obtiene la URL pública de un blob.

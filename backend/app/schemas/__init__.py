@@ -9,3 +9,46 @@ Estructura:
 - response/ - Schemas para responses
 - validators/ - Validadores personalizados
 """
+
+from .auth import (
+    UserRegisterRequest,
+    UserLoginRequest,
+    TokenResponse,
+    RefreshTokenRequest,
+    UserResponse
+)
+
+from .imagen import (
+    ImagenResponse,
+    ImagenUploadResponse
+)
+
+from .planta import (
+    PlantaBase,
+    PlantaCreate,
+    PlantaUpdate,
+    PlantaResponse,
+    PlantaStats,
+    PlantaListResponse,
+    RegistrarRiegoRequest
+)
+
+__all__ = [
+    # Auth schemas
+    "UserRegisterRequest",
+    "UserLoginRequest",
+    "TokenResponse",
+    "RefreshTokenRequest",
+    "UserResponse",
+    # Imagen schemas
+    "ImagenResponse",
+    "ImagenUploadResponse",
+    # Planta schemas
+    "PlantaBase",
+    "PlantaCreate",
+    "PlantaUpdate",
+    "PlantaResponse",
+    "PlantaStats",
+    "PlantaListResponse",
+    "RegistrarRiegoRequest",
+]

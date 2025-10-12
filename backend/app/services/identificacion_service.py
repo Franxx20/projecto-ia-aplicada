@@ -8,14 +8,13 @@ y registrar identificaciones con sus metadatos.
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pathlib import Path
+from io import BytesIO
 from sqlalchemy.orm import Session
+import json
 
 from app.db.models import Especie, Identificacion, Usuario, Imagen
 from app.services.plantnet_service import PlantNetService
-from app.schemas.plantnet import (
-    PlantNetIdentificacionResponse,
-    PlantNetResultadoSimplificado
-)
+from app.services.imagen_service import AzureBlobService
 
 
 class IdentificacionService:
@@ -55,25 +54,28 @@ class IdentificacionService:
         if not imagen:
             raise ValueError(f"Imagen {imagen_id} no encontrada o no pertenece al usuario")
         
-        # Obtener la ruta absoluta de la imagen
-        # Asumiendo que imagen.ruta_archivo contiene la ruta relativa desde uploads/
-        ruta_completa = Path(imagen.ruta_archivo)
-        if not ruta_completa.exists():
-            raise ValueError(f"Archivo de imagen no encontrado: {imagen.ruta_archivo}")
+        # Descargar la imagen desde Azure Blob Storage
+        try:
+            azure_service = AzureBlobService()
+            imagen_bytes_content = azure_service.descargar_blob(imagen.nombre_blob)
+            imagen_bytes = BytesIO(imagen_bytes_content)
+            imagen_bytes.name = imagen.nombre_archivo
+        except Exception as e:
+            raise ValueError(f"Error al descargar imagen desde Azure: {str(e)}")
         
-        # Llamar a PlantNet
+        # Llamar a PlantNet con la imagen descargada
         if organos is None:
             organos = ["auto"]  # Detección automática
             
-        respuesta = await PlantNetService.identificar_desde_path(
-            rutas_imagenes=[str(ruta_completa)],
+        respuesta = await PlantNetService.identificar_planta(
+            imagenes=[(imagen.nombre_archivo, imagen_bytes)],
             organos=organos
         )
         
         # Si no hay que guardar, retornar solo la respuesta
         if not guardar_resultado:
             return {
-                "plantnet_response": respuesta.dict(),
+                "plantnet_response": respuesta,
                 "identificacion_id": None
             }
         
@@ -92,20 +94,20 @@ class IdentificacionService:
             usuario_id=usuario_id,
             imagen_id=imagen_id,
             especie_id=especie.id,
-            confianza=mejor_resultado["confianza"],
+            confianza=int(mejor_resultado["score"] * 100),  # Convertir 0.0-1.0 a 0-100
             origen="plantnet",
             validado=False,
-            metadatos_ia={
-                "plantnet_response": respuesta.dict(),
+            metadatos_ia=json.dumps({  # Serializar a JSON string
+                "plantnet_response": respuesta,
                 "mejor_resultado": mejor_resultado,
                 "organos_detectados": [
                     {
                         "organ": img.get("organ"),
                         "score": img.get("score")
                     }
-                    for img in respuesta.dict().get("images", [])
+                    for img in respuesta.get("images", [])
                 ]
-            }
+            }, default=str)  # default=str maneja objetos datetime
         )
         
         db.add(identificacion)
@@ -118,7 +120,7 @@ class IdentificacionService:
             "confianza": identificacion.confianza,
             "confianza_porcentaje": identificacion.confianza_porcentaje,
             "es_confiable": identificacion.es_confiable,
-            "plantnet_response": respuesta.dict(),
+            "plantnet_response": respuesta,
             "mejor_resultado": mejor_resultado
         }
     
@@ -188,13 +190,13 @@ class IdentificacionService:
                 usuario_id=usuario_id,
                 imagen_id=imagen_id,
                 especie_id=especie.id,
-                confianza=mejor_resultado["confianza"],
+                confianza=int(mejor_resultado["score"] * 100),  # Convertir 0.0-1.0 a 0-100
                 origen="plantnet",
                 validado=False,
-                metadatos_ia={
-                    "plantnet_response": respuesta.dict(),
+                metadatos_ia=json.dumps({  # Serializar a JSON string
+                    "plantnet_response": respuesta,
                     "mejor_resultado": mejor_resultado
-                }
+                }, default=str)  # default=str maneja objetos datetime
             )
             db.add(identificacion)
             db.commit()
@@ -203,8 +205,8 @@ class IdentificacionService:
         return {
             "imagen_id": imagen_id,
             "especie": especie.to_dict(),
-            "confianza": mejor_resultado["confianza"],
-            "plantnet_response": respuesta.dict(),
+            "confianza": mejor_resultado["score"],
+            "plantnet_response": respuesta,
             "mejor_resultado": mejor_resultado
         }
     
@@ -212,7 +214,7 @@ class IdentificacionService:
     async def _buscar_o_crear_especie(
         db: Session,
         resultado: Dict[str, Any],
-        respuesta_completa: PlantNetIdentificacionResponse
+        respuesta_completa: Dict[str, Any]
     ) -> Especie:
         """
         Busca una especie en la BD por nombre científico o la crea si no existe.
@@ -242,16 +244,19 @@ class IdentificacionService:
         
         # Buscar imagen de referencia
         imagen_referencia_url = None
-        if respuesta_completa.results:
-            primer_resultado = respuesta_completa.results[0]
-            if primer_resultado.images:
+        results = respuesta_completa.get("results", [])
+        if results:
+            primer_resultado = results[0]
+            images = primer_resultado.get("images", [])
+            if images:
                 # Tomar la primera imagen con mejor score
                 mejor_imagen = max(
-                    primer_resultado.images,
-                    key=lambda img: img.score or 0
+                    images,
+                    key=lambda img: img.get("score", 0)
                 )
-                if hasattr(mejor_imagen, 'url') and mejor_imagen.url:
-                    imagen_referencia_url = str(mejor_imagen.url.get('o'))  # Original
+                url_obj = mejor_imagen.get("url", {})
+                if url_obj:
+                    imagen_referencia_url = url_obj.get("o")  # Original
         
         especie = Especie(
             nombre_comun=nombre_comun,
@@ -326,7 +331,7 @@ class IdentificacionService:
                 },
                 "imagen": {
                     "id": ident.imagen.id,
-                    "url": ident.imagen.ruta_archivo,
+                    "url": ident.imagen.url_blob,
                     "nombre": ident.imagen.nombre_archivo
                 }
             }

@@ -8,13 +8,14 @@
  * 
  * @author GitHub Copilot
  * @date 2025-10-12
+ * @updated 2025-10-12 - T-017: Integración con PlantNet API
  */
 
 'use client'
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Sparkles } from 'lucide-react'
+import { ArrowLeft, Sparkles, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +32,7 @@ export default function IdentificarPage() {
   const router = useRouter()
   const [imagenSubida, setImagenSubida] = useState<ImageUploadResponse | null>(null)
   const [estaIdentificando, setEstaIdentificando] = useState(false)
+  const [errorIdentificacion, setErrorIdentificacion] = useState<string | null>(null)
 
   /**
    * Maneja el éxito del upload de imagen
@@ -39,6 +41,7 @@ export default function IdentificarPage() {
   const handleUploadSuccess = async (response: ImageUploadResponse) => {
     console.log('Imagen subida exitosamente:', response)
     setImagenSubida(response)
+    setErrorIdentificacion(null)
 
     // Aquí podrías llamar automáticamente a la API de identificación
     // Por ahora, solo guardamos la imagen y mostramos el botón
@@ -49,33 +52,28 @@ export default function IdentificarPage() {
    */
   const handleUploadError = (error: Error) => {
     console.error('Error al subir imagen:', error)
+    setErrorIdentificacion(null)
     // El componente ImageUpload ya muestra el error
   }
 
   /**
    * Inicia el proceso de identificación de la planta
+   * usando PlantNet API a través del backend
    */
   const identificarPlanta = async () => {
     if (!imagenSubida) return
 
     setEstaIdentificando(true)
+    setErrorIdentificacion(null)
 
     try {
-      // TODO: Implementar llamada a la API de PlantNet (T-017)
-      // Por ahora, mostramos un mensaje de que la funcionalidad está en desarrollo
-      
-      // Simular delay de API
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Mostrar mensaje temporal
-      alert('✅ Imagen subida correctamente!\n\n🚧 La identificación con PlantNet API está en desarrollo (Tarea T-017).\n\nPor ahora, la imagen se guardó exitosamente en el servidor.')
-      
-      setEstaIdentificando(false)
-
-      // Comentado: Navegar a la página de resultados
-      // router.push('/identificar/resultados?imageId=' + imagenSubida.id)
+      // Navegar a la página de resultados con el ID de la imagen
+      // La página de resultados hará la llamada a la API
+      router.push(`/identificar/resultados?imagenId=${imagenSubida.id}`)
     } catch (error) {
       console.error('Error al identificar planta:', error)
+      const mensaje = error instanceof Error ? error.message : 'Error al identificar la planta'
+      setErrorIdentificacion(mensaje)
       setEstaIdentificando(false)
     }
   }
@@ -127,7 +125,18 @@ export default function IdentificarPage() {
 
               {/* Botón de identificación */}
               {imagenSubida && (
-                <div className="pt-4">
+                <div className="pt-4 space-y-4">
+                  {/* Mensaje de error si existe */}
+                  {errorIdentificacion && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold text-red-900 mb-1">Error al identificar</h3>
+                        <p className="text-sm text-red-700">{errorIdentificacion}</p>
+                      </div>
+                    </div>
+                  )}
+
                   <Button
                     size="lg"
                     className="w-full"

@@ -2,11 +2,11 @@
 Modelos de base de datos para el Asistente Plantitas.
 
 Este módulo define los modelos SQLAlchemy para la gestión de usuarios,
-autenticación, gestión de imágenes y especies de plantas del sistema.
+autenticación y gestión de imágenes del sistema.
 
 Autor: Equipo Backend
 Fecha: Octubre 2025
-Sprint: Sprint 1 - T-002, T-004 | Sprint 2 - T-017
+Sprint: Sprint 1 - T-002, T-004
 """
 
 from datetime import datetime
@@ -505,152 +505,124 @@ class Imagen(Base):
         self.updated_at = datetime.utcnow()
 
 
-class Especie(Base):
+class Planta(Base):
     """
-    Modelo de especie de planta para el catálogo del sistema.
+    Modelo de planta para gestión del jardín personal del usuario.
     
-    Este modelo almacena información detallada sobre especies de plantas,
-    incluyendo datos botánicos, consejos de cuidado y características.
+    Este modelo representa las plantas que el usuario tiene en su colección personal,
+    vinculadas a una especie y con información sobre su cuidado y estado.
     
     Attributes:
-        id (int): Identificador único de la especie (Primary Key)
-        nombre_comun (str): Nombre común de la planta (ej: "Monstera Deliciosa")
-        nombre_cientifico (str): Nombre científico de la especie
-        familia (str): Familia botánica a la que pertenece
-        descripcion (str): Descripción general de la planta
-        cuidados_basicos (str): Instrucciones básicas de cuidado (JSON string)
-        nivel_dificultad (str): Nivel de dificultad de cuidado (facil, medio, dificil)
-        luz_requerida (str): Requerimientos de luz (baja, media, alta, directa)
-        riego_frecuencia (str): Frecuencia de riego recomendada
-        temperatura_min (int): Temperatura mínima tolerable en °C
-        temperatura_max (int): Temperatura máxima tolerable en °C
-        humedad_requerida (str): Nivel de humedad requerido (baja, media, alta)
-        toxicidad (str): Nivel de toxicidad (no_toxica, leve, moderada, alta)
-        origen_geografico (str): Región de origen de la especie
-        imagen_referencia_url (str): URL de imagen de referencia
+        id (int): Identificador único de la planta (Primary Key)
+        usuario_id (int): ID del usuario propietario (Foreign Key a usuarios)
+        especie_id (int): ID de la especie de la planta (Foreign Key a especies) - opcional
+        nombre_personal (str): Nombre personalizado que el usuario da a su planta
+        estado_salud (str): Estado de salud: excelente, buena, necesita_atencion, critica
+        ubicacion (str): Ubicación física de la planta (ej: "sala", "balcón", "jardín")
+        notas (str): Notas adicionales del usuario sobre la planta
+        imagen_principal_id (int): ID de la imagen principal de la planta (Foreign Key a imagenes)
+        fecha_ultimo_riego (datetime): Fecha y hora del último riego
+        proxima_riego (datetime): Fecha y hora del próximo riego recomendado
+        frecuencia_riego_dias (int): Frecuencia de riego en días
+        luz_actual (str): Nivel de luz que recibe: baja, media, alta, directa
+        fecha_adquisicion (datetime): Fecha en que el usuario adquirió la planta
         created_at (datetime): Fecha de creación del registro
         updated_at (datetime): Fecha de última actualización
-        is_active (bool): Indica si la especie está activa en el catálogo
-    
-    Example:
-        >>> especie = Especie(
-        ...     nombre_comun="Monstera Deliciosa",
-        ...     nombre_cientifico="Monstera deliciosa",
-        ...     familia="Araceae",
-        ...     nivel_dificultad="facil"
-        ... )
-        >>> print(especie.nombre_display)
-        Monstera Deliciosa (Monstera deliciosa)
+        is_active (bool): Indica si la planta está activa (no eliminada)
+        
+    Relations:
+        usuario: Relación many-to-one con el modelo Usuario
+        especie: Relación many-to-one con el modelo Especie (opcional)
+        imagen_principal: Relación many-to-one con el modelo Imagen (opcional)
     """
     
-    __tablename__ = "especies"
+    __tablename__ = "plantas"
     
-    # Campos principales
+    # Campos del modelo
     id = Column(
         Integer,
         primary_key=True,
         index=True,
-        comment="Identificador único de la especie"
+        comment="Identificador único de la planta"
     )
     
-    nombre_comun = Column(
-        String(255),
+    usuario_id = Column(
+        Integer,
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="Nombre común de la planta"
+        comment="ID del usuario propietario de la planta"
     )
     
-    nombre_cientifico = Column(
-        String(255),
-        nullable=False,
-        unique=True,
-        index=True,
-        comment="Nombre científico de la especie (único)"
-    )
-    
-    familia = Column(
-        String(100),
-        nullable=True,
-        index=True,
-        comment="Familia botánica"
-    )
-    
-    descripcion = Column(
-        Text,
-        nullable=True,
-        comment="Descripción general de la planta"
-    )
-    
-    cuidados_basicos = Column(
-        Text,
-        nullable=True,
-        comment="Instrucciones básicas de cuidado en formato JSON"
-    )
-    
-    # Nivel de dificultad
-    nivel_dificultad = Column(
-        String(20),
-        nullable=False,
-        default="medio",
-        comment="Nivel de dificultad: facil, medio, dificil"
-    )
-    
-    # Requerimientos de luz
-    luz_requerida = Column(
-        String(20),
-        nullable=True,
-        comment="Requerimientos de luz: baja, media, alta, directa"
-    )
-    
-    # Requerimientos de riego
-    riego_frecuencia = Column(
-        String(100),
-        nullable=True,
-        comment="Frecuencia de riego recomendada"
-    )
-    
-    # Temperatura
-    temperatura_min = Column(
+    especie_id = Column(
         Integer,
         nullable=True,
-        comment="Temperatura mínima tolerable en °C"
+        index=True,
+        comment="ID de la especie de la planta (opcional)"
     )
     
-    temperatura_max = Column(
-        Integer,
-        nullable=True,
-        comment="Temperatura máxima tolerable en °C"
+    nombre_personal = Column(
+        String(255),
+        nullable=False,
+        comment="Nombre personalizado dado por el usuario"
     )
     
-    # Humedad
-    humedad_requerida = Column(
-        String(20),
-        nullable=True,
-        comment="Nivel de humedad: baja, media, alta"
+    estado_salud = Column(
+        String(50),
+        nullable=False,
+        default="buena",
+        comment="Estado de salud: excelente, buena, necesita_atencion, critica"
     )
     
-    # Toxicidad
-    toxicidad = Column(
-        String(20),
-        nullable=True,
-        default="no_toxica",
-        comment="Nivel de toxicidad: no_toxica, leve, moderada, alta"
-    )
-    
-    # Información adicional
-    origen_geografico = Column(
+    ubicacion = Column(
         String(255),
         nullable=True,
-        comment="Región de origen de la especie"
+        comment="Ubicación física de la planta"
     )
     
-    imagen_referencia_url = Column(
-        String(500),
+    notas = Column(
+        Text,
         nullable=True,
-        comment="URL de imagen de referencia de la especie"
+        comment="Notas adicionales del usuario"
     )
     
-    # Metadatos
+    imagen_principal_id = Column(
+        Integer,
+        nullable=True,
+        comment="ID de la imagen principal de la planta"
+    )
+    
+    fecha_ultimo_riego = Column(
+        DateTime,
+        nullable=True,
+        comment="Fecha y hora del último riego"
+    )
+    
+    proxima_riego = Column(
+        DateTime,
+        nullable=True,
+        comment="Fecha y hora del próximo riego recomendado"
+    )
+    
+    frecuencia_riego_dias = Column(
+        Integer,
+        nullable=True,
+        default=7,
+        comment="Frecuencia de riego en días"
+    )
+    
+    luz_actual = Column(
+        String(20),
+        nullable=True,
+        comment="Nivel de luz que recibe: baja, media, alta, directa"
+    )
+    
+    fecha_adquisicion = Column(
+        DateTime,
+        nullable=True,
+        comment="Fecha en que el usuario adquirió la planta"
+    )
+    
     created_at = Column(
         DateTime,
         default=datetime.utcnow,
@@ -670,341 +642,128 @@ class Especie(Base):
         Boolean,
         default=True,
         nullable=False,
-        comment="Indica si la especie está activa en el catálogo"
+        comment="Indica si la planta está activa (no eliminada)"
     )
     
     # Relaciones
-    identificaciones = relationship("Identificacion", back_populates="especie")
+    usuario = relationship("Usuario", backref="plantas")
+    # especie = relationship("Especie", backref="plantas")  # Descomentar cuando exista el modelo Especie
+    # imagen_principal = relationship("Imagen", foreign_keys=[imagen_principal_id])
     
-    # Índices compuestos para optimización
+    # Índices compuestos para optimización de queries
     __table_args__ = (
-        Index('idx_nombre_comun', 'nombre_comun'),
-        Index('idx_nombre_cientifico', 'nombre_cientifico'),
-        Index('idx_familia', 'familia'),
-        Index('idx_nivel_dificultad', 'nivel_dificultad'),
-        Index('idx_especies_active', 'is_active'),
+        Index('idx_usuario_plantas_activas', 'usuario_id', 'is_active'),
+        Index('idx_usuario_estado_salud', 'usuario_id', 'estado_salud'),
+        Index('idx_proxima_riego', 'proxima_riego'),
+        Index('idx_created_at_plantas', 'created_at'),
     )
-    
-    @property
-    def nombre_display(self) -> str:
-        """
-        Retorna el nombre completo para display.
-        
-        Returns:
-            str: Nombre común seguido del nombre científico
-            
-        Example:
-            >>> especie = Especie(nombre_comun="Monstera", nombre_cientifico="M. deliciosa")
-            >>> print(especie.nombre_display)
-            Monstera (M. deliciosa)
-        """
-        return f"{self.nombre_comun} ({self.nombre_cientifico})"
     
     def __repr__(self) -> str:
         """
-        Representación en string del modelo Especie.
+        Representación en string del modelo Planta.
         
         Returns:
-            str: Representación legible de la especie
+            str: Representación legible de la planta
         """
-        return f"<Especie(id={self.id}, nombre='{self.nombre_comun}', cientifico='{self.nombre_cientifico}')>"
+        return f"<Planta(id={self.id}, nombre='{self.nombre_personal}', usuario_id={self.usuario_id})>"
     
     def __str__(self) -> str:
         """
         Representación en string para display.
         
         Returns:
-            str: Nombre común de la especie
+            str: Nombre personal de la planta
         """
-        return self.nombre_comun
+        return self.nombre_personal
     
-    def to_dict(self) -> dict:
+    def to_dict(self, include_relations: bool = False) -> dict:
         """
         Convierte el modelo a diccionario.
         
-        Returns:
-            dict: Diccionario con los datos de la especie
+        Args:
+            include_relations (bool): Si True, incluye datos de relaciones
             
-        Example:
-            >>> especie = Especie(nombre_comun="Monstera", nombre_cientifico="M. deliciosa")
-            >>> data = especie.to_dict()
-            >>> print(data['nombre_display'])
-            Monstera (M. deliciosa)
+        Returns:
+            dict: Diccionario con los datos de la planta
         """
-        return {
+        data = {
             'id': self.id,
-            'nombre_comun': self.nombre_comun,
-            'nombre_cientifico': self.nombre_cientifico,
-            'nombre_display': self.nombre_display,
-            'familia': self.familia,
-            'descripcion': self.descripcion,
-            'cuidados_basicos': self.cuidados_basicos,
-            'nivel_dificultad': self.nivel_dificultad,
-            'luz_requerida': self.luz_requerida,
-            'riego_frecuencia': self.riego_frecuencia,
-            'temperatura_min': self.temperatura_min,
-            'temperatura_max': self.temperatura_max,
-            'humedad_requerida': self.humedad_requerida,
-            'toxicidad': self.toxicidad,
-            'origen_geografico': self.origen_geografico,
-            'imagen_referencia_url': self.imagen_referencia_url,
+            'usuario_id': self.usuario_id,
+            'especie_id': self.especie_id,
+            'nombre_personal': self.nombre_personal,
+            'estado_salud': self.estado_salud,
+            'ubicacion': self.ubicacion,
+            'notas': self.notas,
+            'imagen_principal_id': self.imagen_principal_id,
+            'fecha_ultimo_riego': self.fecha_ultimo_riego.isoformat() if self.fecha_ultimo_riego else None,
+            'proxima_riego': self.proxima_riego.isoformat() if self.proxima_riego else None,
+            'frecuencia_riego_dias': self.frecuencia_riego_dias,
+            'luz_actual': self.luz_actual,
+            'fecha_adquisicion': self.fecha_adquisicion.isoformat() if self.fecha_adquisicion else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'is_active': self.is_active
         }
-
-
-class Identificacion(Base):
-    """
-    Modelo de identificación de planta.
-    
-    Este modelo representa el resultado de una identificación de planta,
-    ya sea realizada por IA o manualmente por el usuario. Relaciona
-    un usuario, una imagen y una especie identificada.
-    
-    Attributes:
-        id (int): Identificador único de la identificación (Primary Key)
-        usuario_id (int): ID del usuario que realizó/recibió la identificación
-        imagen_id (int): ID de la imagen analizada
-        especie_id (int): ID de la especie identificada
-        confianza (float): Nivel de confianza de la identificación (0.0 - 1.0)
-        origen (str): Origen de la identificación (ia_plantnet, ia_local, manual)
-        validado (bool): Indica si la identificación fue validada por el usuario
-        notas_usuario (str): Notas adicionales del usuario
-        metadatos_ia (str): Metadatos del proceso de IA en formato JSON
-        fecha_identificacion (datetime): Fecha y hora de la identificación
-        fecha_validacion (datetime): Fecha y hora de validación por usuario
-        created_at (datetime): Fecha de creación del registro
-        updated_at (datetime): Fecha de última actualización
-    
-    Example:
-        >>> identificacion = Identificacion(
-        ...     usuario_id=1,
-        ...     imagen_id=5,
-        ...     especie_id=10,
-        ...     confianza=0.95,
-        ...     origen="ia_plantnet"
-        ... )
-        >>> print(identificacion.es_confiable)
-        True
-    """
-    
-    __tablename__ = "identificaciones"
-    
-    # Campos principales
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True,
-        comment="Identificador único de la identificación"
-    )
-    
-    usuario_id = Column(
-        Integer,
-        ForeignKey('usuarios.id', ondelete='CASCADE'),
-        nullable=False,
-        index=True,
-        comment="ID del usuario que realizó/recibió la identificación"
-    )
-    
-    imagen_id = Column(
-        Integer,
-        ForeignKey('imagenes.id', ondelete='CASCADE'),
-        nullable=False,
-        index=True,
-        comment="ID de la imagen analizada"
-    )
-    
-    especie_id = Column(
-        Integer,
-        ForeignKey('especies.id', ondelete='RESTRICT'),
-        nullable=False,
-        index=True,
-        comment="ID de la especie identificada"
-    )
-    
-    # Nivel de confianza (0.0 - 1.0)
-    confianza = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Nivel de confianza de la identificación (0-100)"
-    )
-    
-    # Origen de la identificación
-    origen = Column(
-        String(50),
-        nullable=False,
-        default="manual",
-        comment="Origen: ia_plantnet, ia_local, manual"
-    )
-    
-    # Validación por usuario
-    validado = Column(
-        Boolean,
-        default=False,
-        nullable=False,
-        comment="Indica si fue validada por el usuario"
-    )
-    
-    # Notas del usuario
-    notas_usuario = Column(
-        Text,
-        nullable=True,
-        comment="Notas adicionales del usuario"
-    )
-    
-    # Metadatos del proceso de IA
-    metadatos_ia = Column(
-        Text,
-        nullable=True,
-        comment="Metadatos del proceso de IA en formato JSON"
-    )
-    
-    # Timestamps
-    fecha_identificacion = Column(
-        DateTime,
-        default=datetime.utcnow,
-        nullable=False,
-        comment="Fecha y hora de la identificación"
-    )
-    
-    fecha_validacion = Column(
-        DateTime,
-        nullable=True,
-        comment="Fecha y hora de validación por usuario"
-    )
-    
-    created_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        nullable=False,
-        comment="Fecha de creación del registro"
-    )
-    
-    updated_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
-        nullable=False,
-        comment="Fecha de última actualización"
-    )
-    
-    # Relaciones
-    usuario = relationship("Usuario", backref="identificaciones")
-    imagen = relationship("Imagen", backref="identificaciones")
-    especie = relationship("Especie", back_populates="identificaciones")
-    
-    # Índices compuestos para optimización
-    __table_args__ = (
-        Index('idx_usuario_identificacion', 'usuario_id', 'fecha_identificacion'),
-        Index('idx_imagen_especie', 'imagen_id', 'especie_id'),
-        Index('idx_especie_confianza', 'especie_id', 'confianza'),
-        Index('idx_origen', 'origen'),
-        Index('idx_validado', 'validado'),
-    )
-    
-    @property
-    def es_confiable(self) -> bool:
-        """
-        Indica si la identificación tiene un nivel de confianza alto.
         
-        Returns:
-            bool: True si confianza >= 70%
-            
-        Example:
-            >>> id1 = Identificacion(confianza=85)
-            >>> print(id1.es_confiable)
-            True
-            >>> id2 = Identificacion(confianza=45)
-            >>> print(id2.es_confiable)
-            False
-        """
-        return self.confianza >= 70
+        return data
     
-    @property
-    def confianza_porcentaje(self) -> str:
+    def actualizar_estado_salud(self, nuevo_estado: str) -> None:
         """
-        Retorna el nivel de confianza como porcentaje formateado.
-        
-        Returns:
-            str: Confianza en formato "XX%"
-            
-        Example:
-            >>> identificacion = Identificacion(confianza=85)
-            >>> print(identificacion.confianza_porcentaje)
-            85%
-        """
-        return f"{self.confianza}%"
-    
-    def validar(self, notas: Optional[str] = None) -> None:
-        """
-        Marca la identificación como validada por el usuario.
+        Actualiza el estado de salud de la planta.
         
         Args:
-            notas (str, optional): Notas adicionales del usuario
-            
-        Example:
-            >>> identificacion = Identificacion(validado=False)
-            >>> identificacion.validar("Es correcto, es una Monstera")
-            >>> print(identificacion.validado)
-            True
+            nuevo_estado (str): Nuevo estado (excelente, buena, necesita_atencion, critica)
         """
-        self.validado = True
-        self.fecha_validacion = datetime.utcnow()
-        if notas:
-            self.notas_usuario = notas
+        estados_validos = ['excelente', 'buena', 'necesita_atencion', 'critica']
+        if nuevo_estado not in estados_validos:
+            raise ValueError(f"Estado no válido. Debe ser uno de: {', '.join(estados_validos)}")
+        
+        self.estado_salud = nuevo_estado
         self.updated_at = datetime.utcnow()
     
-    def __repr__(self) -> str:
+    def registrar_riego(self, fecha_riego: Optional[datetime] = None) -> None:
         """
-        Representación en string del modelo Identificacion.
+        Registra un nuevo riego de la planta.
         
-        Returns:
-            str: Representación legible de la identificación
+        Args:
+            fecha_riego (Optional[datetime]): Fecha del riego. Si no se provee, usa la fecha actual.
         """
-        return (
-            f"<Identificacion(id={self.id}, usuario_id={self.usuario_id}, "
-            f"especie_id={self.especie_id}, confianza={self.confianza}%)>"
-        )
+        if fecha_riego is None:
+            fecha_riego = datetime.utcnow()
+        
+        self.fecha_ultimo_riego = fecha_riego
+        
+        # Calcular próximo riego si hay frecuencia definida
+        if self.frecuencia_riego_dias:
+            from datetime import timedelta
+            self.proxima_riego = fecha_riego + timedelta(days=self.frecuencia_riego_dias)
+        
+        self.updated_at = datetime.utcnow()
     
-    def __str__(self) -> str:
+    def necesita_riego(self) -> bool:
         """
-        Representación en string para display.
+        Verifica si la planta necesita riego.
         
         Returns:
-            str: Descripción de la identificación
+            bool: True si necesita riego (fecha actual >= proxima_riego), False en caso contrario
         """
-        return f"Identificación #{self.id} - Confianza: {self.confianza_porcentaje}"
+        if not self.proxima_riego:
+            return False
+        
+        return datetime.utcnow() >= self.proxima_riego
     
-    def to_dict(self) -> dict:
+    def soft_delete(self) -> None:
         """
-        Convierte el modelo a diccionario.
-        
-        Returns:
-            dict: Diccionario con los datos de la identificación
-            
-        Example:
-            >>> identificacion = Identificacion(usuario_id=1, confianza=85)
-            >>> data = identificacion.to_dict()
-            >>> print(data['confianza_porcentaje'])
-            85%
+        Marca la planta como inactiva (soft delete).
         """
-        return {
-            'id': self.id,
-            'usuario_id': self.usuario_id,
-            'imagen_id': self.imagen_id,
-            'especie_id': self.especie_id,
-            'confianza': self.confianza,
-            'confianza_porcentaje': self.confianza_porcentaje,
-            'es_confiable': self.es_confiable,
-            'origen': self.origen,
-            'validado': self.validado,
-            'notas_usuario': self.notas_usuario,
-            'metadatos_ia': self.metadatos_ia,
-            'fecha_identificacion': self.fecha_identificacion.isoformat() if self.fecha_identificacion else None,
-            'fecha_validacion': self.fecha_validacion.isoformat() if self.fecha_validacion else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }
+        self.is_active = False
+        self.updated_at = datetime.utcnow()
+    
+    def restore(self) -> None:
+        """
+        Restaura una planta marcada como inactiva.
+        """
+        self.is_active = True
+        self.updated_at = datetime.utcnow()
+
 

@@ -53,7 +53,10 @@ services:
     restart: unless-stopped
     environment:
       # Variables de entorno para Next.js en desarrollo
+      # NEXT_PUBLIC_API_URL: URL que usa el navegador (cliente)
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # INTERNAL_API_URL: URL que usa Next.js internamente (server-side)
+      - INTERNAL_API_URL=http://backend:8000
       - NODE_ENV=development
       - PORT=4200
       - HOSTNAME=0.0.0.0

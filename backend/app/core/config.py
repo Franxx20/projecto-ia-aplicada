@@ -99,8 +99,12 @@ class Configuracion(BaseSettings):
     
     # ==================== APIs Externas ====================
     # PlantNet API (para Sprint 2)
+    # Documentación: https://my.plantnet.org/doc/getting-started/introduction
+    # Límite: 500 requests por día en plan gratuito
     plantnet_api_key: str = ""
     plantnet_api_url: str = "https://my-api.plantnet.org/v2/identify"
+    plantnet_project: str = "all"  # Proyecto por defecto (all, k-world-flora, etc.)
+    plantnet_max_requests_per_day: int = 500  # Límite diario de requests
     
     # Azure OpenAI / Claude API (para Sprint 3)
     azure_openai_api_key: str = ""
@@ -143,3 +147,6 @@ def obtener_configuracion() -> Configuracion:
 
 # Instancia global de configuración (mantener compatibilidad con código existente)
 configuracion = obtener_configuracion()
+
+# Alias para compatibilidad con diferentes estilos de código
+settings = configuracion

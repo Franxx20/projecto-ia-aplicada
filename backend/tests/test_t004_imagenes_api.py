@@ -227,7 +227,8 @@ class TestSubirImagen:
         
         response = client.post("/api/imagenes/subir", files=files)
         
-        assert response.status_code == 401
+        # FastAPI retorna 403 cuando falta autenticación
+        assert response.status_code == 403
     
     @patch.dict('os.environ', {'AZURE_STORAGE_CONNECTION_STRING': 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test==;'})
     def test_subir_imagen_con_descripcion(self, auth_headers, mock_azure_blob):
@@ -258,7 +259,8 @@ class TestListarImagenes:
     def test_listar_imagenes_sin_autenticacion(self):
         """Test: Falla si no está autenticado."""
         response = client.get("/api/imagenes")
-        assert response.status_code == 401
+        # FastAPI retorna 403 cuando falta autenticación
+        assert response.status_code == 403
     
     def test_listar_imagenes_usuario_sin_imagenes(self, auth_headers):
         """Test: Devuelve lista vacía si usuario no tiene imágenes."""
@@ -339,7 +341,8 @@ class TestObtenerImagen:
     def test_obtener_imagen_sin_autenticacion(self):
         """Test: Falla si no está autenticado."""
         response = client.get("/api/imagenes/1")
-        assert response.status_code == 401
+        # FastAPI retorna 403 cuando falta autenticación
+        assert response.status_code == 403
 
 
 # ==================== Tests de Actualizar Imagen ====================
@@ -425,7 +428,8 @@ class TestEliminarImagen:
     def test_eliminar_imagen_sin_autenticacion(self):
         """Test: Falla si no está autenticado."""
         response = client.delete("/api/imagenes/1")
-        assert response.status_code == 401
+        # FastAPI retorna 403 cuando falta autenticación
+        assert response.status_code == 403
     
     @patch.dict('os.environ', {'AZURE_STORAGE_CONNECTION_STRING': 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test==;'})
     def test_eliminar_imagen_no_existe(self, auth_headers, mock_azure_blob):

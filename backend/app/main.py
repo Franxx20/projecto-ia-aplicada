@@ -72,12 +72,20 @@ def crear_aplicacion() -> FastAPI:
     # ==================== Registrar Routers ====================
     # Importar routers implementados
     from .api.auth import router as auth_router
+    from .api.imagenes import router as imagenes_router
     
     # Registrar router de autenticación (T-003A)
     aplicacion.include_router(
         auth_router,
         prefix="/api/auth",
         tags=["Autenticación"]
+    )
+    
+    # Registrar router de imágenes (T-004)
+    aplicacion.include_router(
+        imagenes_router,
+        prefix="/api/imagenes",
+        tags=["Imágenes"]
     )
     
     # TODO: Agregar más routers cuando se implementen

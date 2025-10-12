@@ -25,6 +25,10 @@ services:
       ENVIRONMENT: development
       DEBUG: true
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      # Azure Storage - Usando Azurite (emulador local)
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      AZURE_STORAGE_CONTAINER_NAME: plantitas-imagenes
+      AZURE_STORAGE_USE_EMULATOR: true
     volumes:
       # Volúmenes en vivo para desarrollo
       - ${BACKEND_CODE_PATH:-./backend}:/app:cached
@@ -80,6 +84,21 @@ services:
       file: docker-compose.yml
       service: adminer
 
+  # Azurite - Emulador de Azure Storage para desarrollo local
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: ${PROJECT_NAME:-projecto-ia}_azurite_dev
+    restart: unless-stopped
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    volumes:
+      - azurite_data:/data
+    networks:
+      - app-network
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose --location /data
+
 volumes:
   postgres_data:
     driver: local
@@ -87,6 +106,8 @@ volumes:
       type: none
       o: bind
       device: ${POSTGRES_DATA_PATH:-./data/postgres}
+  azurite_data:
+    driver: local
 
 networks:
   app-network:

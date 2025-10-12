@@ -380,6 +380,81 @@ GET  /api/v1/auth/login   # Login
 POST /api/v1/auth/token   # Obtener token
 ```
 
+## 📦 Azure Blob Storage
+
+### Configuración de Almacenamiento de Imágenes
+
+Este proyecto utiliza **Azure Blob Storage** para gestionar las imágenes de plantas. Para desarrollo local, usamos **Azurite**, el emulador oficial de Azure Storage.
+
+#### ¿Qué es Azurite?
+
+Azurite es un emulador de Azure Storage que proporciona:
+- ✅ **API 100% compatible** con Azure Storage
+- ✅ **Desarrollo local gratuito** sin costos de Azure
+- ✅ **Latencia mínima** (<1ms)
+- ✅ **Fácil transición** a producción
+
+#### Servicios Disponibles
+
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| Blob | 10000 | Almacenamiento de archivos (imágenes) |
+| Queue | 10001 | Colas de mensajes |
+| Table | 10002 | Almacenamiento NoSQL |
+
+#### Configuración Automática
+
+Azurite ya está configurado en `docker-compose.dev.yml` y se inicia automáticamente con:
+
+```bash
+manage.bat dev
+```
+
+#### Variables de Entorno
+
+```env
+# Azure Storage (Azurite para desarrollo)
+AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;..."
+AZURE_STORAGE_CONTAINER_NAME="plantitas-imagenes"
+AZURE_STORAGE_USE_EMULATOR="true"
+```
+
+#### Probar Conectividad
+
+```bash
+# Test de conexión a Azure Storage/Azurite
+docker-compose -f docker-compose.dev.yml exec backend python test_azure_storage.py
+
+# Test completo de API de imágenes
+docker-compose -f docker-compose.dev.yml exec backend python test_api_imagenes.py
+```
+
+#### API de Imágenes
+
+```bash
+# Endpoints disponibles
+POST   /api/imagenes/subir       # Subir imagen
+GET    /api/imagenes/            # Listar imágenes
+GET    /api/imagenes/{id}        # Obtener imagen
+PATCH  /api/imagenes/{id}        # Actualizar descripción
+DELETE /api/imagenes/{id}        # Eliminar imagen
+```
+
+#### Configuración para Producción
+
+Para usar Azure Storage real en producción:
+
+1. Crear Storage Account en Azure
+2. Actualizar el connection string en `.env`:
+```env
+AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=tuaccount;..."
+AZURE_STORAGE_USE_EMULATOR="false"
+```
+
+📖 **Documentación completa**: Ver [AZURE_STORAGE_SETUP.md](./AZURE_STORAGE_SETUP.md)
+
+---
+
 ## 🧪 Testing
 
 ### Tests del Backend
@@ -394,6 +469,9 @@ pytest tests/ --cov=app --cov-report=html
 
 # Tests específicos
 pytest tests/test_auth.py -v
+
+# Tests de Azure Storage
+pytest tests/test_t004* -v
 ```
 
 ### Tests del Frontend

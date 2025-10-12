@@ -54,7 +54,11 @@ const nextConfig = {
 
   // Rewrites para proxy al backend (opcional, útil para desarrollo)
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    // Usar INTERNAL_API_URL si está disponible (dentro de Docker)
+    // Si no, usar NEXT_PUBLIC_API_URL (desarrollo local)
+    const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    
+    console.log('🔗 Next.js rewrites configurado para:', apiUrl);
     
     return [
       {

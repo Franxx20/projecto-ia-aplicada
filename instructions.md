@@ -107,7 +107,6 @@ Siempre responde y pregunta en español
 Pytest para python unit testing
 pytest-asyncio para probar rutas FastAPI (async)
 Jest + React Testing Library para unit testing de React
-Vitest como alternativa moderna a Jest
 Testing Library para testear componentes React
 Cypress para end-to-end testing en el navegador
 

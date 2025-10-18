@@ -205,23 +205,42 @@ export default function DashboardPage() {
 
             {/* Empty State */}
             {plantas.length === 0 && (
-              <Card className="py-12">
-                <CardContent className="text-center space-y-4">
-                  <Leaf className="h-16 w-16 text-muted-foreground mx-auto" />
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      Aún no tienes plantas
+              <Card className="py-16 border-2 border-dashed border-muted-foreground/25 bg-gradient-to-br from-green-50/50 to-emerald-50/50">
+                <CardContent className="text-center space-y-6">
+                  {/* Icono más grande con efecto visual */}
+                  <div className="relative mx-auto w-24 h-24">
+                    <Leaf className="h-24 w-24 text-green-600/80 mx-auto animate-pulse" />
+                    <div className="absolute inset-0 bg-green-500/10 rounded-full blur-xl" />
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      ¡Empieza tu jardín digital! 🌱
                     </h3>
-                    <p className="text-muted-foreground mb-4">
-                      Comienza identificando tu primera planta con la cámara
+                    <p className="text-base text-gray-600 max-w-md mx-auto leading-relaxed">
+                      Identifica tu primera planta y comienza a cuidarla como nunca antes. 
+                      Usa tu cámara para descubrir qué planta tienes y recibe consejos personalizados.
                     </p>
-                    <Button asChild>
+                  </div>
+
+                  {/* Botón principal más llamativo */}
+                  <div className="pt-2">
+                    <Button 
+                      asChild 
+                      size="lg" 
+                      className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all"
+                    >
                       <Link href="/identificar">
-                        <Camera className="w-4 h-4 mr-2" />
-                        Identificar Primera Planta
+                        <Camera className="w-5 h-5 mr-2" />
+                        Identificar Mi Primera Planta
                       </Link>
                     </Button>
                   </div>
+
+                  {/* Texto motivacional adicional */}
+                  <p className="text-sm text-gray-500 pt-4">
+                    ¿No tienes una planta cerca? También puedes agregar una manualmente 🌿
+                  </p>
                 </CardContent>
               </Card>
             )}

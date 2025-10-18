@@ -248,10 +248,11 @@ describe('DashboardPage', () => {
       render(<DashboardPage />)
 
       await waitFor(() => {
-        expect(screen.getByText('Aún no tienes plantas')).toBeInTheDocument()
+        expect(screen.getByText(/¡Empieza tu jardín digital!/i)).toBeInTheDocument()
         expect(
-          screen.getByText(/Comienza identificando tu primera planta/i)
+          screen.getByText(/Identifica tu primera planta y comienza a cuidarla/i)
         ).toBeInTheDocument()
+        expect(screen.getByText(/Identificar Mi Primera Planta/i)).toBeInTheDocument()
       })
     })
 

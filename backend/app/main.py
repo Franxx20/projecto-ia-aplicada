@@ -93,7 +93,7 @@ def crear_aplicacion() -> FastAPI:
     # Registrar router de plantas (T-014)
     aplicacion.include_router(
         plantas_router,
-        prefix="/api/plants",
+        prefix="/api/plantas",
         tags=["Plantas"]
     )
     

@@ -68,7 +68,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ - COMENTADO: Bloqueaba frontend/lib/ y otros directorios importantes
 lib64/
 parts/
 sdist/

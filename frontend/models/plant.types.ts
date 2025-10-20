@@ -116,9 +116,37 @@ export interface IdentificarRequest {
 }
 
 /**
- * Respuesta de identificación de la API
+ * Información de una imagen en la respuesta de identificación (T-022)
+ */
+export interface ImagenIdentificacionResponse {
+  id: number;
+  nombre_archivo: string;
+  url_blob: string;
+  organ?: string;
+  tamano_bytes: number;
+}
+
+/**
+ * Respuesta de identificación de la API (Actualizada para T-022)
+ * Ahora incluye soporte para múltiples imágenes
  */
 export interface IdentificarResponse {
+  id: number;
+  usuario_id: number;
+  imagenes: ImagenIdentificacionResponse[];
+  especie_id?: number;
+  confianza: number;
+  origen: string;
+  resultados: PlantNetResponse;
+  fecha_identificacion: string;
+  proyecto_usado: string;
+  cantidad_imagenes: number;
+}
+
+/**
+ * Respuesta de identificación (versión simplificada para retrocompatibilidad)
+ */
+export interface IdentificarResponseSimple {
   identificacion_id?: number;
   especie: PlantIdentificationSimplified;
   confianza: number;
@@ -169,23 +197,26 @@ export interface HistorialResponse {
 }
 
 /**
- * Tipos de órganos de planta válidos
+ * Tipos de órganos de planta válidos (Actualizado T-022)
  */
-export type OrganType = 'leaf' | 'flower' | 'fruit' | 'bark' | 'auto';
+export type OrganType = 'leaf' | 'flower' | 'fruit' | 'bark' | 'habit' | 'other' | 'sin_especificar' | 'auto';
 
 /**
- * Lista de órganos válidos
+ * Lista de órganos válidos (Actualizado T-022)
  */
-export const ORGANOS_VALIDOS: OrganType[] = ['leaf', 'flower', 'fruit', 'bark', 'auto'];
+export const ORGANOS_VALIDOS: OrganType[] = ['leaf', 'flower', 'fruit', 'bark', 'habit', 'other', 'sin_especificar', 'auto'];
 
 /**
- * Nombres en español de los órganos
+ * Nombres en español de los órganos (Actualizado T-022)
  */
 export const NOMBRES_ORGANOS: Record<OrganType, string> = {
   leaf: 'Hoja',
   flower: 'Flor',
   fruit: 'Fruto',
   bark: 'Corteza',
+  habit: 'Hábito',
+  other: 'Otro',
+  sin_especificar: 'Sin especificar',
   auto: 'Automático'
 };
 

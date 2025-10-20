@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * Página de Resultados de Identificación de Plantas
+ * Página de Resultados de Identificación de Plantas (T-023)
  * 
- * Muestra los resultados de la identificación con PlantNet API.
- * Presenta las especies identificadas con sus niveles de confianza,
- * nombres científicos, nombres comunes e información taxonómica.
+ * Actualizada para soportar múltiples imágenes con parámetros organ.
+ * Muestra los resultados de la identificación con PlantNet API usando
+ * el nuevo componente IdentificationResultCard con carousel de imágenes.
  * 
  * @author Equipo Frontend
- * @date Octubre 2025
- * @sprint Sprint 1-2
- * @task T-017
+ * @date Enero 2026
+ * @sprint Sprint 3
+ * @task T-023
  */
 
 import { useEffect, useState } from 'react';
@@ -27,7 +27,7 @@ import {
   Loader2
 } from 'lucide-react';
 import {
-  IdentificarResponse,
+  IdentificarResponseSimple,
   PlantNetResult,
   obtenerColorConfianza,
   obtenerNivelConfianza,
@@ -38,21 +38,21 @@ import plantService from '@/lib/plant.service';
 export default function ResultadosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const imagenId = searchParams?.get('imagenId');
+  const identificacionId = searchParams?.get('identificacionId');
   
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<IdentificarResponse | null>(null);
+  const [resultado, setResultado] = useState<IdentificarResponseSimple | null>(null);
 
   useEffect(() => {
-    if (!imagenId) {
+    if (!identificacionId) {
       setError('No se proporcionó una imagen para identificar');
       setCargando(false);
       return;
     }
 
     identificarPlanta();
-  }, [imagenId]);
+  }, [identificacionId]);
 
   /**
    * Identifica la planta usando el servicio de PlantNet
@@ -62,15 +62,49 @@ export default function ResultadosPage() {
       setCargando(true);
       setError(null);
 
-      const respuesta = await plantService.identificarDesdeImagen(
-        Number(imagenId),
-        ['auto'],
-        true
+      // Obtener los detalles de la identificación ya realizada
+      const detalle = await plantService.obtenerDetalleIdentificacion(
+        Number(identificacionId)
       );
 
-      setResultado(respuesta);
+      // Extraer partes del nombre científico
+      const nombrePartes = detalle.nombre_cientifico.split(' ');
+      const genero = nombrePartes[0] || '';
+      const nombreSinAutor = nombrePartes.slice(0, 2).join(' ');
+      const autor = nombrePartes.length > 2 ? nombrePartes.slice(2).join(' ') : '';
+
+      // Adaptar la respuesta al formato esperado
+      const respuestaAdaptada: IdentificarResponseSimple = {
+        identificacion_id: detalle.id,
+        especie: {
+          nombre_cientifico: detalle.nombre_cientifico,
+          nombre_cientifico_sin_autor: nombreSinAutor,
+          autor: autor,
+          nombres_comunes: detalle.nombres_comunes,
+          genero: genero,
+          familia: detalle.familia,
+          score: detalle.confianza / 100,
+          confianza_porcentaje: detalle.confianza
+        },
+        confianza: detalle.confianza,
+        confianza_porcentaje: `${detalle.confianza}%`,
+        es_confiable: detalle.confianza >= 70,
+        plantnet_response: detalle.plantnet_response,
+        mejor_resultado: {
+          nombre_cientifico: detalle.nombre_cientifico,
+          nombre_cientifico_sin_autor: nombreSinAutor,
+          autor: autor,
+          nombres_comunes: detalle.nombres_comunes,
+          genero: genero,
+          familia: detalle.familia,
+          score: detalle.confianza / 100,
+          confianza_porcentaje: detalle.confianza
+        }
+      };
+
+      setResultado(respuestaAdaptada);
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'Error al identificar la planta';
+      const mensaje = err instanceof Error ? err.message : 'Error al cargar la identificación';
       setError(mensaje);
     } finally {
       setCargando(false);

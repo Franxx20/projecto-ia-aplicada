@@ -11,10 +11,13 @@ from pathlib import Path
 from io import BytesIO
 from sqlalchemy.orm import Session
 import json
+import logging
 
 from app.db.models import Especie, Identificacion, Usuario, Imagen
 from app.services.plantnet_service import PlantNetService
 from app.services.imagen_service import AzureBlobService, ImagenService
+
+logger = logging.getLogger(__name__)
 
 
 class IdentificacionService:
@@ -444,9 +447,10 @@ class IdentificacionService:
                 imagen_bytes_content = azure_service.descargar_blob(
                     img_data["imagen_db"].nombre_blob
                 )
-                imagen_bytes = BytesIO(imagen_bytes_content)
+                # NO usar BytesIO, pasar bytes directamente
+                # BytesIO causa problemas con httpx AsyncClient porque tiene operaciones síncronas
                 imagenes_para_plantnet.append(
-                    (img_data["imagen_db"].nombre_archivo, imagen_bytes)
+                    (img_data["imagen_db"].nombre_archivo, imagen_bytes_content)
                 )
                 organos_para_plantnet.append(img_data["organ"])
             except Exception as e:
@@ -514,7 +518,8 @@ class IdentificacionService:
         db.commit()
         
         # Formatear respuesta según IdentificacionResponse schema
-        return {
+        respuesta_formateada = {
+            "id": identificacion.id,  # Para compatibilidad con frontend
             "identificacion_id": identificacion.id,
             "especie": {
                 "nombre_cientifico": mejor_resultado["nombre_cientifico"],
@@ -543,3 +548,7 @@ class IdentificacionService:
                 "requests_restantes": respuesta.get("remainingIdentificationRequests")
             }
         }
+        
+        logger.info(f"Respuesta formateada para múltiples imágenes: id={respuesta_formateada['id']}, identificacion_id={respuesta_formateada['identificacion_id']}")
+        
+        return respuesta_formateada

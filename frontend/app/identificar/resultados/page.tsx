@@ -27,14 +27,12 @@ import {
   Loader2
 } from 'lucide-react';
 import {
-  IdentificarResponse,
   IdentificarResponseSimple,
   PlantNetResult,
   obtenerColorConfianza,
   obtenerNivelConfianza,
   formatearConfianza
 } from '@/models/plant.types';
-import { IdentificationResultCard } from '@/components/identification-result-card';
 import plantService from '@/lib/plant.service';
 
 export default function ResultadosPage() {
@@ -44,7 +42,7 @@ export default function ResultadosPage() {
   
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<IdentificarResponse | null>(null);
+  const [resultado, setResultado] = useState<IdentificarResponseSimple | null>(null);
 
   useEffect(() => {
     if (!imagenId) {

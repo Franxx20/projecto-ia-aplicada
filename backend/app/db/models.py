@@ -380,6 +380,20 @@ class Imagen(Base):
         comment="Descripción opcional de la imagen"
     )
     
+    organ = Column(
+        String(50),
+        nullable=True,
+        comment="Tipo de órgano de la planta: flower, leaf, fruit, bark, habit, other"
+    )
+    
+    identificacion_id = Column(
+        Integer,
+        ForeignKey("identificaciones.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID de la identificación asociada (si forma parte de una identificación múltiple)"
+    )
+    
     created_at = Column(
         DateTime,
         default=datetime.utcnow,
@@ -410,6 +424,8 @@ class Imagen(Base):
         Index('idx_usuario_created', 'usuario_id', 'created_at'),
         Index('idx_usuario_deleted', 'usuario_id', 'is_deleted'),
         Index('idx_imagenes_created_at', 'created_at'),
+        Index('idx_imagenes_organ', 'organ'),
+        Index('idx_imagenes_identificacion', 'identificacion_id'),
     )
     
     def __repr__(self) -> str:
@@ -453,6 +469,8 @@ class Imagen(Base):
             'content_type': self.content_type,
             'tamano_bytes': self.tamano_bytes,
             'descripcion': self.descripcion,
+            'organ': self.organ,
+            'identificacion_id': self.identificacion_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'is_deleted': self.is_deleted
@@ -1107,7 +1125,13 @@ class Identificacion(Base):
     
     # Relaciones
     usuario = relationship("Usuario", backref="identificaciones")
-    imagen = relationship("Imagen", backref="identificaciones")
+    imagen = relationship("Imagen", backref="identificaciones", foreign_keys=[imagen_id])
+    imagenes = relationship(
+        "Imagen",
+        backref="identificacion_asociada",
+        foreign_keys="Imagen.identificacion_id",
+        cascade="all, delete-orphan"
+    )
     especie = relationship("Especie", back_populates="identificaciones")
     
     # Índices

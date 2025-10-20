@@ -42,6 +42,15 @@ from .plantnet import (
     PlantNetResult
 )
 
+from .identificacion import (
+    ImagenConOrgan,
+    IdentificacionMultipleRequest,
+    IdentificacionSingleRequest,
+    ImagenIdentificacionResponse,
+    IdentificacionResponse,
+    EstadisticasOrganResponse
+)
+
 __all__ = [
     # Auth schemas
     "UserRegisterRequest",
@@ -67,4 +76,11 @@ __all__ = [
     "PlantNetRespuestaFormateada",
     "PlantNetQuotaInfo",
     "PlantNetResult",
+    # Identificacion schemas (T-022)
+    "ImagenConOrgan",
+    "IdentificacionMultipleRequest",
+    "IdentificacionSingleRequest",
+    "ImagenIdentificacionResponse",
+    "IdentificacionResponse",
+    "EstadisticasOrganResponse",
 ]

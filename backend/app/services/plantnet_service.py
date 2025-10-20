@@ -125,6 +125,10 @@ class PlantNetService:
             * nb-results: Limitar número de resultados (opcional)
             * lang: Código de idioma (opcional)
         
+        Nota T-022:
+            Si un órgano es "sin_especificar", se omite del request a PlantNet.
+            Las imágenes sin órgano especificado se envían sin el parámetro organs correspondiente.
+        
         Args:
             imagenes: Lista de tuplas (nombre_archivo, contenido_binario)
             organos: Lista de tipos de órgano correspondientes a cada imagen
@@ -155,11 +159,19 @@ class PlantNetService:
         if len(imagenes) != len(organos):
             raise ValueError("Número de imágenes debe coincidir con número de órganos")
         
+        # T-022: Filtrar órganos válidos (excluir "sin_especificar")
+        # PlantNet requiere que los órganos sean valores permitidos por su API
+        organos_validos_para_api = []
         for organo in organos:
-            if organo not in cls.ORGANOS_VALIDOS:
+            if organo == "sin_especificar":
+                # Si no se especifica órgano, usar "auto" para que PlantNet lo detecte
+                organos_validos_para_api.append("auto")
+            elif organo not in cls.ORGANOS_VALIDOS:
                 raise ValueError(
                     f"Órgano '{organo}' inválido. Valores válidos: {', '.join(cls.ORGANOS_VALIDOS)}"
                 )
+            else:
+                organos_validos_para_api.append(organo)
         
         # Verificar límite de requests
         if not cls._verificar_limite_requests():
@@ -181,11 +193,6 @@ class PlantNetService:
                 for nombre_archivo, contenido in imagenes:
                     files.append(("images", (nombre_archivo, contenido, "image/jpeg")))
                 
-                # Parámetros adicionales como form data
-                data = {}
-                for idx, organo in enumerate(organos):
-                    data["organs"] = organo  # PlantNet espera múltiples valores con mismo key
-                
                 # Query parameters
                 params = {
                     "api-key": settings.plantnet_api_key,
@@ -194,14 +201,17 @@ class PlantNetService:
                     "lang": lang
                 }
                 
-                logger.info(f"Enviando request a PlantNet API: {url} con {len(imagenes)} imagen(es)")
+                logger.info(
+                    f"Enviando request a PlantNet API: {url} con {len(imagenes)} imagen(es) "
+                    f"y órganos: {organos_validos_para_api}"
+                )
                 
-                # Hacer request POST
+                # Hacer request POST con órganos como array en form data
                 response = await client.post(
                     url,
                     params=params,
                     files=files,
-                    data={"organs": organos}  # Enviar órganos como array
+                    data={"organs": organos_validos_para_api}  # Enviar órganos como array
                 )
                 
                 # Verificar respuesta

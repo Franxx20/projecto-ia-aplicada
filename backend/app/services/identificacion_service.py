@@ -14,7 +14,7 @@ import json
 
 from app.db.models import Especie, Identificacion, Usuario, Imagen
 from app.services.plantnet_service import PlantNetService
-from app.services.imagen_service import AzureBlobService
+from app.services.imagen_service import AzureBlobService, ImagenService
 
 
 class IdentificacionService:
@@ -386,3 +386,160 @@ class IdentificacionService:
             Dict con información de cuota (requests realizados, restantes, límite)
         """
         return PlantNetService.obtener_requests_restantes()
+    
+    @staticmethod
+    async def identificar_desde_multiples_imagenes(
+        db: Session,
+        imagenes: List[tuple],  # Lista de (UploadFile, organ: str)
+        usuario_id: int,
+        guardar_resultado: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Identifica una planta desde múltiples imágenes (T-022).
+        
+        Procesa de 1 a 5 imágenes con sus respectivos órganos, las sube a Azure,
+        llama a PlantNet API y guarda los resultados en la base de datos.
+        
+        Args:
+            db: Sesión de base de datos
+            imagenes: Lista de tuplas (UploadFile, organ_str)
+            usuario_id: ID del usuario que solicita la identificación
+            guardar_resultado: Si True, guarda el resultado en la BD
+            
+        Returns:
+            Dict con la respuesta de PlantNet formateada según IdentificacionResponse
+            
+        Raises:
+            ValueError: Si el número de imágenes es inválido o hay errores de validación
+            Exception: Si hay error en la API de PlantNet
+        """
+        # Validar número de imágenes (1-5 según T-022)
+        if len(imagenes) < 1 or len(imagenes) > 5:
+            raise ValueError("Debe proporcionar entre 1 y 5 imágenes")
+        
+        # Crear instancia de ImagenService
+        imagen_service = ImagenService(db)
+        
+        # Guardar todas las imágenes en Azure y crear registros en DB
+        imagenes_guardadas = []
+        for upload_file, organ in imagenes:
+            imagen_guardada = await imagen_service.subir_imagen(
+                archivo=upload_file,
+                usuario_id=usuario_id
+            )
+            imagenes_guardadas.append({
+                "imagen_db": imagen_guardada,
+                "organ": organ,
+                "url": imagen_guardada.url_blob
+            })
+        
+        # Preparar imágenes para PlantNet
+        azure_service = AzureBlobService()
+        imagenes_para_plantnet = []
+        organos_para_plantnet = []
+        
+        for img_data in imagenes_guardadas:
+            # Descargar contenido desde Azure
+            try:
+                imagen_bytes_content = azure_service.descargar_blob(
+                    img_data["imagen_db"].nombre_blob
+                )
+                imagen_bytes = BytesIO(imagen_bytes_content)
+                imagenes_para_plantnet.append(
+                    (img_data["imagen_db"].nombre_archivo, imagen_bytes)
+                )
+                organos_para_plantnet.append(img_data["organ"])
+            except Exception as e:
+                raise ValueError(
+                    f"Error al descargar imagen desde Azure: {str(e)}"
+                )
+        
+        # Llamar a PlantNet con múltiples imágenes
+        respuesta = await PlantNetService.identificar_planta(
+            imagenes=imagenes_para_plantnet,
+            organos=organos_para_plantnet
+        )
+        
+        # Si no hay que guardar, retornar solo la respuesta
+        if not guardar_resultado:
+            return {
+                "plantnet_response": respuesta,
+                "identificacion_id": None,
+                "imagenes": imagenes_guardadas
+            }
+        
+        # Obtener el mejor resultado
+        mejor_resultado = PlantNetService.extraer_mejor_resultado(respuesta)
+        
+        # Buscar o crear la especie en la base de datos
+        especie = await IdentificacionService._buscar_o_crear_especie(
+            db=db,
+            resultado=mejor_resultado,
+            respuesta_completa=respuesta
+        )
+        
+        # Crear el registro de identificación (sin imagen_id inicialmente)
+        identificacion = Identificacion(
+            usuario_id=usuario_id,
+            imagen_id=None,  # Para múltiples imágenes, no usamos imagen_id
+            especie_id=especie.id,
+            confianza=int(mejor_resultado["score"] * 100),
+            origen="plantnet",
+            validado=False,
+            metadatos_ia=json.dumps({
+                "plantnet_response": respuesta,
+                "mejor_resultado": mejor_resultado,
+                "organos_detectados": [
+                    {
+                        "organ": img.get("organ"),
+                        "score": img.get("score")
+                    }
+                    for img in respuesta.get("images", [])
+                ],
+                "num_imagenes": len(imagenes_guardadas)
+            }, default=str)
+        )
+        
+        db.add(identificacion)
+        db.commit()
+        db.refresh(identificacion)
+        
+        # Actualizar todas las imágenes con el identificacion_id
+        for img_data in imagenes_guardadas:
+            img_db = img_data["imagen_db"]
+            img_db.identificacion_id = identificacion.id
+            img_db.organ = img_data["organ"]
+            db.add(img_db)
+        
+        db.commit()
+        
+        # Formatear respuesta según IdentificacionResponse schema
+        return {
+            "identificacion_id": identificacion.id,
+            "especie": {
+                "nombre_cientifico": mejor_resultado["nombre_cientifico"],
+                "nombre_comun": mejor_resultado["nombres_comunes"][0] if mejor_resultado["nombres_comunes"] else mejor_resultado["nombre_cientifico"],
+                "familia": mejor_resultado["familia"],
+            },
+            "confianza": identificacion.confianza,
+            "confianza_porcentaje": f"{identificacion.confianza}%",
+            "es_confiable": identificacion.es_confiable,
+            "imagenes": [
+                {
+                    "id": img_data["imagen_db"].id,
+                    "url": img_data["url"],
+                    "organ": img_data["organ"],
+                    "nombre_archivo": img_data["imagen_db"].nombre_archivo
+                }
+                for img_data in imagenes_guardadas
+            ],
+            "fecha_identificacion": identificacion.fecha_identificacion.isoformat(),
+            "validado": identificacion.validado,
+            "origen": identificacion.origen,
+            "metadatos_plantnet": {
+                "version": respuesta.get("version", ""),
+                "proyecto": respuesta.get("query", {}).get("project", ""),
+                "resultados_alternativos": len(respuesta.get("results", [])),
+                "requests_restantes": respuesta.get("remainingIdentificationRequests")
+            }
+        }

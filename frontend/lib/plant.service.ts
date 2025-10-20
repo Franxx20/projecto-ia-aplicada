@@ -15,6 +15,7 @@ import { AxiosError } from 'axios';
 import {
   IdentificarRequest,
   IdentificarResponse,
+  IdentificarResponseSimple,
   HistorialResponse,
   HistorialIdentificacion,
   PlantNetQuota,
@@ -48,7 +49,7 @@ class PlantService {
     imagenId: number,
     organos: OrganType[] = ['auto'],
     guardarResultado: boolean = true
-  ): Promise<IdentificarResponse> {
+  ): Promise<IdentificarResponseSimple> {
     try {
       const request: IdentificarRequest = {
         imagen_id: imagenId,
@@ -56,7 +57,7 @@ class PlantService {
         guardar_resultado: guardarResultado
       };
 
-      const response = await axios.post<IdentificarResponse>(
+      const response = await axios.post<IdentificarResponseSimple>(
         `${this.baseUrl}/desde-imagen`,
         request
       );
@@ -65,6 +66,88 @@ class PlantService {
     } catch (error) {
       if (error instanceof AxiosError) {
         const mensaje = error.response?.data?.detail || 'Error al identificar la planta';
+        throw new Error(mensaje);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Identifica una planta desde múltiples imágenes (T-022, T-023)
+   * 
+   * Permite enviar de 1 a 5 imágenes con especificación del órgano (parte de la planta)
+   * para cada imagen.
+   * 
+   * @param archivos - Array de 1 a 5 archivos de imagen
+   * @param organos - Array de órganos correspondiente a cada imagen
+   * @param guardarResultado - Si se debe guardar el resultado en BD (default: true)
+   * @param onProgress - Callback opcional para reportar progreso del upload
+   * @returns Promise con el resultado de la identificación incluyendo todas las imágenes
+   * 
+   * @throws {Error} Si el número de imágenes no está entre 1-5 o si hay error en la API
+   * 
+   * @example
+   * ```typescript
+   * const archivos = [archivo1, archivo2, archivo3];
+   * const organos = ['flower', 'leaf', 'fruit'];
+   * const resultado = await plantService.identificarDesdeMultiplesImagenes(
+   *   archivos,
+   *   organos,
+   *   true,
+   *   (progreso) => console.log(`${progreso}%`)
+   * );
+   * console.log(`Imágenes procesadas: ${resultado.cantidad_imagenes}`);
+   * console.log(`Confianza: ${resultado.confianza}%`);
+   * ```
+   */
+  async identificarDesdeMultiplesImagenes(
+    archivos: File[],
+    organos: OrganType[],
+    guardarResultado: boolean = true,
+    onProgress?: (progreso: number) => void
+  ): Promise<IdentificarResponse> {
+    try {
+      // Validar número de archivos
+      if (archivos.length < 1 || archivos.length > 5) {
+        throw new Error('Debe proporcionar entre 1 y 5 imágenes');
+      }
+
+      // Validar que haya un órgano por cada archivo
+      if (organos.length !== archivos.length) {
+        throw new Error('Debe proporcionar un órgano por cada imagen');
+      }
+
+      const formData = new FormData();
+      
+      // Agregar cada archivo
+      archivos.forEach((archivo) => {
+        formData.append('archivos', archivo);
+      });
+
+      // Agregar órganos separados por coma
+      formData.append('organos', organos.join(','));
+      formData.append('guardar_resultado', String(guardarResultado));
+
+      const response = await axios.post<IdentificarResponse>(
+        `${this.baseUrl}/multiple`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+              const porcentaje = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              onProgress(porcentaje);
+            }
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const mensaje = error.response?.data?.detail || 'Error al procesar las imágenes';
         throw new Error(mensaje);
       }
       throw error;
@@ -98,7 +181,7 @@ class PlantService {
     organos: OrganType[] = ['auto'],
     guardarImagen: boolean = true,
     onProgress?: (progreso: number) => void
-  ): Promise<IdentificarResponse & { imagen?: { id: number; url: string; nombre: string } }> {
+  ): Promise<IdentificarResponseSimple & { imagen?: { id: number; url: string; nombre: string } }> {
     try {
       const formData = new FormData();
       formData.append('archivo', archivo);

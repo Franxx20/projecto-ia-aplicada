@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * Página de Resultados de Identificación de Plantas
+ * Página de Resultados de Identificación de Plantas (T-023)
  * 
- * Muestra los resultados de la identificación con PlantNet API.
- * Presenta las especies identificadas con sus niveles de confianza,
- * nombres científicos, nombres comunes e información taxonómica.
+ * Actualizada para soportar múltiples imágenes con parámetros organ.
+ * Muestra los resultados de la identificación con PlantNet API usando
+ * el nuevo componente IdentificationResultCard con carousel de imágenes.
  * 
  * @author Equipo Frontend
- * @date Octubre 2025
- * @sprint Sprint 1-2
- * @task T-017
+ * @date Enero 2026
+ * @sprint Sprint 3
+ * @task T-023
  */
 
 import { useEffect, useState } from 'react';
@@ -28,11 +28,13 @@ import {
 } from 'lucide-react';
 import {
   IdentificarResponse,
+  IdentificarResponseSimple,
   PlantNetResult,
   obtenerColorConfianza,
   obtenerNivelConfianza,
   formatearConfianza
 } from '@/models/plant.types';
+import { IdentificationResultCard } from '@/components/identification-result-card';
 import plantService from '@/lib/plant.service';
 
 export default function ResultadosPage() {

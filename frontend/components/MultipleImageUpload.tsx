@@ -12,7 +12,7 @@
 
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Camera, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -83,6 +83,13 @@ export function MultipleImageUpload({
   const inputRef = useRef<HTMLInputElement>(null)
 
   /**
+   * Notifica cambios en las imágenes cada vez que se actualiza el estado
+   */
+  useEffect(() => {
+    onImagenesSeleccionadas?.(imagenes)
+  }, [imagenes, onImagenesSeleccionadas])
+
+  /**
    * Genera un ID único para cada imagen
    */
   const generarId = () => `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -148,10 +155,9 @@ export function MultipleImageUpload({
       if (nuevasImagenes.length > 0) {
         const imagenesActualizadas = [...imagenes, ...nuevasImagenes]
         setImagenes(imagenesActualizadas)
-        onImagenesSeleccionadas?.(imagenesActualizadas)
       }
     },
-    [imagenes, maxImagenes, maxSizeMB, organPorDefecto, onImagenesSeleccionadas]
+    [imagenes, maxImagenes, maxSizeMB, organPorDefecto]
   )
 
   /**
@@ -170,16 +176,13 @@ export function MultipleImageUpload({
    */
   const eliminarImagen = (id: string) => {
     setImagenes((prev) => {
-      const nuevasImagenes = prev.filter((img) => img.id !== id)
-      onImagenesSeleccionadas?.(nuevasImagenes)
-      
       // Liberar URL del preview
       const imagenEliminada = prev.find((img) => img.id === id)
       if (imagenEliminada) {
         URL.revokeObjectURL(imagenEliminada.previewUrl)
       }
       
-      return nuevasImagenes
+      return prev.filter((img) => img.id !== id)
     })
     setError(null)
   }
@@ -188,13 +191,11 @@ export function MultipleImageUpload({
    * Actualiza el órgano de una imagen
    */
   const actualizarOrgano = (id: string, organ: OrganType) => {
-    setImagenes((prev) => {
-      const nuevasImagenes = prev.map((img) =>
+    setImagenes((prev) =>
+      prev.map((img) =>
         img.id === id ? { ...img, organ } : img
       )
-      onImagenesSeleccionadas?.(nuevasImagenes)
-      return nuevasImagenes
-    })
+    )
   }
 
   /**

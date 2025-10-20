@@ -204,6 +204,8 @@ class PlantNetService:
         
         try:
             # Preparar archivos - convertir a bytes si es necesario
+            from io import BytesIO
+            
             archivos_preparados = []
             for nombre_archivo, contenido in imagenes:
                 # Si contenido es BytesIO u otro stream, leerlo completamente
@@ -211,10 +213,18 @@ class PlantNetService:
                     if hasattr(contenido, 'seek'):
                         contenido.seek(0)  # Asegurar posición inicial
                     imagen_bytes = contenido.read()
-                else:
+                elif isinstance(contenido, bytes):
+                    # Ya es bytes, usar directamente
                     imagen_bytes = contenido
+                else:
+                    # Si no es ni stream ni bytes, intentar convertir
+                    logger.error(f"Tipo inesperado para contenido de imagen: {type(contenido)}")
+                    raise ValueError(f"Contenido de imagen debe ser bytes o file-like object, no {type(contenido)}")
                 
-                archivos_preparados.append((nombre_archivo, imagen_bytes))
+                # Envolver bytes en BytesIO para httpx
+                imagen_stream = BytesIO(imagen_bytes)
+                imagen_stream.seek(0)  # Asegurar que está al inicio
+                archivos_preparados.append((nombre_archivo, imagen_stream))
             
             logger.info(
                 f"Enviando request a PlantNet API: {url} con {len(imagenes)} imagen(es) "
@@ -222,38 +232,50 @@ class PlantNetService:
             )
             
             # Debug: verificar estructura de archivos_preparados
-            logger.debug(f"Archivos preparados: {[(nombre, type(contenido).__name__, len(contenido) if isinstance(contenido, bytes) else 'N/A') for nombre, contenido in archivos_preparados]}")
+            logger.debug(f"Archivos preparados: {[(nombre, type(img_stream).__name__) for nombre, img_stream in archivos_preparados]}")
             
             # Función síncrona para hacer el request con httpx.Client
             def _hacer_request_sincrono():
                 try:
                     with httpx.Client(timeout=30.0) as client:
-                        # Construir data como lista de tuplas para órganos repetidos
-                        # Solo enviamos organs si hay órganos especificados (no "sin_especificar")
-                        data_list = []
-                        for organo in organos_para_plantnet:
-                            data_list.append(("organs", organo))
-                        
                         # Construir files para multipart/form-data
                         # httpx espera: lista de tuplas (field_name, file_tuple)
-                        # file_tuple puede ser: (filename, content, content_type)
+                        # file_tuple debe ser: (filename, file_content, content_type)
+                        # El file_content debe ser un file-like object (BytesIO)
                         files_to_upload = []
-                        for nombre, img_bytes in archivos_preparados:
-                            if not isinstance(img_bytes, bytes):
-                                logger.error(f"Error: contenido no es bytes, es {type(img_bytes)}")
-                                raise ValueError(f"El contenido de la imagen debe ser bytes, no {type(img_bytes)}")
-                            
-                            # Formato: (field_name, (filename, bytes, content_type))
-                            files_to_upload.append(("images", (nombre, img_bytes, "image/jpeg")))
                         
-                        logger.debug(f"Files list construida con {len(files_to_upload)} archivos")
+                        # Primero agregar las imágenes
+                        for nombre, img_stream in archivos_preparados:
+                            # Verificar que sea BytesIO
+                            from io import BytesIO
+                            if not isinstance(img_stream, BytesIO):
+                                logger.error(f"Error: contenido no es BytesIO, es {type(img_stream)}")
+                                raise ValueError(f"El contenido de la imagen debe ser BytesIO, no {type(img_stream)}")
+                            
+                            # Asegurar que el stream esté al inicio
+                            img_stream.seek(0)
+                            
+                            # Formato correcto para httpx: (field_name, file_tuple)
+                            # donde file_tuple es una tupla de (filename, file_content, content_type)
+                            files_to_upload.append(
+                                ("images", (nombre, img_stream, "image/jpeg"))
+                            )
+                        
+                        # Agregar los órganos como datos regulares
+                        # Para multipart/form-data con httpx, los campos de texto van en 'data'
+                        data_dict = {}
+                        if organos_para_plantnet:
+                            # Si hay múltiples órganos, httpx maneja automáticamente la repetición del campo
+                            data_dict["organs"] = organos_para_plantnet
+                        
+                        logger.debug(f"Files list construida con {len(archivos_preparados)} imágenes y {len(organos_para_plantnet)} órganos")
                         
                         # Hacer request POST con multipart/form-data
                         response = client.post(
                             url,
                             params=params,
                             files=files_to_upload,
-                            data=data_list if data_list else None  # Solo enviar data si hay órganos
+                            data=data_dict if data_dict else None
                         )
                         
                         # Verificar respuesta

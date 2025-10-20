@@ -15,66 +15,91 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Sparkles, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Sparkles, AlertCircle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import ImageUpload from '@/components/ImageUpload'
-import type { ImageUploadResponse } from '@/models/image.types'
+import { MultipleImageUpload } from '@/components/MultipleImageUpload'
+import plantService from '@/lib/plant.service'
+import type { OrganType } from '@/models/plant.types'
+
+/**
+ * Interfaz para imagen con órgano seleccionado
+ */
+interface ImagenConOrgano {
+  id: string
+  archivo: File
+  previewUrl: string
+  organ: OrganType
+  tamano: number
+}
 
 /**
  * Página de identificación de plantas
  * 
- * Componente principal que integra el upload de imágenes
+ * Componente principal que integra el upload de múltiples imágenes
  * y la identificación de plantas usando PlantNet API
  */
 export default function IdentificarPage() {
   const router = useRouter()
-  const [imagenSubida, setImagenSubida] = useState<ImageUploadResponse | null>(null)
+  const [imagenesSeleccionadas, setImagenesSeleccionadas] = useState<ImagenConOrgano[]>([])
   const [estaIdentificando, setEstaIdentificando] = useState(false)
+  const [progresoUpload, setProgresoUpload] = useState(0)
   const [errorIdentificacion, setErrorIdentificacion] = useState<string | null>(null)
 
   /**
-   * Maneja el éxito del upload de imagen
-   * y procede a identificar la planta
+   * Maneja la selección de múltiples imágenes
    */
-  const handleUploadSuccess = async (response: ImageUploadResponse) => {
-    console.log('Imagen subida exitosamente:', response)
-    setImagenSubida(response)
+  const handleImagenesSeleccionadas = (imagenes: ImagenConOrgano[]) => {
+    setImagenesSeleccionadas(imagenes)
     setErrorIdentificacion(null)
-
-    // Aquí podrías llamar automáticamente a la API de identificación
-    // Por ahora, solo guardamos la imagen y mostramos el botón
   }
 
   /**
-   * Maneja errores en el upload
-   */
-  const handleUploadError = (error: Error) => {
-    console.error('Error al subir imagen:', error)
-    setErrorIdentificacion(null)
-    // El componente ImageUpload ya muestra el error
-  }
-
-  /**
-   * Inicia el proceso de identificación de la planta
+   * Inicia el proceso de identificación con múltiples imágenes
    * usando PlantNet API a través del backend
    */
   const identificarPlanta = async () => {
-    if (!imagenSubida) return
+    if (imagenesSeleccionadas.length === 0) {
+      setErrorIdentificacion('Debes seleccionar al menos una imagen')
+      return
+    }
 
     setEstaIdentificando(true)
     setErrorIdentificacion(null)
+    setProgresoUpload(0)
 
     try {
-      // Navegar a la página de resultados con el ID de la imagen
-      // La página de resultados hará la llamada a la API
-      router.push(`/identificar/resultados?imagenId=${imagenSubida.id}`)
+      // Extraer archivos y órganos
+      const archivos = imagenesSeleccionadas.map(img => img.archivo)
+      const organos = imagenesSeleccionadas.map(img => img.organ)
+
+      console.log('Identificando planta con:', {
+        cantidadImagenes: archivos.length,
+        organos: organos,
+      })
+
+      // Llamar al servicio de identificación con múltiples imágenes
+      const respuesta = await plantService.identificarDesdeMultiplesImagenes(
+        archivos,
+        organos,
+        true, // guardar resultado
+        (progreso: number) => {
+          setProgresoUpload(progreso)
+          console.log(`Progreso de upload: ${progreso}%`)
+        }
+      )
+
+      console.log('Identificación exitosa:', respuesta)
+
+      // Navegar a la página de resultados con el ID de identificación
+      router.push(`/identificar/resultados?identificacionId=${respuesta.id}`)
     } catch (error) {
       console.error('Error al identificar planta:', error)
       const mensaje = error instanceof Error ? error.message : 'Error al identificar la planta'
       setErrorIdentificacion(mensaje)
       setEstaIdentificando(false)
+      setProgresoUpload(0)
     }
   }
 
@@ -114,48 +139,44 @@ export default function IdentificarPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* Componente de upload */}
-              <ImageUpload
-                autoUpload={true}
-                onUploadSuccess={handleUploadSuccess}
-                onUploadError={handleUploadError}
-                showCameraCapture={true}
-                showTips={true}
+              {/* Componente de upload múltiple */}
+              <MultipleImageUpload
+                maxImagenes={5}
+                onImagenesSeleccionadas={handleImagenesSeleccionadas}
+                organPorDefecto="sin_especificar"
               />
 
-              {/* Botón de identificación */}
-              {imagenSubida && (
-                <div className="pt-4 space-y-4">
-                  {/* Mensaje de error si existe */}
-                  {errorIdentificacion && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
-                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h3 className="font-semibold text-red-900 mb-1">Error al identificar</h3>
-                        <p className="text-sm text-red-700">{errorIdentificacion}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    onClick={identificarPlanta}
-                    disabled={estaIdentificando}
-                  >
-                    {estaIdentificando ? (
-                      <>
-                        <Sparkles className="w-5 h-5 mr-2 animate-pulse" />
-                        Identificando Planta...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5 mr-2" />
-                        Identificar Planta
-                      </>
-                    )}
-                  </Button>
+              {/* Mensaje de error si existe */}
+              {errorIdentificacion && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-red-900 mb-1">Error al identificar</h3>
+                    <p className="text-sm text-red-700">{errorIdentificacion}</p>
+                  </div>
                 </div>
+              )}
+
+              {/* Botón de identificación */}
+              {imagenesSeleccionadas.length > 0 && (
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={identificarPlanta}
+                  disabled={estaIdentificando}
+                >
+                  {estaIdentificando ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Identificando Planta... {progresoUpload > 0 && `${progresoUpload}%`}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Identificar Planta
+                    </>
+                  )}
+                </Button>
               )}
             </CardContent>
           </Card>

@@ -12,6 +12,7 @@ Límites:
 """
 
 import httpx
+import asyncio
 import logging
 from typing import List, Optional, Dict, Any, BinaryIO, Tuple
 from datetime import datetime, timedelta
@@ -159,19 +160,26 @@ class PlantNetService:
         if len(imagenes) != len(organos):
             raise ValueError("Número de imágenes debe coincidir con número de órganos")
         
-        # T-022: Filtrar órganos válidos (excluir "sin_especificar")
-        # PlantNet requiere que los órganos sean valores permitidos por su API
-        organos_validos_para_api = []
+        # T-022: Filtrar órganos válidos
+        # Si el órgano es "sin_especificar", NO lo enviamos a PlantNet (detección automática)
+        # Solo enviamos órganos explícitamente especificados
+        organos_para_plantnet = []
         for organo in organos:
             if organo == "sin_especificar":
-                # Si no se especifica órgano, usar "auto" para que PlantNet lo detecte
-                organos_validos_para_api.append("auto")
+                # No agregar nada - PlantNet hará detección automática
+                continue
             elif organo not in cls.ORGANOS_VALIDOS:
                 raise ValueError(
                     f"Órgano '{organo}' inválido. Valores válidos: {', '.join(cls.ORGANOS_VALIDOS)}"
                 )
             else:
-                organos_validos_para_api.append(organo)
+                # Agregar órgano válido especificado
+                organos_para_plantnet.append(organo)
+        
+        logger.info(
+            f"Preparando request: {len(imagenes)} imágenes, "
+            f"{len(organos_para_plantnet)} órganos especificados: {organos_para_plantnet}"
+        )
         
         # Verificar límite de requests
         if not cls._verificar_limite_requests():
@@ -186,49 +194,91 @@ class PlantNetService:
         # Construir URL con API key como query parameter (según documentación)
         url = f"{settings.plantnet_api_url}/{project}"
         
+        # Query parameters
+        params = {
+            "api-key": settings.plantnet_api_key,
+            "include-related-images": str(include_related_images).lower(),
+            "nb-results": nb_results,
+            "lang": lang
+        }
+        
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Preparar multipart/form-data según documentación oficial
-                files = []
-                for nombre_archivo, contenido in imagenes:
-                    files.append(("images", (nombre_archivo, contenido, "image/jpeg")))
+            # Preparar archivos - convertir a bytes si es necesario
+            archivos_preparados = []
+            for nombre_archivo, contenido in imagenes:
+                # Si contenido es BytesIO u otro stream, leerlo completamente
+                if hasattr(contenido, 'read'):
+                    if hasattr(contenido, 'seek'):
+                        contenido.seek(0)  # Asegurar posición inicial
+                    imagen_bytes = contenido.read()
+                else:
+                    imagen_bytes = contenido
                 
-                # Query parameters
-                params = {
-                    "api-key": settings.plantnet_api_key,
-                    "include-related-images": str(include_related_images).lower(),
-                    "nb-results": nb_results,
-                    "lang": lang
-                }
-                
-                logger.info(
-                    f"Enviando request a PlantNet API: {url} con {len(imagenes)} imagen(es) "
-                    f"y órganos: {organos_validos_para_api}"
-                )
-                
-                # Hacer request POST con órganos como array en form data
-                response = await client.post(
-                    url,
-                    params=params,
-                    files=files,
-                    data={"organs": organos_validos_para_api}  # Enviar órganos como array
-                )
-                
-                # Verificar respuesta
-                response.raise_for_status()
-                
-                # Incrementar contador
-                cls._incrementar_contador_requests()
-                
-                # Parsear respuesta JSON
-                resultado = response.json()
-                
-                logger.info(
-                    f"PlantNet identificó: {resultado.get('bestMatch', 'N/A')} "
-                    f"(Requests restantes: {resultado.get('remainingIdentificationRequests', 'N/A')})"
-                )
-                
-                return resultado
+                archivos_preparados.append((nombre_archivo, imagen_bytes))
+            
+            logger.info(
+                f"Enviando request a PlantNet API: {url} con {len(imagenes)} imagen(es) "
+                f"y órganos especificados: {organos_para_plantnet}"
+            )
+            
+            # Debug: verificar estructura de archivos_preparados
+            logger.debug(f"Archivos preparados: {[(nombre, type(contenido).__name__, len(contenido) if isinstance(contenido, bytes) else 'N/A') for nombre, contenido in archivos_preparados]}")
+            
+            # Función síncrona para hacer el request con httpx.Client
+            def _hacer_request_sincrono():
+                try:
+                    with httpx.Client(timeout=30.0) as client:
+                        # Construir data como lista de tuplas para órganos repetidos
+                        # Solo enviamos organs si hay órganos especificados (no "sin_especificar")
+                        data_list = []
+                        for organo in organos_para_plantnet:
+                            data_list.append(("organs", organo))
+                        
+                        # Construir files para multipart/form-data
+                        # httpx espera: lista de tuplas (field_name, file_tuple)
+                        # file_tuple puede ser: (filename, content, content_type)
+                        files_to_upload = []
+                        for nombre, img_bytes in archivos_preparados:
+                            if not isinstance(img_bytes, bytes):
+                                logger.error(f"Error: contenido no es bytes, es {type(img_bytes)}")
+                                raise ValueError(f"El contenido de la imagen debe ser bytes, no {type(img_bytes)}")
+                            
+                            # Formato: (field_name, (filename, bytes, content_type))
+                            files_to_upload.append(("images", (nombre, img_bytes, "image/jpeg")))
+                        
+                        logger.debug(f"Files list construida con {len(files_to_upload)} archivos")
+                        
+                        # Hacer request POST con multipart/form-data
+                        response = client.post(
+                            url,
+                            params=params,
+                            files=files_to_upload,
+                            data=data_list if data_list else None  # Solo enviar data si hay órganos
+                        )
+                        
+                        # Verificar respuesta
+                        response.raise_for_status()
+                        
+                        return response.json()
+                except Exception as e:
+                    import traceback
+                    logger.error(f"Error en _hacer_request_sincrono: {str(e)}")
+                    logger.error(f"Traceback completo:\n{traceback.format_exc()}")
+                    raise
+            
+            # Ejecutar el request síncrono en un thread separado
+            resultado = await asyncio.to_thread(_hacer_request_sincrono)
+            
+            # Incrementar contador
+            cls._incrementar_contador_requests()
+            
+            # Parsear respuesta JSON
+            logger.info(
+                f"PlantNet identificó: {resultado.get('bestMatch', 'N/A')} "
+                f"(Requests restantes: {resultado.get('remainingIdentificationRequests', 'N/A')})"
+            )
+            
+            return resultado
                 
         except httpx.HTTPStatusError as e:
             logger.error(f"Error HTTP de PlantNet API: {e.response.status_code} - {e.response.text}")

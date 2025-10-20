@@ -1050,9 +1050,9 @@ class Identificacion(Base):
     imagen_id = Column(
         Integer,
         ForeignKey("imagenes.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,  # T-022: Nullable para identificaciones con múltiples imágenes
         index=True,
-        comment="ID de la imagen"
+        comment="ID de la imagen (NULL para identificaciones con múltiples imágenes)"
     )
     
     especie_id = Column(
@@ -1184,11 +1184,36 @@ class Identificacion(Base):
         Returns:
             dict: Diccionario con los datos de la identificación
         """
+        # Parsear metadatos_ia si existe
+        metadatos_plantnet = {}
+        if self.metadatos_ia:
+            try:
+                import json
+                metadatos_json = json.loads(self.metadatos_ia)
+                metadatos_plantnet = metadatos_json.get("plantnet_response", {})
+            except:
+                pass
+        
+        # Incluir información de la especie si existe
+        especie_dict = {}
+        if self.especie:
+            # El modelo Especie usa 'nombre_comun' (singular), lo convertimos a lista para el frontend
+            nombres_comunes_list = [self.especie.nombre_comun] if self.especie.nombre_comun else []
+            especie_dict = {
+                'nombre_cientifico': self.especie.nombre_cientifico,
+                'familia': self.especie.familia,
+                'nombres_comunes': nombres_comunes_list
+            }
+        
         return {
             'id': self.id,
             'usuario_id': self.usuario_id,
             'imagen_id': self.imagen_id,
             'especie_id': self.especie_id,
+            # Incluir datos de la especie directamente (para retrocompatibilidad)
+            'nombre_cientifico': especie_dict.get('nombre_cientifico', ''),
+            'familia': especie_dict.get('familia', ''),
+            'nombres_comunes': especie_dict.get('nombres_comunes', []),
             'confianza': self.confianza,
             'confianza_porcentaje': self.confianza_porcentaje,
             'es_confiable': self.es_confiable,
@@ -1198,6 +1223,8 @@ class Identificacion(Base):
             'fecha_validacion': self.fecha_validacion.isoformat() if self.fecha_validacion else None,
             'notas_usuario': self.notas_usuario,
             'metadatos_ia': self.metadatos_ia,
+            'plantnet_response': metadatos_plantnet,  # Para el frontend
+            'api_name': 'plantnet' if self.origen == 'plantnet' else self.origen,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

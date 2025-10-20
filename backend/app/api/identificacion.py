@@ -17,6 +17,10 @@ from app.schemas.plantnet import (
     PlantNetIdentificacionRequest,
     PlantNetQuotaInfo
 )
+from app.schemas.identificacion import (
+    IdentificacionMultipleRequest,
+    IdentificacionResponse
+)
 from pydantic import BaseModel, Field
 
 
@@ -328,4 +332,106 @@ async def obtener_quota(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener información de cuota: {str(e)}"
+        )
+
+
+@router.post(
+    "/multiple",
+    response_model=dict,
+    status_code=status.HTTP_201_CREATED,
+    summary="Identificar planta con múltiples imágenes (T-022)",
+    description="Identifica una planta usando de 1 a 5 imágenes con especificación opcional de órgano por imagen"
+)
+async def identificar_multiples_imagenes(
+    archivos: List[UploadFile] = File(
+        ...,
+        description="De 1 a 5 archivos de imagen (JPG, PNG)",
+        max_length=5
+    ),
+    organos: str = Form(
+        default="sin_especificar",
+        description="Órganos separados por coma (leaf,flower,fruit,bark,auto,sin_especificar). Si se proporciona un solo valor, se aplica a todas las imágenes."
+    ),
+    guardar_resultado: bool = Form(
+        default=True,
+        description="Si True, guarda el resultado en la base de datos"
+    ),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Identifica una planta usando múltiples imágenes (T-022).
+    
+    Permite enviar de 1 a 5 imágenes con especificación opcional del órgano
+    (parte de la planta) para cada imagen.
+    
+    - **archivos**: Lista de 1 a 5 archivos de imagen
+    - **organos**: Órganos separados por coma o un solo valor para todas las imágenes
+      - Valores válidos: leaf, flower, fruit, bark, auto, sin_especificar
+      - "sin_especificar": No se envía el parámetro organ a PlantNet (detección auto)
+    - **guardar_resultado**: Si True, guarda en la base de datos
+    
+    Returns:
+        IdentificacionResponse con información de la especie identificada,
+        nivel de confianza y metadatos de cada imagen.
+    
+    Raises:
+        400: Si el número de imágenes es inválido o los órganos son incorrectos
+        500: Si hay error en la API de PlantNet
+    """
+    try:
+        # Validar número de archivos
+        if len(archivos) < 1 or len(archivos) > 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debe proporcionar entre 1 y 5 imágenes"
+            )
+        
+        # Procesar lista de órganos
+        lista_organos = [o.strip() for o in organos.split(",")]
+        
+        # Si se proporciona un solo órgano, aplicarlo a todas las imágenes
+        if len(lista_organos) == 1:
+            lista_organos = lista_organos * len(archivos)
+        
+        # Validar que el número de órganos coincida con el número de archivos
+        if len(lista_organos) != len(archivos):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El número de órganos ({len(lista_organos)}) debe coincidir con el número de imágenes ({len(archivos)})"
+            )
+        
+        # Validar órganos válidos
+        organos_validos = ["leaf", "flower", "fruit", "bark", "auto", "sin_especificar"]
+        for organ in lista_organos:
+            if organ not in organos_validos:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Órgano '{organ}' inválido. Valores válidos: {', '.join(organos_validos)}"
+                )
+        
+        # Preparar lista de tuplas (UploadFile, organ)
+        imagenes_con_organos = list(zip(archivos, lista_organos))
+        
+        # Llamar al servicio
+        resultado = await IdentificacionService.identificar_desde_multiples_imagenes(
+            db=db,
+            imagenes=imagenes_con_organos,
+            usuario_id=current_user.id,
+            guardar_resultado=guardar_resultado
+        )
+        
+        return resultado
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al procesar imágenes: {str(e)}"
         )

@@ -374,17 +374,24 @@ class Imagen(Base):
         comment="Tamaño del archivo en bytes"
     )
     
-    organ = Column(
-        String(50),
-        nullable=True,
-        default='auto',
-        comment="Tipo de órgano de la planta: flower, leaf, fruit, bark, habit, other, auto"
-    )
-    
     descripcion = Column(
         Text,
         nullable=True,
         comment="Descripción opcional de la imagen"
+    )
+    
+    organ = Column(
+        String(50),
+        nullable=True,
+        comment="Tipo de órgano de la planta: flower, leaf, fruit, bark, habit, other"
+    )
+    
+    identificacion_id = Column(
+        Integer,
+        ForeignKey("identificaciones.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID de la identificación asociada (si forma parte de una identificación múltiple)"
     )
     
     created_at = Column(
@@ -417,6 +424,8 @@ class Imagen(Base):
         Index('idx_usuario_created', 'usuario_id', 'created_at'),
         Index('idx_usuario_deleted', 'usuario_id', 'is_deleted'),
         Index('idx_imagenes_created_at', 'created_at'),
+        Index('idx_imagenes_organ', 'organ'),
+        Index('idx_imagenes_identificacion', 'identificacion_id'),
     )
     
     def __repr__(self) -> str:
@@ -459,8 +468,9 @@ class Imagen(Base):
             'container_name': self.container_name,
             'content_type': self.content_type,
             'tamano_bytes': self.tamano_bytes,
-            'organ': self.organ,
             'descripcion': self.descripcion,
+            'organ': self.organ,
+            'identificacion_id': self.identificacion_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'is_deleted': self.is_deleted
@@ -991,77 +1001,6 @@ class Especie(Base):
 
 # ==================== MODELO IDENTIFICACION ====================
 
-class IdentificacionImagen(Base):
-    """
-    Tabla intermedia para la relación muchos-a-muchos entre
-    Identificacion e Imagen.
-    
-    Permite que una identificación pueda tener múltiples imágenes
-    (hasta 5 según PlantNet API) y que cada imagen pueda estar
-    en múltiples identificaciones.
-    
-    Attributes:
-        id (int): Identificador único
-        identificacion_id (int): ID de la identificación
-        imagen_id (int): ID de la imagen
-        orden (int): Orden de la imagen en la identificación (1-5)
-        created_at (datetime): Fecha de creación
-    """
-    
-    __tablename__ = "identificacion_imagenes"
-    
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True,
-        comment="Identificador único"
-    )
-    
-    identificacion_id = Column(
-        Integer,
-        ForeignKey("identificaciones.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        comment="ID de la identificación"
-    )
-    
-    imagen_id = Column(
-        Integer,
-        ForeignKey("imagenes.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        comment="ID de la imagen"
-    )
-    
-    orden = Column(
-        Integer,
-        nullable=False,
-        default=1,
-        comment="Orden de la imagen en la identificación (1-5)"
-    )
-    
-    created_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        nullable=False,
-        comment="Fecha de creación"
-    )
-    
-    # Relaciones
-    identificacion = relationship("Identificacion", back_populates="imagenes_rel")
-    imagen = relationship("Imagen")
-    
-    # Índices
-    __table_args__ = (
-        Index('idx_identificacion_imagen', 'identificacion_id', 'imagen_id', unique=True),
-        Index('idx_identificacion_orden', 'identificacion_id', 'orden'),
-    )
-    
-    def __repr__(self) -> str:
-        """Representación en string del objeto."""
-        return f"<IdentificacionImagen(identificacion_id={self.identificacion_id}, imagen_id={self.imagen_id}, orden={self.orden})>"
-
-
 class Identificacion(Base):
     """
     Modelo para registrar identificaciones de plantas.
@@ -1111,9 +1050,9 @@ class Identificacion(Base):
     imagen_id = Column(
         Integer,
         ForeignKey("imagenes.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True,
-        comment="ID de la imagen principal (para retrocompatibilidad, usar imagenes_rel para múltiples)"
+        comment="ID de la imagen"
     )
     
     especie_id = Column(
@@ -1186,14 +1125,14 @@ class Identificacion(Base):
     
     # Relaciones
     usuario = relationship("Usuario", backref="identificaciones")
-    imagen = relationship("Imagen", foreign_keys=[imagen_id], backref="identificaciones")
-    especie = relationship("Especie", back_populates="identificaciones")
-    imagenes_rel = relationship(
-        "IdentificacionImagen",
-        back_populates="identificacion",
-        cascade="all, delete-orphan",
-        order_by="IdentificacionImagen.orden"
+    imagen = relationship("Imagen", backref="identificaciones", foreign_keys=[imagen_id])
+    imagenes = relationship(
+        "Imagen",
+        backref="identificacion_asociada",
+        foreign_keys="Imagen.identificacion_id",
+        cascade="all, delete-orphan"
     )
+    especie = relationship("Especie", back_populates="identificaciones")
     
     # Índices
     __table_args__ = (
@@ -1227,49 +1166,6 @@ class Identificacion(Base):
             self.notas_usuario = notas
         self.updated_at = datetime.utcnow()
     
-    def agregar_imagen(self, imagen_id: int, orden: int = 1) -> 'IdentificacionImagen':
-        """
-        Agrega una imagen a la identificación.
-        
-        Args:
-            imagen_id (int): ID de la imagen a agregar
-            orden (int): Orden de la imagen (1-5)
-            
-        Returns:
-            IdentificacionImagen: El registro de relación creado
-        """
-        from app.db.session import SessionLocal
-        db = SessionLocal()
-        try:
-            rel = IdentificacionImagen(
-                identificacion_id=self.id,
-                imagen_id=imagen_id,
-                orden=orden
-            )
-            db.add(rel)
-            db.commit()
-            return rel
-        finally:
-            db.close()
-    
-    def obtener_imagenes(self) -> list:
-        """
-        Obtiene todas las imágenes asociadas a esta identificación.
-        
-        Returns:
-            list: Lista de objetos Imagen ordenados por orden
-        """
-        return [rel.imagen for rel in self.imagenes_rel]
-    
-    def cantidad_imagenes(self) -> int:
-        """
-        Retorna la cantidad de imágenes asociadas.
-        
-        Returns:
-            int: Cantidad de imágenes
-        """
-        return len(self.imagenes_rel)
-    
     def __repr__(self) -> str:
         """Representación en string del objeto."""
         return (
@@ -1281,17 +1177,14 @@ class Identificacion(Base):
         """String para display."""
         return f"Identificación #{self.id} - {self.confianza}% confianza"
     
-    def to_dict(self, include_images: bool = False) -> dict:
+    def to_dict(self) -> dict:
         """
         Convierte el modelo a diccionario.
-        
-        Args:
-            include_images (bool): Si True, incluye los IDs de todas las imágenes
         
         Returns:
             dict: Diccionario con los datos de la identificación
         """
-        data = {
+        return {
             'id': self.id,
             'usuario_id': self.usuario_id,
             'imagen_id': self.imagen_id,
@@ -1306,18 +1199,5 @@ class Identificacion(Base):
             'notas_usuario': self.notas_usuario,
             'metadatos_ia': self.metadatos_ia,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'cantidad_imagenes': self.cantidad_imagenes()
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
-        
-        if include_images:
-            data['imagenes'] = [
-                {
-                    'imagen_id': rel.imagen_id,
-                    'orden': rel.orden,
-                    'organ': rel.imagen.organ if rel.imagen else None
-                }
-                for rel in self.imagenes_rel
-            ]
-        
-        return data

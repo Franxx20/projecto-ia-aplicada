@@ -396,3 +396,93 @@ class PlantaService:
                 Planta.estado_salud == estado_salud
             )
         ).order_by(Planta.created_at.desc()).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def agregar_desde_identificacion(
+        db: Session,
+        identificacion_id: int,
+        usuario_id: int,
+        nombre_personalizado: Optional[str] = None,
+        notas: Optional[str] = None,
+        ubicacion: Optional[str] = None
+    ) -> Optional[Planta]:
+        """
+        Agrega una planta al jardín del usuario desde una identificación.
+        
+        Este método:
+        1. Obtiene la identificación por ID
+        2. Verifica que pertenece al usuario actual
+        3. Obtiene los datos de la especie identificada
+        4. Crea una nueva planta con esos datos
+        5. Usa la imagen de la identificación como imagen principal
+        6. Usa el nombre común como nombre personal (si no se especifica otro)
+        
+        Args:
+            db (Session): Sesión de base de datos
+            identificacion_id (int): ID de la identificación
+            usuario_id (int): ID del usuario
+            nombre_personalizado (Optional[str]): Nombre personalizado para la planta
+            notas (Optional[str]): Notas adicionales
+            ubicacion (Optional[str]): Ubicación física de la planta
+            
+        Returns:
+            Optional[Planta]: Planta creada o None si la identificación no existe
+            
+        Raises:
+            ValueError: Si la identificación no pertenece al usuario
+        """
+        from app.db.models import Identificacion, Especie
+        
+        # Obtener la identificación
+        identificacion = db.query(Identificacion).filter(
+            Identificacion.id == identificacion_id
+        ).first()
+        
+        if not identificacion:
+            return None
+        
+        # Verificar que pertenece al usuario
+        if identificacion.usuario_id != usuario_id:
+            raise ValueError("La identificación no pertenece al usuario actual")
+        
+        # Obtener datos de la especie
+        especie = None
+        if identificacion.especie_id:
+            especie = db.query(Especie).filter(
+                Especie.id == identificacion.especie_id
+            ).first()
+        
+        # Determinar el nombre personal de la planta
+        nombre_final = nombre_personalizado
+        if not nombre_final and especie:
+            # Usar el nombre común de la especie si existe
+            nombre_final = especie.nombre_comun if especie.nombre_comun else especie.nombre_cientifico
+        elif not nombre_final:
+            # Si no hay especie ni nombre personalizado, usar "Mi planta #{id}"
+            nombre_final = f"Mi planta #{identificacion_id}"
+        
+        # Determinar la imagen principal
+        imagen_principal_id = identificacion.imagen_id
+        
+        # Si la identificación tiene múltiples imágenes, usar la primera
+        if not imagen_principal_id and identificacion.imagenes:
+            imagen_principal_id = identificacion.imagenes[0].id if identificacion.imagenes else None
+        
+        # Crear la nueva planta
+        nueva_planta = Planta(
+            usuario_id=usuario_id,
+            especie_id=identificacion.especie_id,
+            nombre_personal=nombre_final,
+            estado_salud="buena",  # Estado inicial por defecto
+            ubicacion=ubicacion,
+            notas=notas,
+            imagen_principal_id=imagen_principal_id,
+            fecha_adquisicion=datetime.utcnow(),
+            frecuencia_riego_dias=7  # Frecuencia por defecto
+        )
+        
+        db.add(nueva_planta)
+        db.commit()
+        db.refresh(nueva_planta)
+        
+        return nueva_planta

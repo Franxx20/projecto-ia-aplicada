@@ -256,6 +256,35 @@ class PlantaStats(BaseModel):
         from_attributes = True
 
 
+class AgregarPlantaDesdeIdentificacionRequest(BaseModel):
+    """
+    Schema para agregar una planta al jardín desde una identificación.
+    
+    Este schema se usa cuando el usuario confirma una identificación
+    y quiere agregar la planta a su colección personal.
+    """
+    identificacion_id: int = Field(
+        ...,
+        description="ID de la identificación de la planta",
+        ge=1
+    )
+    nombre_personalizado: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=255,
+        description="Nombre personalizado (opcional, si no se provee usa el nombre común)"
+    )
+    notas: Optional[str] = Field(
+        None,
+        description="Notas adicionales sobre la planta"
+    )
+    ubicacion: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="Ubicación física de la planta"
+    )
+
+
 class RegistrarRiegoRequest(BaseModel):
     """
     Schema para registrar un nuevo riego en una planta.

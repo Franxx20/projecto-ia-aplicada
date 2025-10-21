@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "@/components/ui/toaster";
 
 /**
  * Metadata de la aplicación
@@ -56,6 +57,8 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </div>
+        {/* Toaster para notificaciones globales */}
+        <Toaster />
       </body>
     </html>
   );

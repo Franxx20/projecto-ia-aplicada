@@ -72,7 +72,8 @@ class IdentificacionService:
             
         respuesta = await PlantNetService.identificar_planta(
             imagenes=[(imagen.nombre_archivo, imagen_bytes)],
-            organos=organos
+            organos=organos,
+            include_related_images=True  # Incluir imágenes de referencia para mostrar en UI
         )
         
         # Si no hay que guardar, retornar solo la respuesta
@@ -461,7 +462,8 @@ class IdentificacionService:
         # Llamar a PlantNet con múltiples imágenes
         respuesta = await PlantNetService.identificar_planta(
             imagenes=imagenes_para_plantnet,
-            organos=organos_para_plantnet
+            organos=organos_para_plantnet,
+            include_related_images=True  # Incluir imágenes de referencia para mostrar en UI
         )
         
         # Si no hay que guardar, retornar solo la respuesta

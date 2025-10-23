@@ -21,7 +21,8 @@ from app.schemas.planta import (
     PlantaResponse,
     PlantaStats,
     PlantaListResponse,
-    RegistrarRiegoRequest
+    RegistrarRiegoRequest,
+    AgregarPlantaDesdeIdentificacionRequest
 )
 from app.services.planta_service import PlantaService
 from app.utils.jwt import get_current_user
@@ -353,4 +354,80 @@ async def registrar_riego(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al registrar riego: {str(e)}"
+        )
+
+
+@router.post(
+    "/agregar-desde-identificacion",
+    response_model=PlantaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Agregar planta desde identificación",
+    description="Agrega una planta al jardín del usuario desde una identificación confirmada",
+    response_description="Planta creada exitosamente desde identificación"
+)
+async def agregar_planta_desde_identificacion(
+    request_data: AgregarPlantaDesdeIdentificacionRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Agrega una planta al jardín del usuario desde una identificación de PlantNet.
+    
+    Este endpoint se usa cuando el usuario confirma una identificación
+    y decide agregarla a su colección personal.
+    
+    Pasos que realiza:
+    1. Obtiene la identificación por ID
+    2. Verifica que pertenece al usuario actual
+    3. Obtiene los datos de la especie identificada
+    4. Crea una nueva planta con esos datos
+    5. Usa la imagen de la identificación como imagen principal
+    6. Usa el nombre común como nombre personal (si no se especifica otro)
+    
+    Args:
+        request_data: Datos de la solicitud (identificacion_id, nombre_personalizado, notas)
+        db: Sesión de base de datos
+        current_user: Usuario autenticado
+        
+    Returns:
+        PlantaResponse: Planta creada con todos sus datos
+        
+    Raises:
+        404: Si la identificación no existe o no pertenece al usuario
+        400: Si hay error en los datos proporcionados
+        500: Si hay error interno del servidor
+    """
+    try:
+        nueva_planta = PlantaService.agregar_desde_identificacion(
+            db=db,
+            identificacion_id=request_data.identificacion_id,
+            usuario_id=current_user.id,
+            nombre_personalizado=request_data.nombre_personalizado,
+            notas=request_data.notas,
+            ubicacion=request_data.ubicacion
+        )
+        
+        if not nueva_planta:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Identificación con ID {request_data.identificacion_id} no encontrada"
+            )
+        
+        # Agregar campo calculado necesita_riego
+        planta_dict = nueva_planta.to_dict()
+        planta_dict["necesita_riego"] = nueva_planta.necesita_riego()
+        
+        return PlantaResponse(**planta_dict)
+    
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al agregar la planta desde identificación: {str(e)}"
         )

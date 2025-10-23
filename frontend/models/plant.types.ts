@@ -41,6 +41,20 @@ export interface PlantSpecies {
 }
 
 /**
+ * Imagen relacionada de PlantNet (cuando include-related-images=true)
+ */
+export interface RelatedImage {
+  organ: string;
+  url: {
+    o: string;  // URL original
+    m: string;  // URL tamaño medio
+    s: string;  // URL tamaño pequeño
+  };
+  citation?: string;
+  license?: string;
+}
+
+/**
  * Resultado individual de identificación de PlantNet
  */
 export interface PlantNetResult {
@@ -52,6 +66,7 @@ export interface PlantNetResult {
   powo?: {
     id?: string;
   };
+  images?: RelatedImage[];  // Imágenes de referencia (si include-related-images=true)
 }
 
 /**
@@ -262,4 +277,68 @@ export function formatearConfianza(score: number): string {
  */
 export function esOrganoValido(organo: string): organo is OrganType {
   return ORGANOS_VALIDOS.includes(organo as OrganType);
+}
+
+/**
+ * Request para agregar planta desde identificación (T-023)
+ */
+export interface AgregarPlantaRequest {
+  identificacion_id: number;
+  nombre_personalizado?: string;
+  notas?: string;
+  ubicacion?: string;
+}
+
+/**
+ * Información de especie en respuesta de planta
+ */
+export interface EspecieResponse {
+  id: number;
+  nombre_cientifico: string;
+  nombre_comun?: string;
+  familia?: string;
+}
+
+/**
+ * Planta del usuario (respuesta del backend)
+ */
+export interface PlantaUsuario {
+  id: number;
+  usuario_id: number;
+  especie_id?: number;
+  nombre_personalizado?: string;
+  fecha_adquisicion?: string;
+  ubicacion?: string;
+  estado_salud: string;
+  frecuencia_riego_dias?: number;
+  notas?: string;
+  imagen_principal_id?: number;
+  activa: boolean;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  especie?: EspecieResponse;
+  imagen_principal?: {
+    id: number;
+    url_blob: string;
+    nombre_archivo: string;
+  };
+}
+
+/**
+ * Respuesta de creación de planta
+ */
+export interface PlantaResponse {
+  id: number;
+  usuario_id: number;
+  especie_id?: number;
+  nombre_personalizado?: string;
+  fecha_adquisicion?: string;
+  ubicacion?: string;
+  estado_salud: string;
+  frecuencia_riego_dias?: number;
+  notas?: string;
+  imagen_principal_id?: number;
+  activa: boolean;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
 }

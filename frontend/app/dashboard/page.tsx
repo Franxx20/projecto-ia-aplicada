@@ -28,7 +28,9 @@ import { Badge } from "@/components/ui/badge"
 import { Camera, Plus, Droplets, Sun, AlertCircle, Leaf } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import dashboardService from "@/lib/dashboard.service"
+import plantService from "@/lib/plant.service"
 import type { Planta, DashboardStats } from "@/models/dashboard.types"
+import type { PlantaUsuario } from "@/models/plant.types"
 import {
   estadoSaludToBadgeVariant,
   estadoSaludToLabel,
@@ -42,6 +44,7 @@ export default function DashboardPage() {
 
   // Estados para datos del dashboard
   const [plantas, setPlantas] = useState<Planta[]>([])
+  const [plantasUsuario, setPlantasUsuario] = useState<PlantaUsuario[]>([])
   const [estadisticas, setEstadisticas] = useState<DashboardStats | null>(null)
   const [estaCargando, setEstaCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -72,14 +75,16 @@ export default function DashboardPage() {
       setEstaCargando(true)
       setError(null)
 
-      // Cargar estadísticas y plantas en paralelo
-      const [stats, { plantas: plantasData }] = await Promise.all([
+      // Cargar estadísticas, plantas del dashboard y plantas del jardín en paralelo
+      const [stats, { plantas: plantasData }, plantasJardin] = await Promise.all([
         dashboardService.obtenerEstadisticas(),
         dashboardService.obtenerPlantas(100, 0, true),
+        plantService.obtenerMisPlantas(),
       ])
 
       setEstadisticas(stats)
       setPlantas(plantasData)
+      setPlantasUsuario(plantasJardin)
     } catch (err) {
       console.error('Error al cargar datos del dashboard:', err)
       setError('Error al cargar tus plantas. Por favor, intenta de nuevo.')
@@ -204,7 +209,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Empty State */}
-            {plantas.length === 0 && (
+            {plantas.length === 0 && plantasUsuario.length === 0 && (
               <Card className="py-16 border-2 border-dashed border-muted-foreground/25 bg-gradient-to-br from-green-50/50 to-emerald-50/50">
                 <CardContent className="text-center space-y-6">
                   {/* Icono más grande con efecto visual */}
@@ -243,6 +248,127 @@ export default function DashboardPage() {
                   </p>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Sección: Plantas agregadas desde identificaciones (T-023) */}
+            {plantasUsuario.length > 0 && (
+              <div className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Mis Plantas Identificadas</h2>
+                    <p className="text-muted-foreground mt-1">
+                      Plantas agregadas desde identificaciones
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-lg px-4 py-1">
+                    {plantasUsuario.length}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {plantasUsuario.map((planta) => (
+                    <Card
+                      key={planta.id}
+                      className="overflow-hidden hover:shadow-lg transition-shadow"
+                    >
+                      {/* Imagen de la planta */}
+                      <div className="aspect-square relative bg-muted">
+                        {planta.imagen_principal?.url_blob ? (
+                          <img
+                            src={planta.imagen_principal.url_blob}
+                            alt={planta.nombre_personalizado || 'Planta'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Leaf className="h-24 w-24 text-muted-foreground" />
+                          </div>
+                        )}
+                        
+                        {/* Badge con origen */}
+                        <div className="absolute top-3 right-3">
+                          <Badge variant="default" className="bg-green-600">
+                            Identificada
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Información de la planta */}
+                      <CardHeader>
+                        <CardTitle className="text-xl">
+                          {planta.nombre_personalizado || 'Sin nombre'}
+                        </CardTitle>
+                        {planta.especie && (
+                          <CardDescription className="space-y-1">
+                            <p className="italic text-primary font-medium">
+                              {planta.especie.nombre_cientifico}
+                            </p>
+                            {planta.especie.nombre_comun && (
+                              <p className="text-sm">
+                                {planta.especie.nombre_comun}
+                              </p>
+                            )}
+                            {planta.especie.familia && (
+                              <p className="text-xs text-muted-foreground">
+                                Familia: {planta.especie.familia}
+                              </p>
+                            )}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+
+                      <CardContent className="space-y-3">
+                        {/* Estado de salud */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <Badge
+                            variant={estadoSaludToBadgeVariant(planta.estado_salud as any)}
+                          >
+                            {estadoSaludToLabel(planta.estado_salud as any)}
+                          </Badge>
+                        </div>
+
+                        {/* Ubicación */}
+                        {planta.ubicacion && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Sun className="w-4 h-4 text-yellow-600" />
+                            <span className="text-muted-foreground">
+                              {planta.ubicacion}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Frecuencia de riego */}
+                        {planta.frecuencia_riego_dias && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Droplets className="w-4 h-4 text-blue-600" />
+                            <span className="text-muted-foreground">
+                              Riego cada {planta.frecuencia_riego_dias} días
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Notas */}
+                        {planta.notas && (
+                          <div className="text-sm text-muted-foreground italic pt-2 border-t">
+                            {planta.notas}
+                          </div>
+                        )}
+
+                        {/* Botón ver detalles */}
+                        <Button
+                          variant="outline"
+                          className="w-full mt-4 bg-transparent"
+                          asChild
+                        >
+                          <Link href={`/plant/${planta.id}`}>
+                            Ver Detalles
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Plants Grid */}

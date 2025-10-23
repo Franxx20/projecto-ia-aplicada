@@ -19,7 +19,10 @@ import {
   HistorialResponse,
   HistorialIdentificacion,
   PlantNetQuota,
-  OrganType
+  OrganType,
+  AgregarPlantaRequest,
+  PlantaResponse,
+  PlantaUsuario
 } from '@/models/plant.types';
 
 /**
@@ -350,6 +353,77 @@ class PlantService {
     } catch (error) {
       if (error instanceof AxiosError) {
         const mensaje = error.response?.data?.detail || 'Error al obtener información de cuota';
+        throw new Error(mensaje);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Agrega una planta al jardín del usuario desde una identificación (T-023)
+   * 
+   * Permite al usuario confirmar una identificación y añadir la planta a su jardín
+   * con un nombre personalizado, notas y ubicación opcionales.
+   * 
+   * @param request - Datos para crear la planta desde identificación
+   * @returns Promise con la planta creada
+   * 
+   * @throws {Error} Si la identificación no existe o no pertenece al usuario
+   * 
+   * @example
+   * ```typescript
+   * const planta = await plantService.agregarPlantaAlJardin({
+   *   identificacion_id: 42,
+   *   nombre_personalizado: 'Mi Potus del Balcón',
+   *   notas: 'Identificada el 2025-01-15',
+   *   ubicacion: 'Balcón - luz indirecta'
+   * });
+   * console.log(`Planta agregada: ${planta.id}`);
+   * ```
+   */
+  async agregarPlantaAlJardin(
+    request: AgregarPlantaRequest
+  ): Promise<PlantaResponse> {
+    try {
+      const response = await axios.post<PlantaResponse>(
+        '/api/plantas/agregar-desde-identificacion',
+        request
+      );
+
+      return response.data;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const mensaje = error.response?.data?.detail || 'Error al agregar la planta';
+        throw new Error(mensaje);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene todas las plantas del usuario autenticado (T-023)
+   * 
+   * Retorna la lista de plantas que el usuario tiene en su jardín,
+   * incluyendo información de la especie e imagen principal.
+   * 
+   * @returns Promise con el array de plantas del usuario
+   * 
+   * @example
+   * ```typescript
+   * const plantas = await plantService.obtenerMisPlantas();
+   * plantas.forEach(planta => {
+   *   console.log(planta.nombre_personalizado);
+   *   console.log(planta.especie?.nombre_comun);
+   * });
+   * ```
+   */
+  async obtenerMisPlantas(): Promise<PlantaUsuario[]> {
+    try {
+      const response = await axios.get<PlantaUsuario[]>('/api/plantas');
+      return response.data;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const mensaje = error.response?.data?.detail || 'Error al obtener las plantas';
         throw new Error(mensaje);
       }
       throw error;

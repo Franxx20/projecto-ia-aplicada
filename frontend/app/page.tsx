@@ -10,10 +10,10 @@ import { Leaf, Camera, MessageSquare, ShoppingBag } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col w-full">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between max-w-7xl">
           <div className="flex items-center gap-2">
             <Leaf className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">Asistente Plantitas</span>
@@ -30,8 +30,8 @@ export default function HomePage() {
       </header>
 
       {/* Hero Section */}
-      <section className="container flex flex-col items-center justify-center gap-6 pb-8 pt-6 md:py-10">
-        <div className="flex max-w-[980px] flex-col items-center gap-2 text-center">
+      <section className="w-full flex flex-col items-center justify-center gap-6 pb-8 pt-6 md:py-16 lg:py-20 px-4 sm:px-6 lg:px-8">
+        <div className="flex max-w-[980px] w-full flex-col items-center gap-4 text-center mx-auto">
           <h1 className="text-4xl font-bold leading-tight tracking-tighter md:text-6xl lg:text-7xl">
             Tu asistente personal
             <br className="hidden sm:inline" />
@@ -40,30 +40,17 @@ export default function HomePage() {
               IA
             </span>
           </h1>
-          <p className="max-w-[700px] text-lg text-muted-foreground sm:text-xl">
+          <p className="max-w-[700px] text-lg text-muted-foreground sm:text-xl leading-relaxed">
             Identifica plantas, recibe consejos personalizados y mantén un registro
             completo de tu jardín. Todo con la ayuda de inteligencia artificial.
           </p>
         </div>
-        <div className="flex gap-4">
-          <Link href="/login">
-            <Button size="lg" className="gap-2">
-              <Camera className="h-5 w-5" />
-              Identificar Planta
-            </Button>
-          </Link>
-          <Link href="/dashboard">
-            <Button size="lg" variant="outline">
-              Ver Demo
-            </Button>
-          </Link>
-        </div>
       </section>
 
       {/* Features Section */}
-      <section className="container py-8 md:py-12 lg:py-24">
-        <div className="mx-auto grid justify-center gap-4 sm:grid-cols-2 md:max-w-[64rem] md:grid-cols-4">
-          <Card>
+      <section className="w-full py-8 md:py-12 lg:py-16 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto grid justify-center gap-6 sm:grid-cols-2 lg:grid-cols-4 max-w-7xl">
+          <Card className="w-full">
             <CardHeader>
               <Camera className="h-10 w-10 text-primary mb-2" />
               <CardTitle>Identificación IA</CardTitle>
@@ -73,7 +60,7 @@ export default function HomePage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="w-full">
             <CardHeader>
               <MessageSquare className="h-10 w-10 text-primary mb-2" />
               <CardTitle>Consejos Personalizados</CardTitle>
@@ -83,7 +70,7 @@ export default function HomePage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="w-full">
             <CardHeader>
               <Leaf className="h-10 w-10 text-primary mb-2" />
               <CardTitle>Diagnóstico</CardTitle>
@@ -93,7 +80,7 @@ export default function HomePage() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="w-full">
             <CardHeader>
               <ShoppingBag className="h-10 w-10 text-primary mb-2" />
               <CardTitle>Marketplace</CardTitle>
@@ -106,7 +93,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="container py-8 md:py-12 lg:py-24 border-t">
+      <section className="w-full py-8 md:py-12 lg:py-16 border-t px-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[58rem] flex-col items-center justify-center gap-4 text-center">
           <h2 className="text-3xl font-bold leading-[1.1] sm:text-3xl md:text-5xl">
             ¿Listo para comenzar?
@@ -124,8 +111,8 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-6 md:py-0">
-        <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
+      <footer className="border-t py-6 md:py-8 w-full">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-between gap-4 md:flex-row max-w-7xl">
           <div className="flex items-center gap-2">
             <Leaf className="h-5 w-5 text-primary" />
             <p className="text-sm text-muted-foreground">

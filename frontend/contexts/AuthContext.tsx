@@ -143,19 +143,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Cierra la sesión del usuario actual
-   * Limpia el estado y redirige al login
+   * Limpia el estado y redirige a la landing page
    */
   const cerrarSesion = useCallback(async () => {
     setEstaCargando(true)
     try {
       await authService.logout()
       setUsuario(null)
-      router.push('/login')
+      router.push('/')
     } catch (error) {
       console.error('Error al cerrar sesión:', error)
       // Aunque falle, limpiamos el estado local
       setUsuario(null)
-      router.push('/login')
+      router.push('/')
     } finally {
       setEstaCargando(false)
     }

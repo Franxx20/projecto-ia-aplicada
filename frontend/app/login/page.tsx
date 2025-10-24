@@ -23,12 +23,13 @@ import { useAuth } from "@/hooks/useAuth"
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { iniciarSesion, registrarse, estaAutenticado, estaCargando: authLoading } = useAuth()
+  const { iniciarSesion, registrarse, cerrarSesion, estaAutenticado, estaCargando: authLoading } = useAuth()
   
   // Detectar el modo desde la URL: /login?mode=register
   const modeParam = searchParams?.get('mode')
   const [isLogin, setIsLogin] = useState(modeParam !== 'register')
   const [error, setError] = useState("")
+  const [mostrarRedireccion, setMostrarRedireccion] = useState(false)
   
   // Formulario de login
   const [loginData, setLoginData] = useState({
@@ -45,12 +46,58 @@ export default function LoginPage() {
 
   /**
    * Redirigir al dashboard si ya está autenticado
+   * SOLO si NO estamos en proceso de carga inicial
    */
   useEffect(() => {
-    if (estaAutenticado) {
-      router.push('/dashboard')
+    // Esperar a que termine la carga inicial del AuthContext
+    if (!authLoading && estaAutenticado) {
+      console.log('Usuario ya autenticado, redirigiendo al dashboard...')
+      setMostrarRedireccion(true)
+      // Dar tiempo para mostrar el mensaje antes de redirigir
+      const timer = setTimeout(() => {
+        router.push('/dashboard')
+      }, 1500)
+      return () => clearTimeout(timer)
     }
-  }, [estaAutenticado, router])
+  }, [estaAutenticado, authLoading, router])
+
+  /**
+   * Si el usuario ya está autenticado, mostrar pantalla de redirección
+   */
+  if (mostrarRedireccion) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-secondary/20 to-background">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-primary/10 p-3 rounded-full">
+                <Leaf className="w-10 h-10 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Ya estás autenticado</CardTitle>
+            <CardDescription>
+              Redirigiendo al dashboard...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-center text-muted-foreground">
+              Si no deseas continuar con esta sesión, puedes{' '}
+              <button 
+                onClick={async () => {
+                  await cerrarSesion()
+                  setMostrarRedireccion(false)
+                }}
+                className="text-primary hover:underline font-medium"
+                type="button"
+              >
+                cerrar sesión aquí
+              </button>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   /**
    * Maneja el envío del formulario de login
@@ -190,12 +237,9 @@ export default function LoginPage() {
 
             {/* Botón submit */}
             <Button className="w-full" size="lg" type="submit" disabled={authLoading}>
-              {authLoading 
-                ? "Procesando..." 
-                : isLogin 
-                  ? "Iniciar Sesión" 
-                  : "Crear Cuenta"
-              }
+              {authLoading && "Procesando..."}
+              {!authLoading && isLogin && "Iniciar Sesión"}
+              {!authLoading && !isLogin && "Crear Cuenta"}
             </Button>
           </CardContent>
         </form>

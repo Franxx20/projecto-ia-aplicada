@@ -25,7 +25,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Plus, Droplets, Sun, AlertCircle, Leaf } from "lucide-react"
+import { Plus, Droplets, Sun, AlertCircle, Leaf, LogOut, Camera } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import dashboardService from "@/lib/dashboard.service"
 import plantService from "@/lib/plant.service"
@@ -40,7 +40,7 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { usuario, estaAutenticado, estaCargando: estaCargandoAuth } = useAuth()
+  const { usuario, estaAutenticado, estaCargando: estaCargandoAuth, cerrarSesion } = useAuth()
 
   // Estados para datos del dashboard
   const [plantas, setPlantas] = useState<Planta[]>([])
@@ -76,18 +76,46 @@ export default function DashboardPage() {
       setError(null)
 
       // Cargar estadísticas, plantas del dashboard y plantas del jardín en paralelo
-      const [stats, { plantas: plantasData }, plantasJardin] = await Promise.all([
+      // Usar Promise.allSettled para que si una falla, las otras continúen
+      const [statsResult, plantasResult, plantasJardinResult] = await Promise.allSettled([
         dashboardService.obtenerEstadisticas(),
         dashboardService.obtenerPlantas(100, 0, true),
         plantService.obtenerMisPlantas(),
       ])
 
-      setEstadisticas(stats)
-      setPlantas(plantasData)
-      setPlantasUsuario(plantasJardin)
+      // Procesar resultados
+      if (statsResult.status === 'fulfilled') {
+        setEstadisticas(statsResult.value)
+      } else {
+        console.error('Error al cargar estadísticas:', statsResult.reason)
+      }
+
+      if (plantasResult.status === 'fulfilled') {
+        setPlantas(plantasResult.value.plantas || [])
+      } else {
+        console.error('Error al cargar plantas del dashboard:', plantasResult.reason)
+        setPlantas([])
+      }
+
+      if (plantasJardinResult.status === 'fulfilled') {
+        setPlantasUsuario(plantasJardinResult.value || [])
+      } else {
+        console.error('Error al cargar plantas del jardín:', plantasJardinResult.reason)
+        setPlantasUsuario([])
+      }
+
+      // DEBUG: Mostrar estado final
+      console.log('🔍 Dashboard cargado:', {
+        plantas: plantasResult.status === 'fulfilled' ? plantasResult.value.plantas?.length : 0,
+        plantasUsuario: plantasJardinResult.status === 'fulfilled' ? plantasJardinResult.value?.length : 0,
+        estadisticas: statsResult.status === 'fulfilled',
+      })
     } catch (err) {
       console.error('Error al cargar datos del dashboard:', err)
       setError('Error al cargar tus plantas. Por favor, intenta de nuevo.')
+      // Asegurar que los arrays estén inicializados aunque haya error
+      setPlantas([])
+      setPlantasUsuario([])
     } finally {
       setEstaCargando(false)
     }
@@ -115,18 +143,26 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Mi Jardín</h1>
+          <div>
+            <h1 className="text-2xl font-bold">Mi Jardín</h1>
+            <p className="text-sm text-muted-foreground">Bienvenido, {usuario?.nombre}</p>
+          </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" asChild>
-              <Link href="/identificar">
-                <Camera className="w-5 h-5" />
-              </Link>
-            </Button>
             <Button asChild>
               <Link href="/identificar">
                 <Camera className="w-5 h-5 mr-2" />
                 Identificar Planta
               </Link>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={async () => {
+                await cerrarSesion()
+              }}
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -207,51 +243,86 @@ export default function DashboardPage() {
                 </Link>
               </Button>
             </div>
+          </>
+        )}
 
-            {/* Empty State */}
-            {plantas.length === 0 && plantasUsuario.length === 0 && (
-              <Card className="py-16 border-2 border-dashed border-muted-foreground/25 bg-gradient-to-br from-green-50/50 to-emerald-50/50">
-                <CardContent className="text-center space-y-6">
-                  {/* Icono más grande con efecto visual */}
-                  <div className="relative mx-auto w-24 h-24">
-                    <Leaf className="h-24 w-24 text-green-600/80 mx-auto animate-pulse" />
-                    <div className="absolute inset-0 bg-green-500/10 rounded-full blur-xl" />
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <h3 className="text-2xl font-bold text-gray-900">
-                      ¡Empieza tu jardín digital! 🌱
-                    </h3>
-                    <p className="text-base text-gray-600 max-w-md mx-auto leading-relaxed">
-                      Identifica tu primera planta y comienza a cuidarla como nunca antes. 
-                      Usa tu cámara para descubrir qué planta tienes y recibe consejos personalizados.
-                    </p>
-                  </div>
+        {/* Empty State - Mostrar SIEMPRE que no haya plantas */}
+        {!estaCargando && !error && (
+          <>
+            {((plantas?.length ?? 0) === 0 && (plantasUsuario?.length ?? 0) === 0) && (
+              <div className="py-16 px-8 border-2 border-dashed border-green-200 bg-gradient-to-br from-green-50/50 to-emerald-50/50 rounded-lg">
+                <div className="text-center space-y-6 max-w-3xl mx-auto">
+              {/* Icono más grande con efecto visual */}
+              <div className="relative mx-auto w-24 h-24">
+                <Leaf className="h-24 w-24 text-green-600/80 mx-auto animate-pulse" />
+                <div className="absolute inset-0 bg-green-500/10 rounded-full blur-xl" />
+              </div>
+              
+              <div className="space-y-3">
+                <h3 className="text-2xl font-bold text-gray-900">
+                  ¡Tu jardín está esperando! 🌱
+                </h3>
+                <p className="text-lg text-gray-600 max-w-md mx-auto leading-relaxed">
+                  Comienza identificando tu primera planta con ayuda de la IA. 
+                  Toma una foto y descubre todo sobre ella en segundos.
+                </p>
+              </div>
 
-                  {/* Botón principal más llamativo */}
-                  <div className="pt-2">
-                    <Button 
-                      asChild 
-                      size="lg" 
-                      className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all"
-                    >
-                      <Link href="/identificar">
-                        <Camera className="w-5 h-5 mr-2" />
-                        Identificar Mi Primera Planta
-                      </Link>
-                    </Button>
-                  </div>
+              {/* Botón principal más llamativo */}
+              <div className="pt-2">
+                <Button 
+                  asChild 
+                  size="lg" 
+                  className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Link href="/identificar">
+                    <Camera className="w-5 h-5 mr-2" />
+                    Identificar Mi Primera Planta
+                  </Link>
+                </Button>
+              </div>
 
-                  {/* Texto motivacional adicional */}
-                  <p className="text-sm text-gray-500 pt-4">
-                    ¿No tienes una planta cerca? También puedes agregar una manualmente 🌿
-                  </p>
-                </CardContent>
-              </Card>
+              {/* Características motivacionales */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="bg-green-100 p-3 rounded-full">
+                    <Camera className="w-5 h-5 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">Identificación rápida</p>
+                  <p className="text-xs text-gray-500">Con IA avanzada</p>
+                </div>
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="bg-blue-100 p-3 rounded-full">
+                    <Droplets className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">Recordatorios de riego</p>
+                  <p className="text-xs text-gray-500">Nunca olvides regarlas</p>
+                </div>
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="bg-yellow-100 p-3 rounded-full">
+                    <Sun className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">Consejos de cuidado</p>
+                  <p className="text-xs text-gray-500">Personalizados para ti</p>
+                </div>
+              </div>
+
+              {/* Texto motivacional adicional */}
+              <p className="text-sm text-gray-500 pt-4">
+                Únete a miles de jardineros que cuidan mejor sus plantas con Asistente Plantitas 🌿
+              </p>
+            </div>
+          </div>
             )}
+          </>
+        )}
+
+        {/* Dashboard Content - Continuar con plantas */}
+        {!estaCargando && !error && (
+          <>
 
             {/* Sección: Plantas agregadas desde identificaciones (T-023) */}
-            {plantasUsuario.length > 0 && (
+            {plantasUsuario && plantasUsuario.length > 0 && (
               <div className="mb-12">
                 <div className="flex items-center justify-between mb-6">
                   <div>

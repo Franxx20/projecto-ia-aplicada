@@ -12,7 +12,7 @@
  * @task T-023
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,8 +42,20 @@ import { useToast } from '@/hooks/use-toast';
 /**
  * Componente de carrusel automático para imágenes de referencia
  */
+interface ImagenReferencia {
+  id?: number;
+  url: {
+    o: string; // URL original
+    m: string; // URL mediana
+    s: string; // URL pequeña
+  };
+  organ: string;
+  nombre_archivo?: string;
+  url_blob?: string;
+}
+
 interface CarruselImagenesProps {
-  readonly imagenes: any[];
+  readonly imagenes: ImagenReferencia[];
   readonly especieNombre: string;
 }
 
@@ -152,7 +164,7 @@ function CarruselImagenes({ imagenes, especieNombre }: CarruselImagenesProps) {
   );
 }
 
-export default function ResultadosPage() {
+function ResultadosPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const identificacionId = searchParams?.get('identificacionId');
@@ -239,8 +251,7 @@ export default function ResultadosPage() {
 
       toast({
         title: '¡Planta agregada!',
-        description: `${especieSeleccionada.species.scientificName} se agregó a tu jardín`,
-        variant: 'default'
+        description: `${especieSeleccionada.species.scientificName} se agregó a tu jardín`
       });
 
       // Opcional: redirigir al dashboard después de 2 segundos
@@ -252,8 +263,7 @@ export default function ResultadosPage() {
       const mensaje = err instanceof Error ? err.message : 'Error al agregar la planta';
       toast({
         title: 'Error',
-        description: mensaje,
-        variant: 'destructive'
+        description: mensaje
       });
     } finally {
       setConfirmando(null);
@@ -611,4 +621,16 @@ export default function ResultadosPage() {
   );
 }
 
-      // Obtener los detalles de la identificación ya realizada
+export default function ResultadosPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Cargando resultados...</p>
+        </div>
+      </div>
+    }>
+      <ResultadosPageContent />
+    </Suspense>
+  );
+}

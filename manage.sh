@@ -53,13 +53,14 @@ show_help() {
     echo -e "${BLUE}Uso: ./manage.sh [COMANDO]${NC}"
     echo ""
     echo "Comandos disponibles:"
-    echo "  setup           - Configuración inicial del proyecto"
+    echo "  setup           - Configuración inicial del proyecto (incluye migraciones)"
     echo "  dev             - Levantar entorno de desarrollo con hot reload"
     echo "  prod            - Levantar entorno de producción"
     echo "  stop            - Detener todos los servicios"
     echo "  restart         - Reiniciar todos los servicios"
     echo "  logs [servicio] - Ver logs (opcional: especificar servicio)"
     echo "  shell [servicio]- Acceder al shell de un servicio"
+    echo "  db-migrate      - Aplicar migraciones de base de datos"
     echo "  db-backup       - Crear backup de la base de datos"
     echo "  db-restore      - Restaurar backup de la base de datos"
     echo "  clean           - Limpiar contenedores, imágenes y volúmenes"
@@ -70,6 +71,7 @@ show_help() {
     echo "Ejemplos:"
     echo "  ./manage.sh setup"
     echo "  ./manage.sh dev"
+    echo "  ./manage.sh db-migrate"
     echo "  ./manage.sh logs backend"
     echo "  ./manage.sh shell backend"
 }
@@ -84,6 +86,35 @@ setup() {
     print_message "Construyendo imágenes Docker..."
     docker-compose build --no-cache
     
+    echo ""
+    print_message "Levantando servicios para configurar la base de datos..."
+    docker-compose up -d db
+    print_message "Esperando a que la base de datos esté lista..."
+    sleep 5
+    
+    echo ""
+    print_message "Creando base de datos si no existe..."
+    DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | grep -c 1 || true)
+    if [ "$DB_EXISTS" -eq "0" ]; then
+        print_message "Creando base de datos asistente_plantitas..."
+        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;"
+    else
+        print_message "Base de datos asistente_plantitas ya existe"
+    fi
+    
+    echo ""
+    print_message "Aplicando migraciones de base de datos..."
+    docker-compose up -d backend
+    sleep 3
+    docker-compose exec backend python run_migrations.py || {
+        print_warning "Hubo un problema al aplicar las migraciones. Puedes ejecutar './manage.sh db-migrate' manualmente."
+    }
+    
+    echo ""
+    print_message "Deteniendo servicios temporales..."
+    docker-compose down
+    
+    echo ""
     print_message "Configuración completada!"
     print_warning "Recuerda editar el archivo .env con tus configuraciones."
 }
@@ -184,6 +215,21 @@ db_restore() {
     fi
 }
 
+# Aplicar migraciones de base de datos
+db_migrate() {
+    print_message "Aplicando migraciones de base de datos..."
+    docker-compose up -d db backend
+    print_message "Esperando a que los servicios estén listos..."
+    sleep 5
+    
+    echo ""
+    docker-compose exec backend python run_migrations.py || {
+        print_error "Error al aplicar las migraciones"
+        exit 1
+    }
+    print_message "Migraciones aplicadas correctamente"
+}
+
 # Limpiar Docker
 clean() {
     print_warning "Esto eliminará TODOS los contenedores, imágenes y volúmenes del proyecto. ¿Continuar? (y/N)"
@@ -240,6 +286,9 @@ case "$1" in
         ;;
     shell)
         shell "$2"
+        ;;
+    db-migrate)
+        db_migrate
         ;;
     db-backup)
         db_backup

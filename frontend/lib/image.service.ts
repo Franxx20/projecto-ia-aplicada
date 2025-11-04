@@ -37,15 +37,13 @@ class ImageService {
    * @param file - Archivo de imagen a subir
    * @param onProgress - Callback para reportar progreso (opcional)
    * @param metadata - Metadatos adicionales (opcional)
-   * @param generateThumbnail - Si se debe generar thumbnail (opcional)
    * @returns Promise con la respuesta del servidor
    * @throws Error si el upload falla
    */
   async subirImagen(
     file: File,
     onProgress?: (progress: UploadProgress) => void,
-    metadata?: Record<string, unknown>,
-    generateThumbnail: boolean = true
+    metadata?: Record<string, unknown>
   ): Promise<ImageUploadResponse> {
     try {
       // Crear FormData para enviar el archivo

@@ -107,7 +107,7 @@ export function IdentificationResultCard({
             className="w-full"
           >
             <CarouselContent>
-              {images.map((imagen, index) => (
+              {images.map((imagen) => (
                 <CarouselItem key={imagen.id}>
                   <div className="space-y-2">
                     <div className="aspect-[4/3] rounded-lg overflow-hidden bg-muted relative">

@@ -73,6 +73,3 @@ docs/
 uploads/
 temp/
 tmp/
-
-# Alembic
-alembic.ini

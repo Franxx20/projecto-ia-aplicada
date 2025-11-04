@@ -112,11 +112,19 @@ async def listar_plantas(
             usuario_id=current_user.id
         )
         
-        # Convertir a response con campo calculado
+        # Convertir a response con campo calculado e imagen URL
         plantas_response = []
         for planta in plantas:
             planta_dict = planta.to_dict()
             planta_dict["necesita_riego"] = planta.necesita_riego()
+            
+            # Generar URL del proxy para la imagen si existe
+            if planta.imagen_principal_id:
+                # Usar endpoint proxy del backend en lugar de URL directa de Azurite
+                planta_dict["imagen_principal_url"] = f"/api/imagenes/{planta.imagen_principal_id}/archivo"
+            else:
+                planta_dict["imagen_principal_url"] = None
+                
             plantas_response.append(PlantaResponse(**planta_dict))
         
         return PlantaListResponse(
@@ -197,9 +205,16 @@ async def obtener_planta(
                 detail=f"Planta con ID {planta_id} no encontrada"
             )
         
-        # Convertir a response con campo calculado
+        # Convertir a response con campo calculado e imagen URL
         planta_dict = planta.to_dict()
         planta_dict["necesita_riego"] = planta.necesita_riego()
+        
+        # Generar URL del proxy para la imagen si existe
+        if planta.imagen_principal_id:
+            # Usar endpoint proxy del backend en lugar de URL directa de Azurite
+            planta_dict["imagen_principal_url"] = f"/api/imagenes/{planta.imagen_principal_id}/archivo"
+        else:
+            planta_dict["imagen_principal_url"] = None
         
         return PlantaResponse(**planta_dict)
     

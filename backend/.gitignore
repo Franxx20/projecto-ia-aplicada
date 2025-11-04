@@ -137,7 +137,8 @@ cython_debug/
 
 # Alembic (database migrations)
 alembic.ini
-alembic/
+alembic/env.py
+alembic/script.py.mako
 
 # uploads and media files
 uploads/

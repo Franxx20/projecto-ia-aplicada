@@ -10,7 +10,7 @@
  * @date 2025-10-10
  */
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Leaf } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { iniciarSesion, registrarse, cerrarSesion, estaAutenticado, estaCargando: authLoading } = useAuth()
@@ -124,6 +124,24 @@ export default function LoginPage() {
     e.preventDefault()
     setError("")
 
+    // Validación adicional en el frontend
+    if (registerData.password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres")
+      return
+    }
+    if (!/[A-Z]/.test(registerData.password)) {
+      setError("La contraseña debe contener al menos una letra MAYÚSCULA")
+      return
+    }
+    if (!/[a-z]/.test(registerData.password)) {
+      setError("La contraseña debe contener al menos una letra minúscula")
+      return
+    }
+    if (!/[0-9]/.test(registerData.password)) {
+      setError("La contraseña debe contener al menos un número")
+      return
+    }
+
     try {
       await registrarse(registerData.email, registerData.password, registerData.nombre)
       
@@ -131,7 +149,7 @@ export default function LoginPage() {
       setIsLogin(true)
       setError("")
       // Opcional: mostrar mensaje de éxito
-      alert('Registro exitoso. Por favor, inicie sesión.')
+      alert('✅ Registro exitoso. Por favor, inicie sesión con sus credenciales.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrarse')
     }
@@ -220,8 +238,11 @@ export default function LoginPage() {
                 disabled={authLoading}
               />
               {!isLogin && (
-                <p className="text-xs text-muted-foreground">
-                  Mínimo 8 caracteres, incluir mayúscula, minúscula y número
+                <p className="text-xs text-muted-foreground mt-1">
+                  <strong>Requisitos:</strong> Mínimo 8 caracteres, debe incluir:
+                  <br />• Una letra MAYÚSCULA
+                  <br />• Una letra minúscula
+                  <br />• Un número
                 </p>
               )}
             </div>
@@ -261,5 +282,20 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Leaf className="w-12 h-12 animate-pulse text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   )
 }

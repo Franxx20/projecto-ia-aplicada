@@ -392,9 +392,9 @@ export default function DashboardPage() {
                         {/* Estado de salud */}
                         <div className="flex items-center gap-2 text-sm">
                           <Badge
-                            variant={estadoSaludToBadgeVariant(planta.estado_salud as any)}
+                            variant={estadoSaludToBadgeVariant(planta.estado_salud)}
                           >
-                            {estadoSaludToLabel(planta.estado_salud as any)}
+                            {estadoSaludToLabel(planta.estado_salud)}
                           </Badge>
                         </div>
 

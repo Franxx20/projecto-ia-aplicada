@@ -29,6 +29,7 @@ if "%1"=="stop" goto stop
 if "%1"=="restart" goto restart
 if "%1"=="logs" goto logs
 if "%1"=="shell" goto shell
+if "%1"=="db-migrate" goto db_migrate
 if "%1"=="db-backup" goto db_backup
 if "%1"=="db-restore" goto db_restore
 if "%1"=="clean" goto clean
@@ -41,8 +42,50 @@ goto help
 echo [INFO] Iniciando configuración del proyecto...
 echo [INFO] Construyendo imágenes Docker...
 docker-compose build --no-cache
+echo.
+echo [INFO] Levantando servicios para configurar la base de datos...
+docker-compose up -d db
+echo [INFO] Esperando a que la base de datos esté lista...
+timeout /t 5 /nobreak > nul
+echo.
+echo [INFO] Creando base de datos si no existe...
+docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | findstr /C:"1" > nul
+if errorlevel 1 (
+    echo [INFO] Creando base de datos asistente_plantitas...
+    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;"
+) else (
+    echo [INFO] Base de datos asistente_plantitas ya existe
+)
+echo.
+echo [INFO] Aplicando migraciones de base de datos...
+docker-compose up -d backend
+timeout /t 3 /nobreak > nul
+docker-compose exec backend python run_migrations.py
+if errorlevel 1 (
+    echo [WARNING] Hubo un problema al aplicar las migraciones. Puedes ejecutar 'manage.bat db-migrate' manualmente.
+) else (
+    echo [INFO] Migraciones aplicadas correctamente
+)
+echo.
+echo [INFO] Deteniendo servicios temporales...
+docker-compose down
+echo.
 echo [INFO] Configuración completada!
 echo [WARNING] Recuerda editar el archivo .env con tus configuraciones.
+goto end
+
+:db_migrate
+echo [INFO] Aplicando migraciones de base de datos...
+docker-compose up -d db backend
+echo [INFO] Esperando a que los servicios estén listos...
+timeout /t 5 /nobreak > nul
+echo.
+docker-compose exec backend python run_migrations.py
+if errorlevel 1 (
+    echo [ERROR] Error al aplicar las migraciones
+    goto end
+)
+echo [INFO] Migraciones aplicadas correctamente
 goto end
 
 :dev
@@ -151,13 +194,14 @@ echo.
 echo Uso: manage.bat [COMANDO]
 echo.
 echo Comandos disponibles:
-echo   setup           - Configuración inicial del proyecto
+echo   setup           - Configuración inicial del proyecto (incluye migraciones)
 echo   dev             - Levantar entorno de desarrollo con hot reload
 echo   prod            - Levantar entorno de producción
 echo   stop            - Detener todos los servicios
 echo   restart         - Reiniciar todos los servicios
 echo   logs [servicio] - Ver logs (opcional: especificar servicio)
 echo   shell [servicio]- Acceder al shell de un servicio
+echo   db-migrate      - Aplicar migraciones de base de datos
 echo   db-backup       - Crear backup de la base de datos
 echo   db-restore      - Restaurar backup de la base de datos
 echo   clean           - Limpiar contenedores, imágenes y volúmenes
@@ -168,6 +212,7 @@ echo.
 echo Ejemplos:
 echo   manage.bat setup
 echo   manage.bat dev
+echo   manage.bat db-migrate
 echo   manage.bat logs backend
 echo   manage.bat shell backend
 echo.

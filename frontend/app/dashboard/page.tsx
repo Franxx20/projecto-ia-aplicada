@@ -452,9 +452,9 @@ export default function DashboardPage() {
                   >
                     {/* Imagen de la planta */}
                     <div className="aspect-square relative bg-muted">
-                      {planta.imagen_principal_id ? (
+                      {planta.imagen_principal_url ? (
                         <img
-                          src={`/api/imagenes/${planta.imagen_principal_id}`}
+                          src={planta.imagen_principal_url}
                           alt={planta.nombre_personal}
                           className="w-full h-full object-cover"
                         />

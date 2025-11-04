@@ -30,6 +30,7 @@ export interface Planta {
   ubicacion: string | null;
   notas: string | null;
   imagen_principal_id: number | null;
+  imagen_principal_url: string | null;
   fecha_ultimo_riego: string | null; // ISO datetime string
   frecuencia_riego_dias: number;
   luz_actual: NivelLuz | null;

@@ -12,12 +12,12 @@ Sprint: Sprint 1 - T-004
 import uuid
 import os
 from typing import Optional, List, BinaryIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi import UploadFile, HTTPException, status
 
 # Azure Storage
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, ContentSettings
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, ContentSettings, generate_blob_sas, BlobSasPermissions
 from azure.core.exceptions import AzureError, ResourceNotFoundError
 
 # Modelos y configuración
@@ -274,6 +274,85 @@ class AzureBlobService:
             blob=nombre_blob
         )
         return blob_client.url
+    
+    def generar_url_con_sas(self, nombre_blob: str, expiracion_horas: int = 1) -> str:
+        """
+        Genera una URL con Shared Access Signature (SAS) para acceso temporal.
+        
+        Args:
+            nombre_blob (str): Nombre del blob
+            expiracion_horas (int): Horas hasta que expire el token SAS (por defecto 1)
+            
+        Returns:
+            str: URL del blob con token SAS incluido
+            
+        Example:
+            >>> service = AzureBlobService()
+            >>> url = service.generar_url_con_sas("archivo.jpg", expiracion_horas=2)
+            >>> print(url)
+            'https://account.blob.core.windows.net/container/archivo.jpg?sv=2021-...'
+        """
+        try:
+            # Obtener la account key para generar el SAS token
+            account_name = config.azure_storage_account_name
+            account_key = config.azure_storage_account_key
+            
+            # Si no hay account_key, intentar extraerla del connection string
+            if not account_key and config.azure_storage_connection_string:
+                conn_parts = dict(item.split('=', 1) for item in config.azure_storage_connection_string.split(';') if '=' in item)
+                account_key = conn_parts.get('AccountKey', '')
+                if not account_name:
+                    account_name = conn_parts.get('AccountName', '')
+            
+            if not account_key:
+                # Si no se puede generar SAS, devolver la URL sin firma
+                # (útil para Azurite o contenedores públicos)
+                blob_client = self.blob_service_client.get_blob_client(
+                    container=self.container_name,
+                    blob=nombre_blob
+                )
+                url = blob_client.url
+                # Reemplazar hosts internos de Docker por localhost para acceso desde el navegador
+                url = url.replace('http://azurite:', 'http://localhost:')
+                url = url.replace('http://backend:', 'http://localhost:')
+                return url
+            
+            # Generar SAS token
+            sas_token = generate_blob_sas(
+                account_name=account_name,
+                container_name=self.container_name,
+                blob_name=nombre_blob,
+                account_key=account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + timedelta(hours=expiracion_horas)
+            )
+            
+            # Construir URL con SAS
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=nombre_blob
+            )
+            
+            url = f"{blob_client.url}?{sas_token}"
+            
+            # Reemplazar hosts internos de Docker por localhost para acceso desde el navegador
+            url = url.replace('http://azurite:', 'http://localhost:')
+            url = url.replace('http://backend:', 'http://localhost:')
+            
+            return url
+            
+        except Exception as e:
+            # Si hay algún error generando SAS, devolver URL sin firma
+            print(f"Error generando SAS token: {str(e)}")
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=nombre_blob
+            )
+            url = blob_client.url
+            # Reemplazar hosts internos de Docker por localhost para acceso desde el navegador
+            url = url.replace('http://azurite:', 'http://localhost:')
+            url = url.replace('http://backend:', 'http://localhost:')
+            return url
 
 
 class ImagenService:

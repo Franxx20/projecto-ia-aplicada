@@ -26,7 +26,7 @@ from app.schemas.planta import (
 )
 from app.services.planta_service import PlantaService
 from app.utils.jwt import get_current_user
-from app.db.models import Usuario
+from app.db.models import Usuario, Imagen
 
 # Crear router de plantas
 router = APIRouter()
@@ -112,16 +112,25 @@ async def listar_plantas(
             usuario_id=current_user.id
         )
         
+        # Importar ImagenService para generar URLs con SAS
+        from app.services.imagen_service import ImagenService, AzureBlobService
+        azure_service = AzureBlobService()
+        
         # Convertir a response con campo calculado e imagen URL
         plantas_response = []
         for planta in plantas:
             planta_dict = planta.to_dict()
             planta_dict["necesita_riego"] = planta.necesita_riego()
             
-            # Generar URL del proxy para la imagen si existe
+            # Generar URL con SAS token para la imagen si existe
             if planta.imagen_principal_id:
-                # Usar endpoint proxy del backend en lugar de URL directa de Azurite
-                planta_dict["imagen_principal_url"] = f"/api/imagenes/{planta.imagen_principal_id}/archivo"
+                # Obtener la imagen de la BD para tener el nombre_blob
+                imagen = db.query(Imagen).filter(Imagen.id == planta.imagen_principal_id).first()
+                if imagen:
+                    # Generar URL con SAS token (válida por 1 hora)
+                    planta_dict["imagen_principal_url"] = azure_service.generar_url_con_sas(imagen.nombre_blob, expiracion_horas=1)
+                else:
+                    planta_dict["imagen_principal_url"] = None
             else:
                 planta_dict["imagen_principal_url"] = None
                 
@@ -205,14 +214,23 @@ async def obtener_planta(
                 detail=f"Planta con ID {planta_id} no encontrada"
             )
         
+        # Importar ImagenService para generar URLs con SAS
+        from app.services.imagen_service import AzureBlobService
+        azure_service = AzureBlobService()
+        
         # Convertir a response con campo calculado e imagen URL
         planta_dict = planta.to_dict()
         planta_dict["necesita_riego"] = planta.necesita_riego()
         
-        # Generar URL del proxy para la imagen si existe
+        # Generar URL con SAS token para la imagen si existe
         if planta.imagen_principal_id:
-            # Usar endpoint proxy del backend en lugar de URL directa de Azurite
-            planta_dict["imagen_principal_url"] = f"/api/imagenes/{planta.imagen_principal_id}/archivo"
+            # Obtener la imagen de la BD para tener el nombre_blob
+            imagen = db.query(Imagen).filter(Imagen.id == planta.imagen_principal_id).first()
+            if imagen:
+                # Generar URL con SAS token (válida por 1 hora)
+                planta_dict["imagen_principal_url"] = azure_service.generar_url_con_sas(imagen.nombre_blob, expiracion_horas=1)
+            else:
+                planta_dict["imagen_principal_url"] = None
         else:
             planta_dict["imagen_principal_url"] = None
         

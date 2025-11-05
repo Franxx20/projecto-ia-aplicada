@@ -155,8 +155,16 @@ async def listar_imagenes(
     total_paginas = (total + limit - 1) // limit if limit > 0 else 0
     pagina_actual = (skip // limit) + 1 if limit > 0 else 1
     
+    # Convertir a ImagenResponse y agregar URLs con SAS
+    imagenes_response = []
+    for img in imagenes:
+        img_dict = ImagenResponse.model_validate(img).model_dump()
+        # Agregar URL con SAS token
+        img_dict['url_con_sas'] = servicio.azure_service.generar_url_con_sas(img.nombre_blob)
+        imagenes_response.append(ImagenResponse(**img_dict))
+    
     return ImagenListResponse(
-        imagenes=[ImagenResponse.model_validate(img) for img in imagenes],
+        imagenes=imagenes_response,
         total=total,
         pagina=pagina_actual,
         tamano_pagina=limit,
@@ -211,7 +219,11 @@ async def obtener_imagen(
     servicio = ImagenService(db)
     imagen = servicio.obtener_imagen(imagen_id, usuario_id=current_user.id)
     
-    return ImagenResponse.model_validate(imagen)
+    # Convertir a dict y agregar URL con SAS
+    img_dict = ImagenResponse.model_validate(imagen).model_dump()
+    img_dict['url_con_sas'] = servicio.azure_service.generar_url_con_sas(imagen.nombre_blob)
+    
+    return ImagenResponse(**img_dict)
 
 
 @router.patch(

@@ -60,6 +60,7 @@ class ImagenResponse(ImagenBase):
     nombre_archivo: str = Field(..., description="Nombre original del archivo")
     nombre_blob: str = Field(..., description="Nombre del blob en Azure Storage")
     url_blob: str = Field(..., description="URL completa para acceder a la imagen")
+    url_con_sas: Optional[str] = Field(None, description="URL con token SAS para acceso temporal")
     container_name: str = Field(..., description="Nombre del contenedor en Azure")
     content_type: str = Field(..., description="Tipo MIME de la imagen")
     tamano_bytes: int = Field(..., description="Tamaño del archivo en bytes")

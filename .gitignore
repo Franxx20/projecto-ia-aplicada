@@ -19,6 +19,12 @@ postgresql*.log
 postmaster.pid
 recovery.conf
 
+# Azure Storage / Azurite
+/data/azurite/
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+
 # Database dumps and backups
 *.db
 *.sqlite

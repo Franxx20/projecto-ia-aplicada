@@ -94,7 +94,7 @@ services:
       - "10001:10001"  # Queue service
       - "10002:10002"  # Table service
     volumes:
-      - azurite_data:/data
+      - ${AZURITE_DATA_PATH:-./data/azurite}:/data
     networks:
       - app-network
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose --location /data
@@ -106,8 +106,6 @@ volumes:
       type: none
       o: bind
       device: ${POSTGRES_DATA_PATH:-./data/postgres}
-  azurite_data:
-    driver: local
 
 networks:
   app-network:

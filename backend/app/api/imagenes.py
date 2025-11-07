@@ -10,7 +10,9 @@ Sprint: Sprint 1 - T-004
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import io
 
 from app.db.session import get_db
 from app.schemas.imagen import (
@@ -306,3 +308,65 @@ async def eliminar_imagen(
         mensaje="Imagen eliminada exitosamente",
         eliminado_de_azure=eliminado_azure
     )
+
+
+@router.get(
+    "/proxy/{nombre_blob}",
+    summary="Proxy de imagen desde Azurite",
+    description="Sirve una imagen desde Azurite con CORS habilitado para desarrollo",
+    response_description="Imagen en formato binario",
+    responses={
+        200: {
+            "description": "Imagen servida exitosamente",
+            "content": {"image/*": {}}
+        },
+        404: {"description": "Imagen no encontrada"}
+    }
+)
+async def proxy_imagen(
+    nombre_blob: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint proxy para servir imágenes desde Azurite con CORS habilitado.
+    
+    Este endpoint resuelve problemas de CORS cuando el frontend intenta
+    cargar imágenes directamente desde Azurite (localhost:10000).
+    
+    - **nombre_blob**: Nombre del blob en Azure Storage
+    
+    Retorna la imagen en formato binario con los headers CORS apropiados.
+    """
+    try:
+        servicio = ImagenService(db)
+        contenido = servicio.azure_service.descargar_blob(nombre_blob)
+        
+        # Detectar el content type basado en la extensión
+        extension = nombre_blob.split('.')[-1].lower()
+        content_type_map = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'webp': 'image/webp',
+            'gif': 'image/gif'
+        }
+        content_type = content_type_map.get(extension, 'image/jpeg')
+        
+        # Retornar la imagen con headers CORS
+        return StreamingResponse(
+            io.BytesIO(contenido),
+            media_type=content_type,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "public, max-age=31536000"  # Cache por 1 año
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al servir imagen: {str(e)}"
+        )

@@ -25,10 +25,10 @@ services:
       ENVIRONMENT: development
       DEBUG: true
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
-      # Azure Storage - Usando Azurite (emulador local)
-      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
-      AZURE_STORAGE_CONTAINER_NAME: plantitas-imagenes
-      AZURE_STORAGE_USE_EMULATOR: true
+      # Azure Storage - Lee del .env para mayor flexibilidad
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;}
+      AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME:-plantitas-imagenes}
+      AZURE_STORAGE_USE_EMULATOR: ${AZURE_STORAGE_USE_EMULATOR:-true}
     volumes:
       # Volúmenes en vivo para desarrollo
       - ${BACKEND_CODE_PATH:-./backend}:/app:cached
@@ -97,6 +97,8 @@ services:
       - azurite_data:/data
     networks:
       - app-network
+    environment:
+      - AZURITE_ACCOUNTS=devstoreaccount1:Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose --location /data
 
 volumes:

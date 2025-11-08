@@ -23,6 +23,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    # Configuración de logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Backend FastAPI
   backend:
@@ -50,6 +56,14 @@ services:
       # IA Configuration
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
       
+      # Timeouts para migraciones y conexiones BD
+      DB_CONNECTION_TIMEOUT: 60
+      DB_POOL_PRE_PING: "true"
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      
     # Volumes comentados para producción - usar docker-compose.dev.yml para desarrollo
     # volumes:
     #   - ${BACKEND_CODE_PATH:-./backend}:/app
@@ -67,6 +81,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+    # Configuración de logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Frontend Next.js
   frontend:
@@ -86,15 +107,22 @@ services:
     ports:
       - "${FRONTEND_PORT:-4200}:4200"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app-network
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4200/api/health', (r) => {if(r.statusCode !== 200) throw new Error(r.statusCode)})\""]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
+    # Configuración de logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Adminer para gestión de base de datos (opcional)
   adminer:

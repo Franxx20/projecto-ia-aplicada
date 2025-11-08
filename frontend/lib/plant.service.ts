@@ -430,6 +430,51 @@ class PlantService {
       throw error;
     }
   }
+
+  /**
+   * Actualiza una planta del usuario
+   * 
+   * Permite actualizar cualquier campo de una planta existente,
+   * incluyendo es_favorita y es_regalo.
+   * 
+   * @param plantaId - ID de la planta a actualizar
+   * @param datos - Campos a actualizar (parcial)
+   * @returns Promise con la planta actualizada
+   * 
+   * @example
+   * ```typescript
+   * await plantService.actualizarPlanta(42, {
+   *   es_favorita: true,
+   *   nombre_personalizado: 'Mi Planta Favorita'
+   * });
+   * ```
+   */
+  async actualizarPlanta(
+    plantaId: number,
+    datos: Partial<{
+      nombre_personalizado?: string;
+      ubicacion?: string;
+      notas?: string;
+      estado_salud?: string;
+      frecuencia_riego_dias?: number;
+      es_favorita?: boolean;
+      fue_regada_hoy?: boolean;
+    }>
+  ): Promise<PlantaResponse> {
+    try {
+      const response = await axios.put<PlantaResponse>(
+        `/api/plantas/${plantaId}`,
+        datos
+      );
+      return response.data;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const mensaje = error.response?.data?.detail || 'Error al actualizar la planta';
+        throw new Error(mensaje);
+      }
+      throw error;
+    }
+  }
 }
 
 /**

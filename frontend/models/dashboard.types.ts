@@ -40,6 +40,8 @@ export interface Planta {
   updated_at: string; // ISO datetime string
   is_active: boolean;
   necesita_riego: boolean;
+  es_favorita: boolean;
+  fue_regada_hoy: boolean;
 }
 
 /**
@@ -74,6 +76,8 @@ export interface PlantaUpdate {
   frecuencia_riego_dias?: number;
   luz_actual?: NivelLuz | null;
   fecha_adquisicion?: string | null;
+  es_favorita?: boolean;
+  fue_regada_hoy?: boolean;
 }
 
 /**

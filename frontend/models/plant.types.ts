@@ -318,6 +318,9 @@ export interface PlantaUsuario {
   activa: boolean;
   fecha_creacion: string;
   fecha_actualizacion: string;
+  created_at: string;
+  es_favorita: boolean;
+  fue_regada_hoy: boolean;
   especie?: EspecieResponse;
   imagen_principal?: {
     id: number;

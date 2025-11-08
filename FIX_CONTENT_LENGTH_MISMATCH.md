@@ -5,61 +5,84 @@
 El endpoint `/api/identificar/multiple` estaba generando el error:
 ```
 POST http://localhost:8000/api/identificar/multiple net::ERR_CONTENT_LENGTH_MISMATCH 201 (Created)
+RuntimeError: Response content longer than Content-Length
 ```
 
 Este error ocurría cuando el frontend intentaba identificar plantas con múltiples imágenes.
 
-## Causa Raíz
+## Causa Raíz REAL ⚠️
 
-En `backend/app/api/identificacion.py`, el endpoint estaba:
+El problema NO estaba en el endpoint `/multiple`, sino en el **middleware de Azurite URL Replacement** en `backend/app/main.py`.
 
-1. **Serializando JSON manualmente** con `json.dumps()`
-2. **Calculando Content-Length manualmente** 
-3. **Creando un objeto Response() personalizado**
+### El Middleware Problemático
+
+El middleware `reemplazar_urls_azurite` estaba:
+
+1. ✅ Leyendo el body de la respuesta JSON
+2. ✅ Reemplazando URLs de `http://azurite:10000` → `http://localhost:10000`
+3. ❌ **Creando una nueva Response con string en lugar de bytes**
+4. ❌ **NO recalculando el Content-Length después de la modificación**
 
 ```python
 # ❌ CÓDIGO PROBLEMÁTICO (ANTES)
-json_str = json.dumps(resultado, ensure_ascii=False, default=str)
-json_bytes = json_str.encode('utf-8')
-
 return Response(
-    content=json_bytes,
-    status_code=status.HTTP_201_CREATED,
-    media_type="application/json",
-    headers={"Content-Length": str(len(json_bytes))}
+    content=content,  # ← STRING, no bytes!
+    status_code=response.status_code,
+    headers=dict(response.headers),  # ← Content-Length viejo!
+    media_type=response.media_type
 )
 ```
 
-Esto causaba un conflicto porque:
-- Los middlewares de FastAPI intentaban procesar la respuesta después
-- El `Content-Length` se recalculaba incorrectamente
-- Había discrepancia entre el tamaño real del contenido y el header
+### ¿Por qué fallaba?
+
+Cuando el contenido JSON tiene:
+- **Caracteres UTF-8 multibyte** (ñ, á, é, etc.)
+- **Caracteres especiales** en nombres científicos
+- **Texto en español** de PlantNet
+
+El `Content-Length` calculado en **caracteres** (string) es DIFERENTE al calculado en **bytes** (UTF-8).
+
+**Ejemplo:**
+- String "Potus" = 5 caracteres = 5 bytes
+- String "Potos áureo" = 11 caracteres = 12 bytes (á = 2 bytes en UTF-8)
+
+El middleware estaba usando el Content-Length original (antes del replace), pero el contenido modificado podría tener diferente longitud en bytes.
 
 ## Solución
 
-**Dejar que FastAPI maneje la serialización JSON automáticamente:**
+**Corregir el middleware de Azurite para codificar correctamente a bytes y recalcular Content-Length:**
 
 ```python
-# ✅ CÓDIGO CORREGIDO (DESPUÉS)
-resultado = await IdentificacionService.identificar_desde_multiples_imagenes(
-    db=db,
-    imagenes=imagenes_con_organos,
-    usuario_id=current_user.id,
-    guardar_resultado=guardar_resultado
-)
+# ✅ CÓDIGO CORREGIDO (DESPUÉS) - backend/app/main.py
+# Reemplazar URLs de Azurite
+content = content.replace('http://azurite:10000', 'http://localhost:10000')
+content = content.replace('http://127.0.0.1:10000', 'http://localhost:10000')
+content = content.replace('https://azurite:10000', 'http://localhost:10000')
+content = content.replace('https://127.0.0.1:10000', 'http://localhost:10000')
 
-# Retornar directamente el dict - FastAPI maneja la serialización JSON
-# y calcula el Content-Length correctamente
-return resultado
+# Codificar a bytes y calcular Content-Length correcto
+content_bytes = content.encode('utf-8')
+
+# Crear nueva respuesta con el contenido modificado
+# IMPORTANTE: Usar bytes y actualizar Content-Length
+headers = dict(response.headers)
+headers['Content-Length'] = str(len(content_bytes))  # ← RECALCULAR!
+
+return Response(
+    content=content_bytes,  # ← BYTES, no string!
+    status_code=response.status_code,
+    headers=headers,
+    media_type=response.media_type
+)
 ```
 
 ### Cambios Realizados
 
-1. **Eliminado**: Manual JSON serialization con `json.dumps()`
-2. **Eliminado**: Creación manual de `Response()` object
-3. **Eliminado**: Header `Content-Length` manual
-4. **Eliminadas**: Imports no utilizados (`json`, `Response`)
-5. **Agregado**: Comentario explicativo sobre el comportamiento de FastAPI
+1. **Modificado** `backend/app/main.py` - Middleware `reemplazar_urls_azurite`
+2. **Agregado**: Codificación explícita a bytes con `.encode('utf-8')`
+3. **Agregado**: Recálculo de `Content-Length` con `len(content_bytes)`
+4. **Corregido**: Response ahora usa `content_bytes` en lugar de `content` string
+5. **Documentado**: Comentarios explicando la importancia de bytes y Content-Length
 
 ## Por Qué Funciona Ahora
 
@@ -100,4 +123,5 @@ docker-compose ps backend
 
 ## Archivos Modificados
 
-- ✅ `backend/app/api/identificacion.py` - Endpoint `/multiple` simplificado
+- ✅ `backend/app/main.py` - Middleware `reemplazar_urls_azurite` corregido
+- ✅ `backend/app/api/identificacion.py` - Endpoint `/multiple` simplificado (cambio previo innecesario pero inofensivo)

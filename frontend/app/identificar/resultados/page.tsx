@@ -194,7 +194,37 @@ function ResultadosPageContent() {
       setCargando(true);
       setError(null);
 
-      // Obtener los detalles de la identificación ya realizada
+      // Primero intentar obtener del sessionStorage (más rápido y tiene todos los datos)
+      const ultimaIdentificacionStr = sessionStorage.getItem('ultimaIdentificacion');
+      if (ultimaIdentificacionStr) {
+        try {
+          const respuestaCacheada = JSON.parse(ultimaIdentificacionStr);
+          
+          // Verificar que sea la identificación correcta
+          if (respuestaCacheada.id === Number(identificacionId)) {
+            console.log('Usando resultado desde sessionStorage');
+            
+            // Adaptar al formato esperado si es necesario
+            const respuestaAdaptada: IdentificarResponse = {
+              ...respuestaCacheada,
+              resultados: respuestaCacheada.plantnet_response || respuestaCacheada.resultados,
+              usuario_id: respuestaCacheada.usuario_id,
+              especie_id: respuestaCacheada.especie_id,
+              proyecto_usado: respuestaCacheada.proyecto_usado || 'all',
+              cantidad_imagenes: respuestaCacheada.imagenes?.length || 1
+            };
+            
+            setResultado(respuestaAdaptada);
+            setCargando(false);
+            return;
+          }
+        } catch (parseError) {
+          console.warn('Error al parsear sessionStorage, consultando backend:', parseError);
+        }
+      }
+
+      // Si no está en sessionStorage o es otra identificación, consultar backend
+      console.log('Consultando backend para identificación:', identificacionId);
       const detalle = await plantService.obtenerDetalleIdentificacion(
         Number(identificacionId)
       );
@@ -231,7 +261,7 @@ function ResultadosPageContent() {
    * Confirma una especie y la agrega al jardín del usuario
    */
   const confirmarEspecie = async (resultIndex: number) => {
-    if (!resultado || !identificacionId) return;
+    if (!resultado || !identificacionId || !resultado.resultados?.results) return;
 
     try {
       setConfirmando(resultIndex);
@@ -577,10 +607,16 @@ function ResultadosPageContent() {
                 <p>
                   • <strong>Confianza baja (&lt;60%)</strong>: Identificación incierta, consultar experto
                 </p>
-                <p className="pt-2 border-t border-blue-300 mt-2">
-                  <strong>Versión IA:</strong> {resultado.resultados.version} • 
-                  <strong className="ml-2">Requests restantes:</strong> {resultado.resultados.remainingIdentificationRequests}
-                </p>
+                {resultado.resultados?.version && (
+                  <p className="pt-2 border-t border-blue-300 mt-2">
+                    <strong>Versión IA:</strong> {resultado.resultados.version}
+                    {resultado.resultados.remainingIdentificationRequests && (
+                      <>
+                        {' '}• <strong className="ml-2">Requests restantes:</strong> {resultado.resultados.remainingIdentificationRequests}
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -596,8 +632,14 @@ function ResultadosPageContent() {
 
         {/* Lista de resultados */}
         <div className="space-y-6">
-          {resultado.resultados.results.slice(0, 10).map((result, index) => 
+          {resultado.resultados?.results?.slice(0, 10).map((result, index) => 
             renderResultado(result, index)
+          ) || (
+            <Card className="p-6">
+              <p className="text-gray-600">
+                No hay resultados alternativos disponibles para esta identificación.
+              </p>
+            </Card>
           )}
         </div>
 

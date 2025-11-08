@@ -92,6 +92,10 @@ export default function IdentificarPage() {
 
       console.log('Identificación exitosa:', respuesta)
 
+      // Guardar resultado en sessionStorage para la página de resultados
+      // Esto evita tener que volver a consultar el backend
+      sessionStorage.setItem('ultimaIdentificacion', JSON.stringify(respuesta))
+
       // Navegar a la página de resultados con el ID de identificación
       router.push(`/identificar/resultados?identificacionId=${respuesta.id}`)
     } catch (error) {

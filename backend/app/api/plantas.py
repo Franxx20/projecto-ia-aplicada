@@ -22,7 +22,8 @@ from app.schemas.planta import (
     PlantaStats,
     PlantaListResponse,
     RegistrarRiegoRequest,
-    AgregarPlantaDesdeIdentificacionRequest
+    AgregarPlantaDesdeIdentificacionRequest,
+    PlantaUsuarioResponse
 )
 from app.services.planta_service import PlantaService
 from app.utils.jwt import get_current_user
@@ -181,6 +182,48 @@ async def obtener_estadisticas(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al calcular estadísticas: {str(e)}"
+        )
+
+
+@router.get(
+    "/con-imagenes",
+    response_model=List[PlantaUsuarioResponse],
+    summary="Listar plantas con imágenes de identificación",
+    description="Obtiene todas las plantas del usuario con las imágenes usadas para identificarlas",
+    response_description="Lista de plantas con imágenes de identificación"
+)
+async def listar_plantas_con_imagenes(
+    skip: int = Query(0, ge=0, description="Número de registros a saltar"),
+    limit: int = Query(100, ge=1, le=1000, description="Número máximo de registros"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Lista todas las plantas activas del usuario con imágenes de identificación.
+    
+    Para cada planta retorna:
+    - Datos básicos de la planta
+    - Información de la especie (si existe)
+    - Imagen principal
+    - TODAS las imágenes usadas en la identificación original
+    
+    Las plantas están ordenadas por fecha de creación (más recientes primero).
+    """
+    try:
+        plantas = PlantaService.obtener_plantas_usuario_con_imagenes(
+            db=db,
+            usuario_id=current_user.id,
+            skip=skip,
+            limit=limit
+        )
+        
+        # Convertir a PlantaUsuarioResponse
+        return [PlantaUsuarioResponse(**planta) for planta in plantas]
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener las plantas con imágenes: {str(e)}"
         )
 
 

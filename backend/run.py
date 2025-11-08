@@ -24,6 +24,14 @@ try:
         print("Para detener el servidor, presiona Ctrl+C")
         print("-" * 50)
         
+        # Corregir URLs de Azurite antes de iniciar el servidor
+        print("\n🔧 Corrigiendo URLs de Azurite...")
+        try:
+            from fix_azurite_on_startup import fix_azurite_urls
+            fix_azurite_urls()
+        except Exception as e:
+            print(f"⚠️  No se pudo ejecutar corrección de URLs: {e}")
+        
         # Importar después de configurar el path
         from app.main import app
         

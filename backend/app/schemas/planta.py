@@ -10,7 +10,7 @@ Sprint: Sprint 2 - T-014
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -311,6 +311,143 @@ class PlantaListResponse(BaseModel):
         ...,
         description="Número total de plantas",
         ge=0
+    )
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
+
+
+class ImagenIdentificacionSchema(BaseModel):
+    """
+    Schema para información básica de una imagen en una identificación.
+    """
+    id: int = Field(
+        ...,
+        description="ID único de la imagen"
+    )
+    nombre_archivo: str = Field(
+        ...,
+        description="Nombre del archivo de imagen"
+    )
+    url_blob: str = Field(
+        ...,
+        description="URL del blob en Azure Storage"
+    )
+    organ: Optional[str] = Field(
+        None,
+        description="Órgano de la planta (flower, leaf, fruit, etc.)"
+    )
+    tamano_bytes: int = Field(
+        ...,
+        description="Tamaño del archivo en bytes"
+    )
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
+
+
+class EspecieBasicSchema(BaseModel):
+    """
+    Schema para información básica de una especie.
+    """
+    id: int = Field(
+        ...,
+        description="ID único de la especie"
+    )
+    nombre_cientifico: str = Field(
+        ...,
+        description="Nombre científico de la especie"
+    )
+    nombre_comun: Optional[str] = Field(
+        None,
+        description="Nombre común de la especie"
+    )
+    familia: Optional[str] = Field(
+        None,
+        description="Familia taxonómica"
+    )
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
+
+
+class PlantaUsuarioResponse(BaseModel):
+    """
+    Schema para la respuesta de una planta del usuario con información completa.
+    
+    Incluye:
+    - Todos los datos de la planta
+    - Información de la especie (si está identificada)
+    - Imagen principal
+    - TODAS las imágenes de identificación (si fue agregada desde identificación)
+    """
+    id: int = Field(
+        ...,
+        description="ID único de la planta"
+    )
+    usuario_id: int = Field(
+        ...,
+        description="ID del usuario propietario"
+    )
+    especie_id: Optional[int] = Field(
+        None,
+        description="ID de la especie"
+    )
+    nombre_personalizado: Optional[str] = Field(
+        None,
+        description="Nombre personalizado de la planta"
+    )
+    fecha_adquisicion: Optional[datetime] = Field(
+        None,
+        description="Fecha de adquisición"
+    )
+    ubicacion: Optional[str] = Field(
+        None,
+        description="Ubicación física"
+    )
+    estado_salud: str = Field(
+        ...,
+        description="Estado de salud"
+    )
+    frecuencia_riego_dias: Optional[int] = Field(
+        None,
+        description="Frecuencia de riego en días"
+    )
+    notas: Optional[str] = Field(
+        None,
+        description="Notas del usuario"
+    )
+    imagen_principal_id: Optional[int] = Field(
+        None,
+        description="ID de la imagen principal"
+    )
+    activa: bool = Field(
+        default=True,
+        description="Si la planta está activa"
+    )
+    fecha_creacion: datetime = Field(
+        ...,
+        description="Fecha de creación"
+    )
+    fecha_actualizacion: datetime = Field(
+        ...,
+        description="Fecha de última actualización"
+    )
+    # Información adicional
+    especie: Optional[EspecieBasicSchema] = Field(
+        None,
+        description="Información de la especie"
+    )
+    imagen_principal: Optional[ImagenIdentificacionSchema] = Field(
+        None,
+        description="Imagen principal de la planta"
+    )
+    imagenes_identificacion: List[ImagenIdentificacionSchema] = Field(
+        default_factory=list,
+        description="Todas las imágenes usadas para identificar esta planta"
     )
     
     class Config:

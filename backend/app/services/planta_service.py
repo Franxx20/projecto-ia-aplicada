@@ -113,6 +113,142 @@ class PlantaService:
         return query.order_by(Planta.created_at.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
+    def obtener_plantas_usuario_con_imagenes(
+        db: Session,
+        usuario_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        solo_activas: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtiene todas las plantas de un usuario con sus imágenes de identificación.
+        
+        Para cada planta:
+        1. Obtiene los datos básicos de la planta
+        2. Obtiene información de la especie (si existe)
+        3. Obtiene la imagen principal
+        4. Busca la identificación que originó la planta (mediante imagen_principal_id)
+        5. Obtiene TODAS las imágenes asociadas a esa identificación
+        
+        Args:
+            db (Session): Sesión de base de datos
+            usuario_id (int): ID del usuario
+            skip (int): Número de registros a saltar (paginación)
+            limit (int): Número máximo de registros a retornar
+            solo_activas (bool): Si True, solo retorna plantas activas
+            
+        Returns:
+            List[Dict[str, Any]]: Lista de plantas con toda su información
+        """
+        from app.db.models import Especie, Imagen, Identificacion
+        
+        # Obtener plantas del usuario
+        query = db.query(Planta).filter(Planta.usuario_id == usuario_id)
+        
+        if solo_activas:
+            query = query.filter(Planta.is_active == True)
+        
+        plantas = query.order_by(Planta.created_at.desc()).offset(skip).limit(limit).all()
+        
+        # Construir respuesta completa para cada planta
+        resultado = []
+        
+        for planta in plantas:
+            planta_dict = {
+                "id": planta.id,
+                "usuario_id": planta.usuario_id,
+                "especie_id": planta.especie_id,
+                "nombre_personalizado": planta.nombre_personal,
+                "fecha_adquisicion": planta.fecha_adquisicion,
+                "ubicacion": planta.ubicacion,
+                "estado_salud": planta.estado_salud,
+                "frecuencia_riego_dias": planta.frecuencia_riego_dias,
+                "notas": planta.notas,
+                "imagen_principal_id": planta.imagen_principal_id,
+                "activa": planta.is_active,
+                "fecha_creacion": planta.created_at,
+                "fecha_actualizacion": planta.updated_at,
+                "especie": None,
+                "imagen_principal": None,
+                "imagenes_identificacion": []
+            }
+            
+            # Obtener información de la especie
+            if planta.especie_id:
+                especie = db.query(Especie).filter(Especie.id == planta.especie_id).first()
+                if especie:
+                    planta_dict["especie"] = {
+                        "id": especie.id,
+                        "nombre_cientifico": especie.nombre_cientifico,
+                        "nombre_comun": especie.nombre_comun,
+                        "familia": especie.familia
+                    }
+            
+            # Obtener imagen principal
+            if planta.imagen_principal_id:
+                imagen_principal = db.query(Imagen).filter(
+                    Imagen.id == planta.imagen_principal_id
+                ).first()
+                
+                if imagen_principal:
+                    planta_dict["imagen_principal"] = {
+                        "id": imagen_principal.id,
+                        "nombre_archivo": imagen_principal.nombre_archivo,
+                        "url_blob": imagen_principal.url_blob,
+                        "organ": imagen_principal.organ,
+                        "tamano_bytes": imagen_principal.tamano_bytes
+                    }
+                    
+                    # Buscar la identificación que tiene esta imagen
+                    identificacion = db.query(Identificacion).filter(
+                        and_(
+                            Identificacion.usuario_id == usuario_id,
+                            or_(
+                                Identificacion.imagen_id == planta.imagen_principal_id,
+                                Identificacion.id == imagen_principal.identificacion_id
+                            )
+                        )
+                    ).first()
+                    
+                    # Si encontramos la identificación, obtener TODAS sus imágenes
+                    if identificacion:
+                        # Obtener todas las imágenes de esta identificación
+                        imagenes = db.query(Imagen).filter(
+                            Imagen.identificacion_id == identificacion.id
+                        ).all()
+                        
+                        if imagenes:
+                            planta_dict["imagenes_identificacion"] = [
+                                {
+                                    "id": img.id,
+                                    "nombre_archivo": img.nombre_archivo,
+                                    "url_blob": img.url_blob,
+                                    "organ": img.organ,
+                                    "tamano_bytes": img.tamano_bytes
+                                }
+                                for img in imagenes
+                            ]
+                        # Si no hay imágenes con identificacion_id, pero hay imagen_id (caso legacy)
+                        elif identificacion.imagen_id:
+                            imagen_legacy = db.query(Imagen).filter(
+                                Imagen.id == identificacion.imagen_id
+                            ).first()
+                            if imagen_legacy:
+                                planta_dict["imagenes_identificacion"] = [
+                                    {
+                                        "id": imagen_legacy.id,
+                                        "nombre_archivo": imagen_legacy.nombre_archivo,
+                                        "url_blob": imagen_legacy.url_blob,
+                                        "organ": imagen_legacy.organ,
+                                        "tamano_bytes": imagen_legacy.tamano_bytes
+                                    }
+                                ]
+            
+            resultado.append(planta_dict)
+        
+        return resultado
+    
+    @staticmethod
     def contar_plantas_usuario(
         db: Session,
         usuario_id: int,

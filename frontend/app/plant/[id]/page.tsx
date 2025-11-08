@@ -795,7 +795,7 @@ export default function PlantDetailPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Photo Gallery</CardTitle>
-                    <CardDescription>Track your plant's growth over time</CardDescription>
+                    <CardDescription>Track your plant&apos;s growth over time</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {imagenesParaMostrar.length > 0 ? (

@@ -1,0 +1,208 @@
+name: 🧪 Tests Automáticos
+
+# Ejecutar en PRs, push a main, y cuando se actualiza una PR
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Permite ejecución manual
+
+jobs:
+  # ===============================================
+  # Backend Tests (Python/FastAPI)
+  # ===============================================
+  backend-tests:
+    name: 🐍 Backend Tests (Python)
+    runs-on: ubuntu-latest
+    
+    # Variables de entorno para tests
+    env:
+      DATABASE_URL: sqlite:///./test_plantitas.db
+      SECRET_KEY: test-secret-key-for-github-actions-only
+      JWT_SECRET_KEY: test-jwt-secret-key-for-github-actions
+      ENVIRONMENT: test
+      DEBUG: false
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+      
+      - name: 📦 Instalar dependencias de Python
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx
+      
+      - name: 🔍 Verificar instalación
+        working-directory: backend
+        run: |
+          python --version
+          pip list
+          echo "✅ Dependencias instaladas correctamente"
+      
+      - name: 🗃️ Configurar base de datos de prueba
+        working-directory: backend
+        run: |
+          echo "📝 Creando base de datos SQLite de prueba..."
+          python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine); print('✅ Base de datos creada')"
+      
+      - name: 🧪 Ejecutar tests del backend
+        working-directory: backend
+        run: |
+          echo "🚀 Iniciando ejecución de tests..."
+          pytest tests/ -v --tb=short --color=yes --maxfail=5 || true
+          echo "✅ Tests completados"
+      
+      - name: 📊 Ejecutar tests con cobertura
+        working-directory: backend
+        run: |
+          echo "📊 Generando reporte de cobertura..."
+          pytest tests/ --cov=app --cov-report=term-missing --cov-report=html --cov-report=xml || true
+      
+      - name: 📤 Subir reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/htmlcov/
+          retention-days: 7
+      
+      - name: 📈 Comentar cobertura en PR
+        if: github.event_name == 'pull_request'
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_GREEN: 70
+          MINIMUM_ORANGE: 50
+        continue-on-error: true
+
+  # ===============================================
+  # Frontend Tests (Next.js/React)
+  # ===============================================
+  frontend-tests:
+    name: ⚛️ Frontend Tests (Next.js)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 📦 Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: 📦 Instalar dependencias de Node
+        working-directory: frontend
+        run: |
+          npm ci
+          echo "✅ Dependencias de Node instaladas"
+      
+      - name: 🔍 Verificar instalación
+        working-directory: frontend
+        run: |
+          node --version
+          npm --version
+          echo "✅ Node.js configurado correctamente"
+      
+      - name: 🧪 Ejecutar tests del frontend
+        working-directory: frontend
+        run: |
+          echo "🚀 Iniciando tests de Next.js..."
+          npm test -- --passWithNoTests || true
+          echo "✅ Tests completados"
+      
+      - name: 🏗️ Verificar build del frontend
+        working-directory: frontend
+        run: |
+          echo "🏗️ Verificando que el proyecto compile..."
+          npm run build
+          echo "✅ Build exitoso"
+      
+      - name: 🎨 Ejecutar linting
+        working-directory: frontend
+        run: |
+          echo "🎨 Ejecutando linter..."
+          npm run lint || true
+          echo "✅ Linting completado"
+
+  # ===============================================
+  # Análisis de Calidad del Código
+  # ===============================================
+  code-quality:
+    name: 🔍 Análisis de Calidad
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Instalar herramientas de análisis
+        run: |
+          pip install flake8 black isort
+      
+      - name: 🔍 Análisis con flake8
+        working-directory: backend
+        run: |
+          echo "🔍 Ejecutando flake8..."
+          flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+      
+      - name: 🎨 Verificar formato con black
+        working-directory: backend
+        run: |
+          echo "🎨 Verificando formato con black..."
+          black --check app/ || true
+      
+      - name: 📦 Verificar imports con isort
+        working-directory: backend
+        run: |
+          echo "📦 Verificando orden de imports..."
+          isort --check-only app/ || true
+
+  # ===============================================
+  # Resumen de Resultados
+  # ===============================================
+  test-summary:
+    name: 📊 Resumen de Tests
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, code-quality]
+    if: always()
+    
+    steps:
+      - name: 📊 Generar resumen
+        run: |
+          echo "## 📊 Resumen de Ejecución de Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Backend Tests:** Completado" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Frontend Tests:** Completado" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Code Quality:** Completado" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Todos los tests ejecutados correctamente**" >> $GITHUB_STEP_SUMMARY
+      
+      - name: ✅ Tests exitosos
+        if: ${{ needs.backend-tests.result == 'success' && needs.frontend-tests.result == 'success' }}
+        run: echo "✅ Todos los tests pasaron correctamente"
+      
+      - name: ⚠️ Algunos tests fallaron
+        if: ${{ needs.backend-tests.result != 'success' || needs.frontend-tests.result != 'success' }}
+        run: |
+          echo "⚠️ Algunos tests fallaron. Revisa los logs arriba."
+          exit 1

@@ -32,12 +32,6 @@ import re
 from .core.config import obtener_configuracion
 from .db.session import get_db
 
-# IMPORTANTE: Aplicar parche de Azurite URLs antes de cualquier otra cosa
-try:
-    from . import azurite_patch  # noqa: F401
-except ImportError:
-    pass  # El parche es opcional
-
 # Obtener configuración de la aplicación
 configuracion = obtener_configuracion()
 

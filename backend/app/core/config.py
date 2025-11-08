@@ -15,6 +15,7 @@ from pydantic_settings import BaseSettings
 from typing import List
 import os
 from functools import lru_cache
+from pathlib import Path
 
 
 class Configuracion(BaseSettings):
@@ -113,6 +114,17 @@ class Configuracion(BaseSettings):
     azure_openai_endpoint: str = ""
     claude_api_key: str = ""
     
+    # ==================== Google Gemini API ====================
+    # Google Gemini para análisis de salud de plantas
+    # Obtener API key de: https://aistudio.google.com/app/apikey
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"  # o gemini-2.5-pro para mejor calidad
+    gemini_temperature: float = 0.4  # Creatividad (0.0-1.0, más bajo = más determinista)
+    gemini_max_output_tokens: int = 2048  # Tokens máximos en la respuesta
+    gemini_timeout_seconds: int = 30  # Timeout para requests
+    gemini_max_requests_per_day: int = 1500  # Límite diario (ajustar según plan)
+    gemini_max_requests_per_user_per_day: int = 10  # Límite por usuario
+    
     # ==================== Rate Limiting ====================
     rate_limit_por_minuto: int = 60  # Número máximo de requests por minuto
     
@@ -122,7 +134,8 @@ class Configuracion(BaseSettings):
     
     class Config:
         """Configuración de Pydantic Settings"""
-        env_file = ".env"
+        # Buscar .env en el directorio raíz del proyecto (un nivel arriba de backend/)
+        env_file = str(Path(__file__).parent.parent.parent / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = False  # No distinguir mayúsculas/minúsculas en vars de entorno
         extra = "allow"  # Permitir campos extra

@@ -5,6 +5,11 @@ Gestión centralizada de configuración usando Pydantic Settings con soporte
 para variables de entorno. Sigue las directrices del proyecto con nomenclatura
 en español y principios de seguridad.
 
+IMPORTANTE: Este módulo busca el archivo .env en la RAÍZ del proyecto
+(projecto-ia-aplicada/.env), no en el directorio backend/. Esto permite
+unificar toda la configuración del proyecto (backend, frontend, Docker, etc.)
+en un solo archivo.
+
 Ejemplo de uso:
     >>> from app.core.config import obtener_configuracion
     >>> config = obtener_configuracion()
@@ -22,7 +27,10 @@ class Configuracion(BaseSettings):
     Configuración principal de la aplicación
     
     Todas las variables pueden ser sobrescritas mediante variables de entorno
-    o archivo .env en la raíz del proyecto.
+    o archivo .env en la RAÍZ del proyecto (projecto-ia-aplicada/.env).
+    
+    NOTA: El archivo .env debe estar en la raíz del proyecto, no en backend/.
+    Esto unifica toda la configuración del proyecto en un solo lugar.
     
     Attributes:
         nombre_app: Nombre de la aplicación
@@ -122,7 +130,8 @@ class Configuracion(BaseSettings):
     
     class Config:
         """Configuración de Pydantic Settings"""
-        env_file = ".env"
+        # Buscar .env en la raíz del proyecto (un nivel arriba de backend/)
+        env_file = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
         env_file_encoding = "utf-8"
         case_sensitive = False  # No distinguir mayúsculas/minúsculas en vars de entorno
         extra = "allow"  # Permitir campos extra

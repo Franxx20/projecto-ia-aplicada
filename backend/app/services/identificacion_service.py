@@ -525,7 +525,9 @@ class IdentificacionService:
         
         db.commit()
         
-        # Formatear respuesta según IdentificacionResponse schema (versión simplificada)
+        # Formatear respuesta según IdentificacionResponse schema
+        # IMPORTANTE: Incluir plantnet_response para que el frontend pueda mostrar
+        # resultados alternativos y permitir al usuario elegir la especie correcta
         respuesta_formateada = {
             "id": identificacion.id,
             "identificacion_id": identificacion.id,
@@ -549,6 +551,7 @@ class IdentificacionService:
             "fecha_identificacion": identificacion.fecha_identificacion.isoformat(),
             "validado": identificacion.validado,
             "origen": identificacion.origen,
+            "plantnet_response": respuesta,  # Respuesta completa para mostrar alternativas
             "metadatos_plantnet": {
                 "version": respuesta.get("version", ""),
                 "proyecto": respuesta.get("query", {}).get("project", ""),

@@ -21,6 +21,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copiar código fuente
 COPY . .
 
+# Crear directorio public si no existe
+RUN mkdir -p /app/public
+
 # Variables de entorno necesarias para build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production

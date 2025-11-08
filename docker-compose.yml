@@ -47,7 +47,7 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       
       # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200,http://localhost:80}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
       
       # Configuración de entorno
       ENVIRONMENT: ${ENVIRONMENT:-development}

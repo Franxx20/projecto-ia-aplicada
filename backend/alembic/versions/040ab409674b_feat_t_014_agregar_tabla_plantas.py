@@ -60,6 +60,10 @@ def upgrade() -> None:
         batch_op.drop_index('ix_identificaciones_imagen_id')
         batch_op.drop_index('ix_identificaciones_usuario_id')
 
+    # Eliminar la foreign key constraint de imagenes antes de eliminar identificaciones
+    with op.batch_alter_table('imagenes', schema=None) as batch_op:
+        batch_op.drop_constraint('fk_imagenes_identificacion_id', type_='foreignkey')
+    
     op.drop_table('identificaciones')
     with op.batch_alter_table('especies', schema=None) as batch_op:
         batch_op.drop_index('idx_especies_active')

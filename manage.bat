@@ -122,15 +122,15 @@ if errorlevel 1 (
     echo [WARNING] O verifica los logs: manage.bat logs backend
 )
 echo.
-REM 7. Verificar dependencias frontend
-echo [INFO] Verificando dependencias del frontend...
-if not exist frontend\node_modules (
-    echo [INFO] Instalando dependencias de NPM (primera vez)...
-    docker-compose run --rm frontend npm install
-    if errorlevel 1 (
-        echo [WARNING] Error al instalar dependencias de NPM
-    )
-)
+REM 7. Verificar dependencias frontend (COMENTADO - no necesario, contenedor ya las tiene)
+REM echo [INFO] Verificando dependencias del frontend...
+REM if not exist frontend\node_modules (
+REM     echo [INFO] Instalando dependencias de NPM (primera vez)...
+REM     docker-compose run --rm frontend npm install
+REM     if errorlevel 1 (
+REM         echo [WARNING] Error al instalar dependencias de NPM
+REM     )
+REM )
 echo.
 REM 8. Detener servicios temporales
 echo [INFO] Deteniendo servicios temporales...

@@ -25,9 +25,6 @@ import { useRouter } from 'next/navigation'
 import {
   Activity,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   ChevronRight,
   RefreshCw,
   Leaf,
@@ -39,15 +36,13 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import saludService from '@/lib/salud.service'
 import dashboardService from '@/lib/dashboard.service'
-import type { EstadisticasSaludPlanta, HistorialSaludItem } from '@/models/salud'
+import type { HistorialSaludItem } from '@/models/salud'
 import {
-  NOMBRES_ESTADO_SALUD,
-  ICONOS_ESTADO_SALUD,
-  COLORES_ESTADO_SALUD,
-  calcularDiasDesdeAnalisis,
-  formatearConfianza
+  ESTADO_TEXTOS,
+  formatearConfianza,
+  formatearDiasDesde,
+  obtenerEmojiEstado
 } from '@/models/salud'
-import { cn } from '@/lib/utils'
 
 /**
  * Estadísticas agregadas de salud del jardín
@@ -78,7 +73,7 @@ interface PlantaCritica {
  */
 interface SaludWidgetProps {
   /** Clase CSS adicional */
-  className?: string
+  readonly className?: string
 }
 
 /**
@@ -126,7 +121,7 @@ export function SaludWidget({ className }: SaludWidgetProps) {
         try {
           const stats = await saludService.obtenerEstadisticas(planta.id)
           return { planta, stats }
-        } catch (err) {
+        } catch {
           // Si no hay análisis para esta planta, retornar null
           return { planta, stats: null }
         }
@@ -145,7 +140,7 @@ export function SaludWidget({ className }: SaludWidgetProps) {
       const criticas_list: PlantaCritica[] = []
 
       plantasConAnalisis.forEach(({ planta, stats }) => {
-        if (!stats || !stats.ultimo_estado) return
+        if (!stats?.ultimo_estado) return
 
         // Clasificar por estado
         if (stats.ultimo_estado === 'excelente' || stats.ultimo_estado === 'saludable') {
@@ -159,8 +154,8 @@ export function SaludWidget({ className }: SaludWidgetProps) {
           // Agregar a lista de críticas
           criticas_list.push({
             planta_id: planta.id,
-            nombre: planta.nombre_personal || planta.especie?.nombre_comun || 'Planta',
-            estado: NOMBRES_ESTADO_SALUD[stats.ultimo_estado],
+            nombre: planta.nombre_personal || 'Planta',
+            estado: ESTADO_TEXTOS[stats.ultimo_estado] || stats.ultimo_estado,
             dias_desde_analisis: stats.dias_desde_ultimo_analisis || 0
           })
         }
@@ -182,7 +177,7 @@ export function SaludWidget({ className }: SaludWidgetProps) {
             return historial.analisis.map(a => ({
               ...a,
               // Agregar nombre de la planta para mostrar
-              nombre_planta: planta.nombre_personal || planta.especie?.nombre_comun || 'Planta'
+              nombre_planta: planta.nombre_personal || 'Planta'
             } as HistorialSaludItem & { nombre_planta: string }))
           } catch {
             return []
@@ -236,20 +231,6 @@ export function SaludWidget({ className }: SaludWidgetProps) {
    */
   const navegarAPlanta = (plantaId: number) => {
     router.push(`/plant/${plantaId}`)
-  }
-
-  /**
-   * Obtiene el icono de tendencia
-   */
-  const obtenerIconoTendencia = (tendencia?: string) => {
-    switch (tendencia) {
-      case 'mejorando':
-        return <TrendingUp className="w-4 h-4 text-green-600" />
-      case 'empeorando':
-        return <TrendingDown className="w-4 h-4 text-red-600" />
-      default:
-        return <Minus className="w-4 h-4 text-gray-600" />
-    }
   }
 
   if (cargando) {
@@ -486,16 +467,14 @@ export function SaludWidget({ className }: SaludWidgetProps) {
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-xl">
-                        {ICONOS_ESTADO_SALUD[analisis.estado]}
+                        {obtenerEmojiEstado(analisis.estado)}
                       </span>
                       <div className="text-left">
                         <p className="text-sm font-medium">
                           {item.nombre_planta || 'Planta'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {calcularDiasDesdeAnalisis(analisis.fecha_analisis) === 0
-                            ? 'Hoy'
-                            : `Hace ${calcularDiasDesdeAnalisis(analisis.fecha_analisis)} días`}
+                          {formatearDiasDesde(analisis.fecha_analisis)}
                         </p>
                       </div>
                     </div>

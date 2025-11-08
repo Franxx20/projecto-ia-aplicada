@@ -493,8 +493,12 @@ class IdentificacionService:
             origen="plantnet",
             validado=False,
             metadatos_ia=json.dumps({
-                "plantnet_response": respuesta,
-                "mejor_resultado": mejor_resultado,
+                "mejor_resultado": {
+                    "nombre_cientifico": mejor_resultado["nombre_cientifico"],
+                    "nombres_comunes": mejor_resultado["nombres_comunes"][:3],  # Solo primeros 3 nombres
+                    "familia": mejor_resultado["familia"],
+                    "score": mejor_resultado["score"]
+                },
                 "organos_detectados": [
                     {
                         "organ": img.get("organ"),
@@ -502,7 +506,9 @@ class IdentificacionService:
                     }
                     for img in respuesta.get("images", [])
                 ],
-                "num_imagenes": len(imagenes_guardadas)
+                "num_imagenes": len(imagenes_guardadas),
+                "resultados_alternativos": len(respuesta.get("results", [])),
+                "requests_restantes": respuesta.get("remainingIdentificationRequests")
             }, default=str)
         )
         
@@ -519,9 +525,9 @@ class IdentificacionService:
         
         db.commit()
         
-        # Formatear respuesta según IdentificacionResponse schema
+        # Formatear respuesta según IdentificacionResponse schema (versión simplificada)
         respuesta_formateada = {
-            "id": identificacion.id,  # Para compatibilidad con frontend
+            "id": identificacion.id,
             "identificacion_id": identificacion.id,
             "especie": {
                 "nombre_cientifico": mejor_resultado["nombre_cientifico"],

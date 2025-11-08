@@ -60,9 +60,10 @@ return Response(
 ### ¿Por qué funciona ahora?
 
 1. ✅ **Codificación explícita a bytes** con `.encode('utf-8')`
-2. ✅ **Content-Length recalculado** con `len(content_bytes)` 
-3. ✅ **Response usa bytes** en lugar de string
-4. ✅ **Funciona con caracteres UTF-8** (á, é, í, ó, ú, ñ)
+2. ✅ **Eliminación del Content-Length viejo** con `.pop()`
+3. ✅ **Response calcula Content-Length automáticamente** basado en los bytes
+4. ✅ **NO hay headers duplicados** (evita ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH)
+5. ✅ **Funciona con caracteres UTF-8** (á, é, í, ó, ú, ñ)
 
 ## 📝 Commits Realizados
 

@@ -703,6 +703,351 @@ POST   /api/v1/ia/analyze      # Analizar datos
 GET    /api/v1/ia/models       # Modelos disponibles
 ```
 
+## 🔧 Troubleshooting
+
+### Primera Instalación
+
+Si es tu primera vez instalando el proyecto, sigue estos pasos:
+
+#### 1. Verificar Prerequisitos
+
+```bash
+# Linux/Mac
+bash check_prerequisites.sh
+
+# Windows
+check_prerequisites.bat
+```
+
+Este script verificará:
+- ✅ Docker y Docker Compose instalados
+- ✅ Puertos 4200, 8000, 5432, 8080 disponibles
+- ✅ Permisos de escritura en directorios
+- ✅ Espacio en disco suficiente (mínimo 2GB)
+- ✅ Archivo .env configurado
+
+#### 2. Ejecutar Setup
+
+```bash
+# Linux/Mac
+./manage.sh setup
+
+# Windows
+manage.bat setup
+```
+
+#### 3. Validar Instalación
+
+```bash
+# Linux/Mac
+bash validate_installation.sh
+```
+
+Este script verificará:
+- ✅ Contenedores funcionando
+- ✅ Endpoints respondiendo
+- ✅ Base de datos accesible
+- ✅ Migraciones aplicadas
+
+---
+
+### Problemas Comunes
+
+#### ❌ Error: "Docker no está funcionando"
+
+**Síntoma**: El comando `docker ps` falla o muestra error.
+
+**Solución**:
+```bash
+# Windows
+- Abre Docker Desktop desde el menú inicio
+- Espera a que muestre "Docker Desktop is running"
+
+# Linux
+sudo systemctl start docker
+
+# Mac
+- Abre Docker Desktop desde Applications
+```
+
+---
+
+#### ❌ Error: "Puerto ya en uso"
+
+**Síntoma**: Mensaje como `Bind for 0.0.0.0:4200 failed: port is already allocated`
+
+**Solución**:
+
+1. **Identificar qué proceso usa el puerto**:
+```bash
+# Linux/Mac
+lsof -i :4200
+lsof -i :8000
+lsof -i :5432
+
+# Windows
+netstat -ano | findstr :4200
+netstat -ano | findstr :8000
+netstat -ano | findstr :5432
+```
+
+2. **Detener el proceso** o **cambiar puertos en `.env`**:
+```bash
+# Editar .env
+FRONTEND_PORT=8080
+BACKEND_PORT=8001
+POSTGRES_PORT=5433
+```
+
+3. **Reiniciar servicios**:
+```bash
+./manage.sh restart
+```
+
+---
+
+#### ❌ Error: "Base de datos no está lista"
+
+**Síntoma**: Migraciones fallan con error de conexión a PostgreSQL.
+
+**Solución**:
+
+1. **Ver logs de PostgreSQL**:
+```bash
+./manage.sh logs db
+```
+
+2. **Verificar healthcheck**:
+```bash
+docker-compose ps
+# Busca "health: starting" o "unhealthy" en columna STATUS
+```
+
+3. **Reiniciar solo la BD**:
+```bash
+docker-compose restart db
+# Esperar 10 segundos
+./manage.sh db-migrate
+```
+
+4. **Si persiste, verificar variables en `.env`**:
+```bash
+POSTGRES_DB=asistente_plantitas
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=tu_password_seguro
+```
+
+---
+
+#### ❌ Error en Migraciones (Merge Heads)
+
+**Síntoma**: Mensaje "Detected multiple heads" o "alembic merge heads required"
+
+**Solución**:
+
+1. **Verificar heads actuales**:
+```bash
+docker-compose exec backend alembic heads
+# Mostrará los heads conflictivos
+```
+
+2. **Hacer merge**:
+```bash
+docker-compose exec backend alembic merge heads -m "merge migration branches"
+```
+
+3. **Aplicar nuevamente**:
+```bash
+./manage.sh db-migrate
+```
+
+4. **Ver estado actual**:
+```bash
+docker-compose exec backend alembic current
+```
+
+---
+
+#### ❌ Error: "npm install failed" (Frontend)
+
+**Síntoma**: Build del frontend falla durante `npm install`
+
+**Solución**:
+
+1. **Limpiar cache de npm**:
+```bash
+# Eliminar node_modules
+rm -rf frontend/node_modules
+
+# Linux/Mac
+./manage.sh clean
+
+# Windows
+manage.bat clean
+```
+
+2. **Rebuild con --no-cache**:
+```bash
+docker-compose build --no-cache frontend
+```
+
+3. **Instalar dependencias manualmente**:
+```bash
+docker-compose run --rm frontend npm install
+```
+
+---
+
+#### ❌ Error: "CORS blocked" en Frontend
+
+**Síntoma**: Consola del navegador muestra error CORS al llamar API
+
+**Solución**:
+
+1. **Verificar `CORS_ORIGINS` en `.env`**:
+```bash
+CORS_ORIGINS=http://localhost:4200,http://localhost:80
+```
+
+2. **Agregar tu URL**:
+```bash
+CORS_ORIGINS=http://localhost:4200,http://localhost:3000,http://localhost:80
+```
+
+3. **Reiniciar backend**:
+```bash
+docker-compose restart backend
+```
+
+---
+
+#### ❌ Error: "Permission denied" (Linux/Mac)
+
+**Síntoma**: Error al crear directorios o escribir archivos
+
+**Solución**:
+
+1. **Dar permisos a scripts**:
+```bash
+chmod +x manage.sh
+chmod +x check_prerequisites.sh
+chmod +x validate_installation.sh
+```
+
+2. **Dar permisos a directorios**:
+```bash
+sudo chown -R $USER:$USER data/ logs/ uploads/ backups/
+```
+
+3. **Ejecutar sin sudo** (usar Docker sin sudo):
+```bash
+sudo usermod -aG docker $USER
+# Cerrar sesión y volver a entrar
+```
+
+---
+
+#### ❌ Error: "Slow build times"
+
+**Síntoma**: Build de Docker toma mucho tiempo
+
+**Solución**:
+
+1. **Usar cache de Docker** (ya implementado en manage scripts):
+```bash
+# Ahora el setup NO usa --no-cache por defecto
+./manage.sh setup
+```
+
+2. **Limpiar imágenes antiguas**:
+```bash
+docker system prune -a
+```
+
+3. **Usar multi-stage builds** (ya implementado en Dockerfiles)
+
+---
+
+#### ❌ Logs muy grandes
+
+**Síntoma**: Archivos de log consumen mucho espacio
+
+**Solución**:
+
+Los logs ahora están configurados con rotación automática:
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+```
+
+Para limpiar logs manualmente:
+```bash
+docker-compose down
+rm -rf data/postgres/pg_log/*
+docker-compose up -d
+```
+
+---
+
+### Comandos Útiles de Diagnóstico
+
+```bash
+# Ver estado de todos los servicios
+docker-compose ps
+
+# Ver logs en tiempo real
+./manage.sh logs              # Todos los servicios
+./manage.sh logs backend      # Solo backend
+./manage.sh logs db           # Solo base de datos
+
+# Ver uso de recursos
+docker stats
+
+# Acceder al shell de un contenedor
+./manage.sh shell backend     # Backend
+./manage.sh shell db          # PostgreSQL
+./manage.sh shell frontend    # Frontend
+
+# Ver migraciones aplicadas
+docker-compose exec backend alembic history
+docker-compose exec backend alembic current
+
+# Verificar conectividad BD desde backend
+docker-compose exec backend python -c "from app.core.config import configuracion; print(configuracion.database_url)"
+
+# Verificar salud de contenedores
+docker inspect --format='{{json .State.Health}}' projecto-ia_backend
+```
+
+---
+
+### Recursos Adicionales
+
+Si ninguna solución funciona:
+
+1. **Limpieza completa**:
+```bash
+./manage.sh clean
+./manage.sh setup
+```
+
+2. **Ver documentación de errores en logs**:
+```bash
+./manage.sh logs backend > backend_logs.txt
+./manage.sh logs db > db_logs.txt
+```
+
+3. **Reportar issue** en GitHub con:
+   - Logs completos
+   - Versión de Docker (`docker --version`)
+   - Sistema operativo
+   - Contenido de `.env` (sin passwords)
+
+---
+
 ## 🤝 Contribución
 
 ### Proceso de Contribución

@@ -17,27 +17,32 @@ RUN apt-get update && apt-get install -y \
 # Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos de dependencias
+# IMPORTANTE: Copiar solo requirements primero (mejor caching)
+# Si requirements.txt no cambia, Docker usará cache
 COPY requirements.txt .
 
 # Instalar dependencias de Python
+# Esta capa se cachea si requirements.txt no cambia
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Crear usuario no-root para seguridad
 RUN addgroup --system appgroup && adduser --system --group appuser
 
-# Copiar código de la aplicación
+# Ahora copiar el resto del código
+# Los cambios en el código no invalidarán el cache de dependencias
 COPY . .
 
-# Cambiar permisos al usuario no-root
-RUN chown -R appuser:appgroup /app
+# Crear directorios necesarios y cambiar permisos
+RUN mkdir -p /app/logs /app/uploads /app/backups && \
+    chown -R appuser:appgroup /app
+
 USER appuser
 
 # Exponer puerto
 EXPOSE 8000
 
-# Health check - verificar que el servicio responde correctamente
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+# Health check mejorado - dar más tiempo al inicio
+HEALTHCHECK --interval=30s --timeout=30s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Comando por defecto (sin reload para producción)

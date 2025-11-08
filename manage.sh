@@ -48,6 +48,17 @@ create_directories() {
     mkdir -p certs
 }
 
+# Verificar prerequisitos
+verify_prerequisites() {
+    if [ -f "./check_prerequisites.sh" ]; then
+        print_message "Verificando prerequisitos..."
+        bash ./check_prerequisites.sh || {
+            print_error "Prerequisitos no cumplidos. Setup cancelado."
+            exit 1
+        }
+    fi
+}
+
 # Función para mostrar ayuda
 show_help() {
     echo -e "${BLUE}Uso: ./manage.sh [COMANDO]${NC}"
@@ -80,43 +91,116 @@ show_help() {
 setup() {
     print_message "Iniciando configuración del proyecto..."
     
-    check_env_file
+    # 1. Verificar prerequisitos
+    verify_prerequisites
+    
+    # 2. Configurar .env
+    check_env_file || {
+        print_warning "Configura el archivo .env antes de continuar"
+        exit 1
+    }
+    
+    # 3. Crear directorios
     create_directories
     
-    print_message "Construyendo imágenes Docker..."
-    docker-compose build --no-cache
+    # 4. Verificar si Docker está funcionando
+    if ! docker ps >/dev/null 2>&1; then
+        print_error "Docker no está funcionando. Inicia Docker Desktop."
+        exit 1
+    fi
+    
+    # 5. Build con cache (eliminar --no-cache para mejor performance)
+    print_message "Construyendo imágenes Docker (esto puede tardar varios minutos)..."
+    docker-compose build || {
+        print_error "Error al construir imágenes"
+        exit 1
+    }
     
     echo ""
-    print_message "Levantando servicios para configurar la base de datos..."
+    print_message "Levantando base de datos..."
     docker-compose up -d db
-    print_message "Esperando a que la base de datos esté lista..."
-    sleep 5
     
+    # 6. Esperar a que la BD esté lista (aumentar timeout a 60s)
+    print_message "Esperando a que la base de datos esté lista (hasta 60 segundos)..."
+    for i in {1..30}; do
+        if docker-compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
+            print_message "Base de datos lista!"
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
     echo ""
-    print_message "Creando base de datos si no existe..."
+    
+    # 7. Crear base de datos
+    echo ""
+    print_message "Verificando base de datos..."
     DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | grep -c 1 || true)
     if [ "$DB_EXISTS" -eq "0" ]; then
         print_message "Creando base de datos asistente_plantitas..."
-        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;"
+        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;" || {
+            print_error "Error al crear base de datos"
+            docker-compose down
+            exit 1
+        }
     else
         print_message "Base de datos asistente_plantitas ya existe"
     fi
     
+    # 8. Aplicar migraciones con script mejorado
     echo ""
-    print_message "Aplicando migraciones de base de datos..."
+    print_message "Iniciando backend para migraciones..."
     docker-compose up -d backend
-    sleep 3
-    docker-compose exec backend python run_migrations.py || {
-        print_warning "Hubo un problema al aplicar las migraciones. Puedes ejecutar './manage.sh db-migrate' manualmente."
-    }
     
+    print_message "Esperando a que el backend esté listo..."
+    sleep 10
+    
+    print_message "Aplicando migraciones de base de datos..."
+    if docker-compose exec backend test -f run_migrations_improved.py; then
+        docker-compose exec backend python run_migrations_improved.py || {
+            print_warning "Hubo un problema al aplicar las migraciones."
+            print_warning "Puedes ejecutar './manage.sh db-migrate' manualmente."
+            print_warning "O verifica los logs: ./manage.sh logs backend"
+        }
+    else
+        # Fallback al script antiguo si el mejorado no existe
+        docker-compose exec backend python run_migrations.py || {
+            print_warning "Hubo un problema al aplicar las migraciones."
+        }
+    fi
+    
+    # 9. Verificar estado del frontend (npm install si es necesario)
+    echo ""
+    print_message "Verificando dependencias del frontend..."
+    if [ ! -d "frontend/node_modules" ]; then
+        print_message "Instalando dependencias de NPM (primera vez)..."
+        docker-compose run --rm frontend npm install || {
+            print_warning "Error al instalar dependencias de NPM"
+        }
+    fi
+    
+    # 10. Detener servicios temporales
     echo ""
     print_message "Deteniendo servicios temporales..."
     docker-compose down
     
+    # 11. Resumen final
     echo ""
-    print_message "Configuración completada!"
-    print_warning "Recuerda editar el archivo .env con tus configuraciones."
+    echo -e "${GREEN}================================================================${NC}"
+    print_message "Configuración completada exitosamente!"
+    echo -e "${GREEN}================================================================${NC}"
+    echo ""
+    print_message "Próximos pasos:"
+    echo "  1. Revisa y edita el archivo .env con tus configuraciones"
+    echo "  2. Inicia el entorno:"
+    echo "     - Desarrollo:  ./manage.sh dev"
+    echo "     - Producción:  ./manage.sh prod"
+    echo ""
+    print_message "URLs disponibles:"
+    echo "  - Frontend: http://localhost:4200"
+    echo "  - Backend:  http://localhost:8000"
+    echo "  - API Docs: http://localhost:8000/docs"
+    echo ""
 }
 
 # Entorno de desarrollo
@@ -220,13 +304,22 @@ db_migrate() {
     print_message "Aplicando migraciones de base de datos..."
     docker-compose up -d db backend
     print_message "Esperando a que los servicios estén listos..."
-    sleep 5
+    sleep 10
     
     echo ""
-    docker-compose exec backend python run_migrations.py || {
-        print_error "Error al aplicar las migraciones"
-        exit 1
-    }
+    # Usar script mejorado si existe, sino usar el original
+    if docker-compose exec backend test -f run_migrations_improved.py; then
+        print_message "Usando script mejorado de migraciones..."
+        docker-compose exec backend python run_migrations_improved.py || {
+            print_error "Error al aplicar las migraciones"
+            exit 1
+        }
+    else
+        docker-compose exec backend python run_migrations.py || {
+            print_error "Error al aplicar las migraciones"
+            exit 1
+        }
+    fi
     print_message "Migraciones aplicadas correctamente"
 }
 

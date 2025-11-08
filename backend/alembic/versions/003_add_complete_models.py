@@ -39,164 +39,200 @@ def upgrade() -> None:
     # ==================== TABLA ESPECIES ====================
     if 'especies' not in existing_tables:
         print("📦 Creando tabla especies...")
-    op.create_table(
-        'especies',
+        op.create_table(
+            'especies',
+            
+            # Campos principales
+            sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único de la especie'),
+            sa.Column('nombre_comun', sa.String(length=255), nullable=False, comment='Nombre común de la especie'),
+            sa.Column('nombre_cientifico', sa.String(length=255), nullable=False, comment='Nombre científico (único)'),
+            sa.Column('familia', sa.String(length=255), nullable=True, comment='Familia taxonómica'),
+            sa.Column('descripcion', sa.Text(), nullable=True, comment='Descripción detallada de la especie'),
+            sa.Column('cuidados_basicos', sa.Text(), nullable=True, comment='JSON con cuidados básicos'),
+            
+            # Nivel de dificultad y requisitos
+            sa.Column('nivel_dificultad', sa.String(length=50), nullable=False, server_default='medio', comment='Nivel de dificultad: facil, medio, dificil'),
+            sa.Column('luz_requerida', sa.String(length=50), nullable=True, comment='Nivel de luz: baja, media, alta'),
+            sa.Column('riego_frecuencia', sa.String(length=255), nullable=True, comment='Descripción de frecuencia de riego'),
+            sa.Column('temperatura_min', sa.Integer(), nullable=True, comment='Temperatura mínima en grados Celsius'),
+            sa.Column('temperatura_max', sa.Integer(), nullable=True, comment='Temperatura máxima en grados Celsius'),
+            sa.Column('humedad_requerida', sa.String(length=50), nullable=True, comment='Nivel de humedad: baja, media, alta'),
+            sa.Column('toxicidad', sa.String(length=50), nullable=True, comment='Nivel de toxicidad: ninguna, leve, moderada, alta'),
+            sa.Column('origen_geografico', sa.String(length=255), nullable=True, comment='Región geográfica de origen'),
+            sa.Column('imagen_referencia_url', sa.String(length=500), nullable=True, comment='URL de imagen de referencia'),
+            
+            # Campos de auditoría
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de creación'),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de última actualización'),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('TRUE'), comment='Indica si la especie está activa'),
+            
+            # Constraints
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('nombre_cientifico', name='uq_especies_nombre_cientifico')
+        )
         
-        # Campos principales
-        sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único de la especie'),
-        sa.Column('nombre_comun', sa.String(length=255), nullable=False, comment='Nombre común de la especie'),
-        sa.Column('nombre_cientifico', sa.String(length=255), nullable=False, comment='Nombre científico (único)'),
-        sa.Column('familia', sa.String(length=255), nullable=True, comment='Familia taxonómica'),
-        sa.Column('descripcion', sa.Text(), nullable=True, comment='Descripción detallada de la especie'),
-        sa.Column('cuidados_basicos', sa.Text(), nullable=True, comment='JSON con cuidados básicos'),
-        
-        # Nivel de dificultad y requisitos
-        sa.Column('nivel_dificultad', sa.String(length=50), nullable=False, server_default='medio', comment='Nivel de dificultad: facil, medio, dificil'),
-        sa.Column('luz_requerida', sa.String(length=50), nullable=True, comment='Nivel de luz: baja, media, alta'),
-        sa.Column('riego_frecuencia', sa.String(length=255), nullable=True, comment='Descripción de frecuencia de riego'),
-        sa.Column('temperatura_min', sa.Integer(), nullable=True, comment='Temperatura mínima en grados Celsius'),
-        sa.Column('temperatura_max', sa.Integer(), nullable=True, comment='Temperatura máxima en grados Celsius'),
-        sa.Column('humedad_requerida', sa.String(length=50), nullable=True, comment='Nivel de humedad: baja, media, alta'),
-        sa.Column('toxicidad', sa.String(length=50), nullable=True, comment='Nivel de toxicidad: ninguna, leve, moderada, alta'),
-        sa.Column('origen_geografico', sa.String(length=255), nullable=True, comment='Región geográfica de origen'),
-        sa.Column('imagen_referencia_url', sa.String(length=500), nullable=True, comment='URL de imagen de referencia'),
-        
-        # Campos de auditoría
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de creación'),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de última actualización'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('TRUE'), comment='Indica si la especie está activa'),
-        
-        # Constraints
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('nombre_cientifico', name='uq_especies_nombre_cientifico')
-    )
-    
-    # Índices para especies
-    op.create_index('ix_especies_id', 'especies', ['id'])
-    op.create_index('ix_especies_nombre_comun', 'especies', ['nombre_comun'])
-    op.create_index('ix_especies_nombre_cientifico', 'especies', ['nombre_cientifico'])
-    op.create_index('idx_especie_familia', 'especies', ['familia'])
-    op.create_index('idx_especie_dificultad', 'especies', ['nivel_dificultad'])
-    op.create_index('idx_especie_activa', 'especies', ['is_active'])
+        # Índices para especies
+        op.create_index('ix_especies_id', 'especies', ['id'])
+        op.create_index('ix_especies_nombre_comun', 'especies', ['nombre_comun'])
+        op.create_index('ix_especies_nombre_cientifico', 'especies', ['nombre_cientifico'])
+        op.create_index('idx_especie_familia', 'especies', ['familia'])
+        op.create_index('idx_especie_dificultad', 'especies', ['nivel_dificultad'])
+        op.create_index('idx_especie_activa', 'especies', ['is_active'])
+    else:
+        print("⏭️  Tabla especies ya existe, saltando creación...")
     
     # ==================== TABLA IDENTIFICACIONES ====================
-    print("📦 Creando tabla identificaciones...")
-    op.create_table(
-        'identificaciones',
+    if 'identificaciones' not in existing_tables:
+        print("📦 Creando tabla identificaciones...")
+        op.create_table(
+            'identificaciones',
+            
+            # Campos principales
+            sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único'),
+            sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario'),
+            sa.Column('imagen_id', sa.Integer(), nullable=True, comment='ID de la imagen (NULL para identificaciones con múltiples imágenes)'),
+            sa.Column('especie_id', sa.Integer(), nullable=True, comment='ID de la especie identificada'),
+            sa.Column('confianza', sa.Integer(), nullable=False, comment='Nivel de confianza (0-100)'),
+            sa.Column('origen', sa.String(length=50), nullable=False, comment='Origen: ia_plantnet, manual'),
+            sa.Column('validado', sa.Boolean(), nullable=False, server_default=sa.text('FALSE'), comment='Si fue validado por el usuario'),
+            
+            # Fechas
+            sa.Column('fecha_identificacion', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de la identificación'),
+            sa.Column('fecha_validacion', sa.DateTime(), nullable=True, comment='Fecha de validación por el usuario'),
+            
+            # Metadata
+            sa.Column('notas_usuario', sa.Text(), nullable=True, comment='Notas del usuario sobre la identificación'),
+            sa.Column('metadatos_ia', sa.Text(), nullable=True, comment='JSON con metadatos de la IA (score, versión, etc.)'),
+            
+            # Campos de auditoría
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de creación'),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de actualización'),
+            
+            # Constraints
+            sa.PrimaryKeyConstraint('id'),
+            sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['imagen_id'], ['imagenes.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['especie_id'], ['especies.id'], ondelete='SET NULL')
+        )
         
-        # Campos principales
-        sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único'),
-        sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario'),
-        sa.Column('imagen_id', sa.Integer(), nullable=True, comment='ID de la imagen (NULL para identificaciones con múltiples imágenes)'),
-        sa.Column('especie_id', sa.Integer(), nullable=True, comment='ID de la especie identificada'),
-        sa.Column('confianza', sa.Integer(), nullable=False, comment='Nivel de confianza (0-100)'),
-        sa.Column('origen', sa.String(length=50), nullable=False, comment='Origen: ia_plantnet, manual'),
-        sa.Column('validado', sa.Boolean(), nullable=False, server_default=sa.text('FALSE'), comment='Si fue validado por el usuario'),
-        
-        # Fechas
-        sa.Column('fecha_identificacion', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de la identificación'),
-        sa.Column('fecha_validacion', sa.DateTime(), nullable=True, comment='Fecha de validación por el usuario'),
-        
-        # Metadata
-        sa.Column('notas_usuario', sa.Text(), nullable=True, comment='Notas del usuario sobre la identificación'),
-        sa.Column('metadatos_ia', sa.Text(), nullable=True, comment='JSON con metadatos de la IA (score, versión, etc.)'),
-        
-        # Campos de auditoría
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de creación'),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de actualización'),
-        
-        # Constraints
-        sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['imagen_id'], ['imagenes.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['especie_id'], ['especies.id'], ondelete='SET NULL')
-    )
-    
-    # Índices para identificaciones
-    op.create_index('ix_identificaciones_id', 'identificaciones', ['id'])
-    op.create_index('idx_identificacion_usuario', 'identificaciones', ['usuario_id'])
-    op.create_index('idx_identificacion_imagen', 'identificaciones', ['imagen_id'])
-    op.create_index('idx_identificacion_especie', 'identificaciones', ['especie_id'])
-    op.create_index('idx_identificacion_origen', 'identificaciones', ['origen'])
-    op.create_index('idx_identificacion_fecha', 'identificaciones', ['fecha_identificacion'])
+        # Índices para identificaciones
+        op.create_index('ix_identificaciones_id', 'identificaciones', ['id'])
+        op.create_index('idx_identificacion_usuario', 'identificaciones', ['usuario_id'])
+        op.create_index('idx_identificacion_imagen', 'identificaciones', ['imagen_id'])
+        op.create_index('idx_identificacion_especie', 'identificaciones', ['especie_id'])
+        op.create_index('idx_identificacion_origen', 'identificaciones', ['origen'])
+        op.create_index('idx_identificacion_fecha', 'identificaciones', ['fecha_identificacion'])
+    else:
+        print("⏭️  Tabla identificaciones ya existe, saltando creación...")
     
     # ==================== ACTUALIZAR TABLA IMAGENES ====================
-    print("📦 Actualizando tabla imagenes con nuevos campos...")
+    # Verificar columnas existentes en imagenes
+    existing_imagenes_columns = [col['name'] for col in inspector.get_columns('imagenes')]
+    existing_imagenes_fks = [fk['name'] for fk in inspector.get_foreign_keys('imagenes')]
+    existing_imagenes_indexes = [idx['name'] for idx in inspector.get_indexes('imagenes')]
     
     # Agregar campo organ a imagenes
-    op.add_column('imagenes', 
-        sa.Column('organ', sa.String(length=50), nullable=True, 
-                 comment='Tipo de órgano de la planta: flower, leaf, fruit, bark, habit, other')
-    )
+    if 'organ' not in existing_imagenes_columns:
+        print("📦 Agregando columna 'organ' a tabla imagenes...")
+        with op.batch_alter_table('imagenes', schema=None) as batch_op:
+            batch_op.add_column(
+                sa.Column('organ', sa.String(length=50), nullable=True, 
+                         comment='Tipo de órgano de la planta: flower, leaf, fruit, bark, habit, other')
+            )
+    else:
+        print("⏭️  Columna 'organ' ya existe en imagenes, saltando...")
     
     # Agregar campo identificacion_id a imagenes
-    op.add_column('imagenes', 
-        sa.Column('identificacion_id', sa.Integer(), nullable=True, 
-                 comment='ID de la identificación asociada (si forma parte de una identificación múltiple)')
-    )
+    if 'identificacion_id' not in existing_imagenes_columns:
+        print("📦 Agregando columna 'identificacion_id' a tabla imagenes...")
+        with op.batch_alter_table('imagenes', schema=None) as batch_op:
+            batch_op.add_column(
+                sa.Column('identificacion_id', sa.Integer(), nullable=True, 
+                         comment='ID de la identificación asociada (si forma parte de una identificación múltiple)')
+            )
+    else:
+        print("⏭️  Columna 'identificacion_id' ya existe en imagenes, saltando...")
     
     # Crear foreign key para identificacion_id
-    op.create_foreign_key(
-        'fk_imagenes_identificacion_id',
-        'imagenes', 'identificaciones',
-        ['identificacion_id'], ['id'],
-        ondelete='SET NULL'
-    )
+    if 'fk_imagenes_identificacion_id' not in existing_imagenes_fks:
+        print("📦 Creando foreign key 'fk_imagenes_identificacion_id'...")
+        with op.batch_alter_table('imagenes', schema=None) as batch_op:
+            batch_op.create_foreign_key(
+                'fk_imagenes_identificacion_id',
+                'identificaciones',
+                ['identificacion_id'], ['id'],
+                ondelete='SET NULL'
+            )
+    else:
+        print("⏭️  Foreign key 'fk_imagenes_identificacion_id' ya existe, saltando...")
     
-    # Crear índices para los nuevos campos de imagenes
-    op.create_index('idx_imagenes_organ', 'imagenes', ['organ'])
-    op.create_index('idx_imagenes_identificacion', 'imagenes', ['identificacion_id'])
+    # Crear índice para organ
+    if 'idx_imagenes_organ' not in existing_imagenes_indexes:
+        print("📦 Creando índice 'idx_imagenes_organ'...")
+        op.create_index('idx_imagenes_organ', 'imagenes', ['organ'])
+    else:
+        print("⏭️  Índice 'idx_imagenes_organ' ya existe, saltando...")
+    
+    # Crear índice para identificacion_id
+    if 'idx_imagenes_identificacion' not in existing_imagenes_indexes:
+        print("📦 Creando índice 'idx_imagenes_identificacion'...")
+        op.create_index('idx_imagenes_identificacion', 'imagenes', ['identificacion_id'])
+    else:
+        print("⏭️  Índice 'idx_imagenes_identificacion' ya existe, saltando...")
     
     # ==================== TABLA PLANTAS ====================
-    print("📦 Creando tabla plantas...")
-    op.create_table(
-        'plantas',
+    if 'plantas' not in existing_tables:
+        print("📦 Creando tabla plantas...")
+        op.create_table(
+            'plantas',
+            
+            # Campos principales
+            sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único de la planta'),
+            sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario propietario de la planta'),
+            sa.Column('especie_id', sa.Integer(), nullable=True, comment='ID de la especie de la planta (opcional)'),
+            sa.Column('nombre_personal', sa.String(length=255), nullable=False, comment='Nombre personalizado dado por el usuario'),
+            
+            # Estado y ubicación
+            sa.Column('estado_salud', sa.String(length=50), nullable=False, server_default='buena', comment='Estado de salud: excelente, buena, necesita_atencion, critica'),
+            sa.Column('ubicacion', sa.String(length=255), nullable=True, comment='Ubicación física de la planta'),
+            sa.Column('notas', sa.Text(), nullable=True, comment='Notas adicionales del usuario'),
+            sa.Column('imagen_principal_id', sa.Integer(), nullable=True, comment='ID de la imagen principal de la planta'),
+            
+            # Cuidados - riego
+            sa.Column('fecha_ultimo_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del último riego'),
+            sa.Column('proxima_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del próximo riego recomendado'),
+            sa.Column('frecuencia_riego_dias', sa.Integer(), nullable=True, server_default='7', comment='Frecuencia de riego en días'),
+            
+            # Cuidados - luz
+            sa.Column('luz_actual', sa.String(length=20), nullable=True, comment='Nivel de luz que recibe: baja, media, alta, directa'),
+            
+            # Metadata
+            sa.Column('fecha_adquisicion', sa.DateTime(), nullable=True, comment='Fecha en que el usuario adquirió la planta'),
+            
+            # Campos de auditoría
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de creación del registro'),
+            sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de última actualización'),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('TRUE'), comment='Indica si la planta está activa (no eliminada)'),
+            
+            # Constraints
+            sa.PrimaryKeyConstraint('id'),
+            sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='CASCADE')
+            # Nota: especie_id no tiene FK porque puede ser null y no tenemos tabla especies todavía
+            # imagen_principal_id tampoco tiene FK para evitar referencias circulares
+        )
         
-        # Campos principales
-        sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único de la planta'),
-        sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario propietario de la planta'),
-        sa.Column('especie_id', sa.Integer(), nullable=True, comment='ID de la especie de la planta (opcional)'),
-        sa.Column('nombre_personal', sa.String(length=255), nullable=False, comment='Nombre personalizado dado por el usuario'),
-        
-        # Estado y ubicación
-        sa.Column('estado_salud', sa.String(length=50), nullable=False, server_default='buena', comment='Estado de salud: excelente, buena, necesita_atencion, critica'),
-        sa.Column('ubicacion', sa.String(length=255), nullable=True, comment='Ubicación física de la planta'),
-        sa.Column('notas', sa.Text(), nullable=True, comment='Notas adicionales del usuario'),
-        sa.Column('imagen_principal_id', sa.Integer(), nullable=True, comment='ID de la imagen principal de la planta'),
-        
-        # Cuidados - riego
-        sa.Column('fecha_ultimo_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del último riego'),
-        sa.Column('proxima_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del próximo riego recomendado'),
-        sa.Column('frecuencia_riego_dias', sa.Integer(), nullable=True, server_default='7', comment='Frecuencia de riego en días'),
-        
-        # Cuidados - luz
-        sa.Column('luz_actual', sa.String(length=20), nullable=True, comment='Nivel de luz que recibe: baja, media, alta, directa'),
-        
-        # Metadata
-        sa.Column('fecha_adquisicion', sa.DateTime(), nullable=True, comment='Fecha en que el usuario adquirió la planta'),
-        
-        # Campos de auditoría
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de creación del registro'),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'), comment='Fecha de última actualización'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('TRUE'), comment='Indica si la planta está activa (no eliminada)'),
-        
-        # Constraints
-        sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='CASCADE')
-        # Nota: especie_id no tiene FK porque puede ser null y no tenemos tabla especies todavía
-        # imagen_principal_id tampoco tiene FK para evitar referencias circulares
-    )
+        # Índices para plantas
+        op.create_index('ix_plantas_id', 'plantas', ['id'])
+        op.create_index('ix_plantas_usuario_id', 'plantas', ['usuario_id'])
+        op.create_index('ix_plantas_especie_id', 'plantas', ['especie_id'])
+        op.create_index('idx_usuario_plantas_activas', 'plantas', ['usuario_id', 'is_active'])
+        op.create_index('idx_usuario_estado_salud', 'plantas', ['usuario_id', 'estado_salud'])
+        op.create_index('idx_proxima_riego', 'plantas', ['proxima_riego'])
+        op.create_index('idx_created_at_plantas', 'plantas', ['created_at'])
+    else:
+        print("⏭️  Tabla plantas ya existe, saltando creación...")
     
-    # Índices para plantas
-    op.create_index('ix_plantas_id', 'plantas', ['id'])
-    op.create_index('ix_plantas_usuario_id', 'plantas', ['usuario_id'])
-    op.create_index('ix_plantas_especie_id', 'plantas', ['especie_id'])
-    op.create_index('idx_usuario_plantas_activas', 'plantas', ['usuario_id', 'is_active'])
-    op.create_index('idx_usuario_estado_salud', 'plantas', ['usuario_id', 'estado_salud'])
-    op.create_index('idx_proxima_riego', 'plantas', ['proxima_riego'])
-    op.create_index('idx_created_at_plantas', 'plantas', ['created_at'])
-    
-    print("✅ Todas las tablas han sido creadas exitosamente")
+    print("✅ Migración completada - todas las operaciones ejecutadas")
 
 
 def downgrade() -> None:

@@ -337,18 +337,31 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {plantasUsuario.map((planta) => (
+                  {plantasUsuario.map((planta) => {
+                    // DEBUG: Ver la URL de la imagen
+                    if (planta.imagen_principal_url) {
+                      console.log('🖼️ URL de imagen para planta', planta.id, ':', planta.imagen_principal_url);
+                    }
+                    
+                    return (
                     <Card
                       key={planta.id}
                       className="overflow-hidden hover:shadow-lg transition-shadow"
                     >
                       {/* Imagen de la planta */}
                       <div className="aspect-square relative bg-muted">
-                        {planta.imagen_principal?.url_blob ? (
+                        {planta.imagen_principal_url ? (
                           <img
-                            src={planta.imagen_principal.url_blob}
+                            src={planta.imagen_principal_url}
                             alt={planta.nombre_personalizado || 'Planta'}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              console.error('❌ Error cargando imagen:', planta.imagen_principal_url);
+                              console.error('❌ Event:', e);
+                            }}
+                            onLoad={() => {
+                              console.log('✅ Imagen cargada exitosamente:', planta.imagen_principal_url);
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
@@ -392,9 +405,9 @@ export default function DashboardPage() {
                         {/* Estado de salud */}
                         <div className="flex items-center gap-2 text-sm">
                           <Badge
-                            variant={estadoSaludToBadgeVariant(planta.estado_salud as any)}
+                            variant={estadoSaludToBadgeVariant(planta.estado_salud)}
                           >
-                            {estadoSaludToLabel(planta.estado_salud as any)}
+                            {estadoSaludToLabel(planta.estado_salud)}
                           </Badge>
                         </div>
 
@@ -437,7 +450,8 @@ export default function DashboardPage() {
                         </Button>
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -452,9 +466,9 @@ export default function DashboardPage() {
                   >
                     {/* Imagen de la planta */}
                     <div className="aspect-square relative bg-muted">
-                      {planta.imagen_principal_id ? (
+                      {planta.imagen_principal_url ? (
                         <img
-                          src={`/api/imagenes/${planta.imagen_principal_id}`}
+                          src={planta.imagen_principal_url}
                           alt={planta.nombre_personal}
                           className="w-full h-full object-cover"
                         />

@@ -212,6 +212,10 @@ class PlantaResponse(PlantaBase):
         default=False,
         description="Indica si la planta necesita riego ahora"
     )
+    imagen_principal_url: Optional[str] = Field(
+        None,
+        description="URL de la imagen principal de la planta"
+    )
     
     class Config:
         """Configuración del schema."""

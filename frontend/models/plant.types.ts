@@ -10,6 +10,8 @@
  * @task T-017
  */
 
+import type { EstadoSalud } from './dashboard.types';
+
 /**
  * Información de género de la planta
  */
@@ -309,7 +311,7 @@ export interface PlantaUsuario {
   nombre_personalizado?: string;
   fecha_adquisicion?: string;
   ubicacion?: string;
-  estado_salud: string;
+  estado_salud: EstadoSalud;
   frecuencia_riego_dias?: number;
   notas?: string;
   imagen_principal_id?: number;
@@ -334,7 +336,7 @@ export interface PlantaResponse {
   nombre_personalizado?: string;
   fecha_adquisicion?: string;
   ubicacion?: string;
-  estado_salud: string;
+  estado_salud: EstadoSalud;
   frecuencia_riego_dias?: number;
   notas?: string;
   imagen_principal_id?: number;

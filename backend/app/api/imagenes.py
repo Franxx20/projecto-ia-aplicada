@@ -312,8 +312,8 @@ async def eliminar_imagen(
 
 @router.get(
     "/proxy/{nombre_blob}",
-    summary="Proxy de imagen desde Azurite",
-    description="Sirve una imagen desde Azurite con CORS habilitado para desarrollo",
+    summary="Proxy de imagen desde Azurite (público)",
+    description="Sirve una imagen desde Azurite con CORS habilitado para desarrollo. No requiere autenticación.",
     response_description="Imagen en formato binario",
     responses={
         200: {
@@ -328,10 +328,13 @@ async def proxy_imagen(
     db: Session = Depends(get_db)
 ):
     """
-    Endpoint proxy para servir imágenes desde Azurite con CORS habilitado.
+    Endpoint proxy público para servir imágenes desde Azurite con CORS habilitado.
     
     Este endpoint resuelve problemas de CORS cuando el frontend intenta
     cargar imágenes directamente desde Azurite (localhost:10000).
+    
+    **Importante**: No requiere autenticación para facilitar la carga de imágenes
+    en desarrollo. En producción, las URLs apuntan directamente a Azure.
     
     - **nombre_blob**: Nombre del blob en Azure Storage
     
@@ -369,4 +372,67 @@ async def proxy_imagen(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al servir imagen: {str(e)}"
+        )
+
+
+@router.get(
+    "/{imagen_id}/archivo",
+    summary="Obtener archivo de imagen (autenticado)",
+    description="Obtiene el archivo de imagen directamente desde Azure Blob Storage con autenticación",
+    response_description="Archivo de imagen",
+    responses={
+        200: {
+            "description": "Imagen encontrada",
+            "content": {
+                "image/jpeg": {},
+                "image/png": {},
+                "image/webp": {}
+            }
+        },
+        404: {"description": "Imagen no encontrada"},
+        401: {"description": "No autenticado"}
+    }
+)
+async def obtener_archivo_imagen(
+    imagen_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el archivo de imagen directamente con autenticación.
+    
+    Este endpoint sirve como proxy para servir imágenes desde Azure Blob Storage,
+    resolviendo problemas de CORS en desarrollo con Azurite. Requiere autenticación
+    y verifica que el usuario tenga acceso a la imagen.
+    
+    - **imagen_id**: ID de la imagen a obtener
+    
+    Solo el usuario propietario puede acceder a sus imágenes.
+    """
+    servicio = ImagenService(db)
+    imagen = servicio.obtener_imagen(imagen_id, usuario_id=current_user.id)
+    
+    if not imagen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Imagen con ID {imagen_id} no encontrada"
+        )
+    
+    try:
+        # Descargar el contenido del blob
+        contenido = servicio.azure_service.descargar_blob(imagen.nombre_blob)
+        
+        # Retornar como streaming response
+        return StreamingResponse(
+            io.BytesIO(contenido),
+            media_type=imagen.content_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{imagen.nombre_archivo}"',
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener el archivo de imagen: {str(e)}"
         )

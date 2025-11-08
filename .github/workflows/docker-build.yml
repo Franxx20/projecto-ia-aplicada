@@ -1,4 +1,4 @@
-name: 🐳 Docker Build & Push
+name: 🐳 Docker Build (Sin Push)
 
 # Ejecutar cuando se hace push a main o se crea un tag
 on:
@@ -10,11 +10,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
-  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
-
 jobs:
   # ===============================================
   # Build Backend Image
@@ -24,52 +19,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     
     steps:
       - name: 📥 Checkout código
         uses: actions/checkout@v4
       
-      - name: 🔐 Login a GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 📝 Extraer metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-      
       - name: 🏗️ Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: 🐳 Build y Push Backend Image
+      - name: 🐳 Build Backend Image (Sin Push)
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          tags: backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          load: true
       
       - name: ✅ Build exitoso
         run: |
           echo "✅ Backend image construida exitosamente"
-          echo "📦 Tags: ${{ steps.meta.outputs.tags }}"
+          echo "🏷️ Tag: backend:${{ github.sha }}"
+          echo "📦 La imagen NO se ha subido a ningún registry"
 
   # ===============================================
   # Build Frontend Image
@@ -79,52 +52,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     
     steps:
       - name: 📥 Checkout código
         uses: actions/checkout@v4
       
-      - name: 🔐 Login a GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 📝 Extraer metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-      
       - name: 🏗️ Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: 🐳 Build y Push Frontend Image
+      - name: 🐳 Build Frontend Image (Sin Push)
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          tags: frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          load: true
       
       - name: ✅ Build exitoso
         run: |
           echo "✅ Frontend image construida exitosamente"
-          echo "📦 Tags: ${{ steps.meta.outputs.tags }}"
+          echo "🏷️ Tag: frontend:${{ github.sha }}"
+          echo "📦 La imagen NO se ha subido a ningún registry"
 
   # ===============================================
   # Resumen de Build
@@ -140,10 +91,12 @@ jobs:
         run: |
           echo "## 🐳 Resumen de Docker Build" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Backend Image:** Construida" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Frontend Image:** Construida" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Backend Image:** Construida localmente" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Frontend Image:** Construida localmente" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 **Registry:** ghcr.io/${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
           echo "🏷️ **Ref:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "🏷️ **SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Todas las imágenes construidas exitosamente**" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Nota:** Las imágenes NO se han subido a ningún registry" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Todas las imágenes construidas y validadas exitosamente**" >> $GITHUB_STEP_SUMMARY

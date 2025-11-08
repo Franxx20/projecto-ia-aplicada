@@ -663,6 +663,20 @@ class Planta(Base):
         comment="Indica si la planta está activa (no eliminada)"
     )
     
+    es_favorita = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Indica si la planta ha sido marcada como favorita por el usuario"
+    )
+    
+    fue_regada_hoy = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Indica si la planta fue regada hoy"
+    )
+    
     # Relaciones
     usuario = relationship("Usuario", backref="plantas")
     # especie = relationship("Especie", backref="plantas")  # Descomentar cuando exista el modelo Especie

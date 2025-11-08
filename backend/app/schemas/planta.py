@@ -154,6 +154,14 @@ class PlantaUpdate(BaseModel):
         None,
         description="Fecha de adquisición de la planta"
     )
+    es_favorita: Optional[bool] = Field(
+        None,
+        description="Indica si la planta ha sido marcada como favorita"
+    )
+    fue_regada_hoy: Optional[bool] = Field(
+        None,
+        description="Indica si la planta fue regada hoy"
+    )
     
     @field_validator('estado_salud')
     @classmethod
@@ -215,6 +223,14 @@ class PlantaResponse(PlantaBase):
     imagen_principal_url: Optional[str] = Field(
         None,
         description="URL de la imagen principal de la planta"
+    )
+    es_favorita: bool = Field(
+        default=False,
+        description="Indica si la planta ha sido marcada como favorita"
+    )
+    fue_regada_hoy: bool = Field(
+        default=False,
+        description="Indica si la planta fue regada hoy"
     )
     
     class Config:

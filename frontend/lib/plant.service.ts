@@ -419,7 +419,8 @@ class PlantService {
    */
   async obtenerMisPlantas(): Promise<PlantaUsuario[]> {
     try {
-      const response = await axios.get<PlantaUsuario[]>('/api/plantas');
+      // Usar el nuevo endpoint que incluye imágenes de identificación
+      const response = await axios.get<PlantaUsuario[]>('/api/plantas/con-imagenes');
       return response.data;
     } catch (error) {
       if (error instanceof AxiosError) {

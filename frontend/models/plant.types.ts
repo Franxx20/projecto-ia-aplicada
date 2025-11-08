@@ -323,7 +323,10 @@ export interface PlantaUsuario {
     id: number;
     url_blob: string;
     nombre_archivo: string;
+    organ?: string;
+    tamano_bytes: number;
   };
+  imagenes_identificacion?: ImagenIdentificacionResponse[];
 }
 
 /**

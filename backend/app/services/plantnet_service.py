@@ -124,7 +124,7 @@ class PlantNetService:
             * organs: Tipo de órgano por cada imagen (leaf, flower, fruit, bark, auto)
             * include-related-images: Retornar imágenes similares (opcional)
             * nb-results: Limitar número de resultados (opcional)
-            * lang: Código de idioma (opcional)
+            * lang: Código de idioma para nombres comunes (default: "es" - español)
         
         Nota T-022:
             Si un órgano es "sin_especificar", se omite del request a PlantNet.
@@ -136,7 +136,7 @@ class PlantNetService:
             project: Proyecto/flora a usar (default: settings.plantnet_project)
             include_related_images: Si se incluyen imágenes relacionadas
             nb_results: Número máximo de resultados a retornar
-            lang: Código de idioma para nombres comunes (es, en, fr, etc.)
+            lang: Código de idioma para nombres comunes (default: "es" español, otros: en, fr, pt, de, it, ar, cs...)
         
         Returns:
             Dict con la respuesta de PlantNet incluyendo:

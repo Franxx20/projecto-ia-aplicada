@@ -25,10 +25,20 @@ depends_on = None
 def upgrade() -> None:
     """
     Crea las tablas especies, identificaciones, plantas y actualiza imagenes.
+    
+    NOTA: Esta migración es idempotente - verifica si las tablas/columnas ya existen
+    antes de crearlas para evitar conflictos con ramas paralelas de migraciones.
     """
+    from sqlalchemy import inspect
+    
+    # Obtener conexión y inspector
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
     
     # ==================== TABLA ESPECIES ====================
-    print("📦 Creando tabla especies...")
+    if 'especies' not in existing_tables:
+        print("📦 Creando tabla especies...")
     op.create_table(
         'especies',
         

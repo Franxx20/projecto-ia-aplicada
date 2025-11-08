@@ -40,47 +40,134 @@ goto help
 
 :setup
 echo [INFO] Iniciando configuración del proyecto...
-echo [INFO] Construyendo imágenes Docker...
-docker-compose build --no-cache
 echo.
-echo [INFO] Levantando servicios para configurar la base de datos...
+REM 1. Verificar prerequisitos
+if exist check_prerequisites.bat (
+    echo [INFO] Verificando prerequisitos...
+    call check_prerequisites.bat
+    if errorlevel 1 (
+        echo [ERROR] Prerequisitos no cumplidos. Setup cancelado.
+        goto end
+    )
+)
+echo.
+REM 2. Verificar Docker funcionando
+docker ps >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Docker no esta funcionando. Inicia Docker Desktop.
+    goto end
+)
+echo.
+REM 3. Build con cache (sin --no-cache para mejor performance)
+echo [INFO] Construyendo imágenes Docker (esto puede tardar varios minutos)...
+docker-compose build
+if errorlevel 1 (
+    echo [ERROR] Error al construir imágenes
+    goto end
+)
+echo.
+echo [INFO] Levantando base de datos...
 docker-compose up -d db
-echo [INFO] Esperando a que la base de datos esté lista...
-timeout /t 5 /nobreak > nul
+REM 4. Esperar a que la BD esté lista (60 segundos máximo)
+echo [INFO] Esperando a que la base de datos esté lista (hasta 60 segundos)...
+set /a counter=0
+:wait_db_loop
+docker-compose exec -T db pg_isready -U postgres >nul 2>&1
+if not errorlevel 1 (
+    echo [INFO] Base de datos lista!
+    goto db_ready
+)
+set /a counter+=1
+if %counter% GEQ 30 (
+    echo [WARNING] Timeout esperando la base de datos
+    goto db_ready
+)
+echo|set /p=.
+timeout /t 2 /nobreak > nul
+goto wait_db_loop
+:db_ready
 echo.
-echo [INFO] Creando base de datos si no existe...
+echo.
+REM 5. Crear base de datos
+echo [INFO] Verificando base de datos...
 docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | findstr /C:"1" > nul
 if errorlevel 1 (
     echo [INFO] Creando base de datos asistente_plantitas...
     docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;"
+    if errorlevel 1 (
+        echo [ERROR] Error al crear base de datos
+        docker-compose down
+        goto end
+    )
 ) else (
     echo [INFO] Base de datos asistente_plantitas ya existe
 )
 echo.
-echo [INFO] Aplicando migraciones de base de datos...
+REM 6. Aplicar migraciones con script mejorado
+echo [INFO] Iniciando backend para migraciones...
 docker-compose up -d backend
-timeout /t 3 /nobreak > nul
-docker-compose exec backend python run_migrations.py
-if errorlevel 1 (
-    echo [WARNING] Hubo un problema al aplicar las migraciones. Puedes ejecutar 'manage.bat db-migrate' manualmente.
+echo [INFO] Esperando a que el backend esté listo...
+timeout /t 10 /nobreak > nul
+echo.
+echo [INFO] Aplicando migraciones de base de datos...
+docker-compose exec backend test -f run_migrations_improved.py >nul 2>&1
+if not errorlevel 1 (
+    docker-compose exec backend python run_migrations_improved.py
 ) else (
-    echo [INFO] Migraciones aplicadas correctamente
+    docker-compose exec backend python run_migrations.py
+)
+if errorlevel 1 (
+    echo [WARNING] Hubo un problema al aplicar las migraciones.
+    echo [WARNING] Puedes ejecutar 'manage.bat db-migrate' manualmente.
+    echo [WARNING] O verifica los logs: manage.bat logs backend
 )
 echo.
+REM 7. Verificar dependencias frontend
+echo [INFO] Verificando dependencias del frontend...
+if not exist frontend\node_modules (
+    echo [INFO] Instalando dependencias de NPM (primera vez)...
+    docker-compose run --rm frontend npm install
+    if errorlevel 1 (
+        echo [WARNING] Error al instalar dependencias de NPM
+    )
+)
+echo.
+REM 8. Detener servicios temporales
 echo [INFO] Deteniendo servicios temporales...
 docker-compose down
 echo.
-echo [INFO] Configuración completada!
-echo [WARNING] Recuerda editar el archivo .env con tus configuraciones.
+REM 9. Resumen final
+echo ================================================================
+echo [INFO] Configuración completada exitosamente!
+echo ================================================================
+echo.
+echo [INFO] Próximos pasos:
+echo   1. Revisa y edita el archivo .env con tus configuraciones
+echo   2. Inicia el entorno:
+echo      - Desarrollo:  manage.bat dev
+echo      - Producción:  manage.bat prod
+echo.
+echo [INFO] URLs disponibles:
+echo   - Frontend: http://localhost:4200
+echo   - Backend:  http://localhost:8000
+echo   - API Docs: http://localhost:8000/docs
+echo.
 goto end
 
 :db_migrate
 echo [INFO] Aplicando migraciones de base de datos...
 docker-compose up -d db backend
 echo [INFO] Esperando a que los servicios estén listos...
-timeout /t 5 /nobreak > nul
+timeout /t 10 /nobreak > nul
 echo.
-docker-compose exec backend python run_migrations.py
+REM Usar script mejorado si existe, sino usar el original
+docker-compose exec backend test -f run_migrations_improved.py >nul 2>&1
+if not errorlevel 1 (
+    echo [INFO] Usando script mejorado de migraciones...
+    docker-compose exec backend python run_migrations_improved.py
+) else (
+    docker-compose exec backend python run_migrations.py
+)
 if errorlevel 1 (
     echo [ERROR] Error al aplicar las migraciones
     goto end

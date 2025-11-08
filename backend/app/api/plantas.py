@@ -507,3 +507,90 @@ async def agregar_planta_desde_identificacion(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al agregar la planta desde identificación: {str(e)}"
         )
+
+
+@router.post(
+    "/reparar-imagenes",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+    summary="Reparar imágenes de plantas existentes",
+    description="Busca y asigna imagen_principal_id a plantas que no la tienen pero tienen identificación asociada"
+)
+async def reparar_imagenes_plantas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint de reparación para plantas creadas con el bug anterior.
+    
+    Busca plantas del usuario que:
+    1. No tienen imagen_principal_id
+    2. Tienen identificación asociada
+    3. Esa identificación tiene imágenes
+    
+    Y les asigna la primera imagen como imagen principal.
+    
+    Returns:
+        dict: Información sobre cuántas plantas se repararon
+    """
+    try:
+        from app.db.models import Planta, Identificacion, Imagen
+        
+        # Buscar plantas sin imagen principal del usuario
+        plantas_sin_imagen = db.query(Planta).filter(
+            Planta.usuario_id == current_user.id,
+            Planta.imagen_principal_id == None,
+            Planta.is_active == True
+        ).all()
+        
+        plantas_reparadas = []
+        
+        for planta in plantas_sin_imagen:
+            # Buscar identificaciones del usuario que tengan la especie de esta planta
+            identificaciones = db.query(Identificacion).filter(
+                Identificacion.usuario_id == current_user.id,
+                Identificacion.especie_id == planta.especie_id
+            ).order_by(Identificacion.fecha_identificacion.desc()).all()
+            
+            imagen_encontrada = False
+            
+            for identificacion in identificaciones:
+                # Buscar imágenes de esta identificación
+                imagenes = db.query(Imagen).filter(
+                    Imagen.identificacion_id == identificacion.id
+                ).order_by(Imagen.id.asc()).all()
+                
+                if not imagenes and identificacion.imagen_id:
+                    # Caso legacy: usar imagen_id directamente
+                    planta.imagen_principal_id = identificacion.imagen_id
+                    imagen_encontrada = True
+                    break
+                elif imagenes:
+                    # Caso múltiples imágenes: usar la primera
+                    planta.imagen_principal_id = imagenes[0].id
+                    imagen_encontrada = True
+                    break
+            
+            if imagen_encontrada:
+                db.add(planta)
+                plantas_reparadas.append({
+                    "id": planta.id,
+                    "nombre": planta.nombre_personal,
+                    "imagen_principal_id": planta.imagen_principal_id
+                })
+        
+        # Guardar cambios
+        db.commit()
+        
+        return {
+            "plantas_procesadas": len(plantas_sin_imagen),
+            "plantas_reparadas": len(plantas_reparadas),
+            "detalles": plantas_reparadas
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al reparar imágenes: {str(e)}"
+        )

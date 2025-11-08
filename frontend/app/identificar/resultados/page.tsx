@@ -242,7 +242,7 @@ function ResultadosPageContent() {
         identificacion_id: resultado.id,
         nombre_personalizado: especieSeleccionada.species.commonNames[0] || 
                              especieSeleccionada.species.scientificName,
-        notas: `Identificación confirmada con ${(especieSeleccionada.score * 100).toFixed(1)}% de confianza`,
+        notas: undefined,
         ubicacion: undefined
       });
 

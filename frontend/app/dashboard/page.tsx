@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel"
-import { Plus, Droplets, Sun, Leaf, LogOut, Camera } from "lucide-react"
+import { Plus, Droplets, Sun, Leaf, LogOut, Camera, Heart } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import dashboardService from "@/lib/dashboard.service"
 import plantService from "@/lib/plant.service"
@@ -88,7 +88,7 @@ function PlantImageCarousel({
             e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23f0f0f0" width="400" height="400"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagen no disponible%3C/text%3E%3C/svg%3E'
           }}
         />
-        {images[0].organ && (
+        {images[0].organ && images[0].organ !== 'sin_especificar' && (
           <Badge 
             className="absolute top-2 right-2 bg-black/70 text-white hover:bg-black/80"
             variant="secondary"
@@ -123,7 +123,7 @@ function PlantImageCarousel({
                     e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23f0f0f0" width="400" height="400"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagen no disponible%3C/text%3E%3C/svg%3E'
                   }}
                 />
-                {imagen.organ && (
+                {imagen.organ && imagen.organ !== 'sin_especificar' && (
                   <Badge 
                     className="absolute top-2 right-2 bg-black/70 text-white hover:bg-black/80"
                     variant="secondary"
@@ -228,6 +228,72 @@ export default function DashboardPage() {
       setPlantasUsuario([])
     } finally {
       setEstaCargando(false)
+    }
+  }
+
+  /**
+   * Toggle favorita para una planta
+   * Actualiza el estado local optimísticamente sin recargar todo
+   */
+  const toggleFavorita = async (plantaId: number, esFavorita: boolean) => {
+    try {
+      // Actualización optimista del estado local
+      setPlantasUsuario(plantas => 
+        plantas.map(p => 
+          p.id === plantaId 
+            ? { ...p, es_favorita: !esFavorita } 
+            : p
+        )
+      )
+
+      // Actualizar en el backend
+      await plantService.actualizarPlanta(plantaId, {
+        es_favorita: !esFavorita
+      })
+    } catch (err) {
+      console.error('❌ Error al actualizar favorita:', err)
+      // Revertir el cambio optimista en caso de error
+      setPlantasUsuario(plantas => 
+        plantas.map(p => 
+          p.id === plantaId 
+            ? { ...p, es_favorita: esFavorita } 
+            : p
+        )
+      )
+      alert('Error al actualizar la planta como favorita')
+    }
+  }
+
+  /**
+   * Toggle regada hoy para una planta
+   * Actualiza el estado local optimísticamente sin recargar todo
+   */
+  const toggleRegadaHoy = async (plantaId: number, fueRegadaHoy: boolean) => {
+    try {
+      // Actualización optimista del estado local
+      setPlantasUsuario(plantas => 
+        plantas.map(p => 
+          p.id === plantaId 
+            ? { ...p, fue_regada_hoy: !fueRegadaHoy } 
+            : p
+        )
+      )
+
+      // Actualizar en el backend
+      await plantService.actualizarPlanta(plantaId, {
+        fue_regada_hoy: !fueRegadaHoy
+      })
+    } catch (err) {
+      console.error('❌ Error al actualizar regada hoy:', err)
+      // Revertir el cambio optimista en caso de error
+      setPlantasUsuario(plantas => 
+        plantas.map(p => 
+          p.id === plantaId 
+            ? { ...p, fue_regada_hoy: fueRegadaHoy } 
+            : p
+        )
+      )
+      alert('Error al marcar la planta como regada')
     }
   }
 
@@ -447,7 +513,14 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {plantasUsuario.map((planta) => {
+                  {plantasUsuario
+                    .sort((a, b) => {
+                      // Ordenar: favoritas primero, luego por fecha de creación
+                      if (a.es_favorita && !b.es_favorita) return -1
+                      if (!a.es_favorita && b.es_favorita) return 1
+                      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                    })
+                    .map((planta) => {
                     // Determinar qué imágenes mostrar
                     const imagenesParaMostrar = (() => {
                       if (planta.imagenes_identificacion && planta.imagenes_identificacion.length > 0) {
@@ -459,31 +532,69 @@ export default function DashboardPage() {
                       return []
                     })()
 
-                    // Determinar el texto del badge
-                    const badgeText = (() => {
-                      if (planta.imagenes_identificacion && planta.imagenes_identificacion.length > 0) {
-                        const count = planta.imagenes_identificacion.length
-                        return `${count} ${count === 1 ? 'foto' : 'fotos'}`
-                      }
-                      return 'Identificada'
-                    })()
-
                     return (
                     <Card
                       key={planta.id}
-                      className="overflow-hidden hover:shadow-lg transition-shadow"
+                      className="overflow-hidden hover:shadow-lg transition-shadow relative"
                     >
-                      {/* Carousel de imágenes de la planta */}
-                      <PlantImageCarousel 
-                        images={imagenesParaMostrar}
-                        plantName={planta.nombre_personalizado || 'Planta'}
-                      />
+                      <div className="relative">
+                        {/* Carousel de imágenes de la planta */}
+                        <PlantImageCarousel 
+                          images={imagenesParaMostrar}
+                          plantName={planta.nombre_personalizado || 'Planta'}
+                        />
 
-                      {/* Badge con origen */}
-                      <div className="absolute top-3 left-3">
-                        <Badge variant="default" className="bg-green-600">
-                          {badgeText}
-                        </Badge>
+                        {/* Badge de estado de salud - superior izquierda */}
+                        <div className="absolute top-3 left-3 z-10">
+                          <Badge
+                            variant={estadoSaludToBadgeVariant(planta.estado_salud)}
+                            className="shadow-lg"
+                          >
+                            {estadoSaludToLabel(planta.estado_salud)}
+                          </Badge>
+                        </div>
+
+                        {/* Botón de favorita (corazón) en esquina superior derecha */}
+                        <div className="absolute top-3 right-3 z-20">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={cn(
+                              "h-10 w-10 rounded-full shadow-lg backdrop-blur-sm transition-all duration-300 ease-in-out",
+                              "hover:shadow-2xl hover:scale-125 hover:-translate-y-0.5 hover:z-30",
+                              planta.es_favorita
+                                ? "bg-red-100/95 hover:bg-red-200 ring-2 ring-red-200"
+                                : "bg-white/95 hover:bg-red-100 hover:ring-2 hover:ring-red-300"
+                            )}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              toggleFavorita(planta.id, planta.es_favorita)
+                            }}
+                          >
+                            <Heart 
+                              className={cn(
+                                "w-5 h-5 transition-all duration-300",
+                                planta.es_favorita 
+                                  ? "fill-red-500 text-red-500 drop-shadow-sm" 
+                                  : "text-gray-400 hover:text-red-500 hover:scale-110 hover:drop-shadow-md"
+                              )} 
+                            />
+                          </Button>
+                        </div>
+
+                        {/* Badge de regada hoy si está marcado - inferior izquierda */}
+                        {planta.fue_regada_hoy && (
+                          <div className="absolute bottom-3 left-3 z-10">
+                            <Badge 
+                              variant="secondary" 
+                              className="bg-blue-500 text-white shadow-lg"
+                            >
+                              <Droplets className="w-3 h-3 mr-1" />
+                              Regada Hoy
+                            </Badge>
+                          </div>
+                        )}
                       </div>
 
                       {/* Información de la planta */}
@@ -511,13 +622,29 @@ export default function DashboardPage() {
                       </CardHeader>
 
                       <CardContent className="space-y-3">
-                        {/* Estado de salud */}
-                        <div className="flex items-center gap-2 text-sm">
-                          <Badge
-                            variant={estadoSaludToBadgeVariant(planta.estado_salud)}
+                        {/* Botón para marcar como regada hoy */}
+                        <div className="flex justify-start">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className={cn(
+                              "h-10 w-10 rounded-full transition-all duration-200",
+                              planta.fue_regada_hoy 
+                                ? "bg-blue-50 border-blue-500 hover:bg-blue-100 hover:border-blue-600 hover:shadow-lg hover:scale-110" 
+                                : "hover:bg-blue-50 hover:border-blue-400 hover:shadow-lg hover:scale-110"
+                            )}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              toggleRegadaHoy(planta.id, planta.fue_regada_hoy)
+                            }}
                           >
-                            {estadoSaludToLabel(planta.estado_salud)}
-                          </Badge>
+                            <Droplets 
+                              className={cn(
+                                "w-5 h-5 transition-all duration-200", 
+                                planta.fue_regada_hoy ? "text-blue-500" : "text-gray-400 hover:text-blue-500"
+                              )} 
+                            />
+                          </Button>
                         </div>
 
                         {/* Ubicación */}
@@ -541,7 +668,7 @@ export default function DashboardPage() {
                         )}
 
                         {/* Notas */}
-                        {planta.notas && (
+                        {planta.notas && !planta.notas.includes('Identificación confirmada con') && (
                           <div className="text-sm text-muted-foreground italic pt-2 border-t">
                             {planta.notas}
                           </div>

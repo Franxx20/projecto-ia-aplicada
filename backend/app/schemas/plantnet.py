@@ -45,10 +45,10 @@ class PlantNetIdentificacionRequest(BaseModel):
     )
     lang: str = Field(
         "es",
-        description="Código de idioma: es, en, fr, pt, etc.",
+        description="Código de idioma para nombres comunes (default: español). Valores: es, en, fr, pt, de, it, ar, cs, etc.",
         min_length=2,
         max_length=5,
-        examples=["es", "en"]
+        examples=["es", "en", "fr"]
     )
     
     @validator("organos")

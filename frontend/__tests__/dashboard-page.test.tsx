@@ -69,6 +69,7 @@ describe('DashboardPage', () => {
       ubicacion: 'Sala',
       notas: null,
       imagen_principal_id: 1,
+      imagen_principal_url: 'https://example.com/monstera.jpg',
       fecha_ultimo_riego: '2025-10-15T10:00:00Z',
       frecuencia_riego_dias: 7,
       luz_actual: 'alta',
@@ -78,6 +79,8 @@ describe('DashboardPage', () => {
       updated_at: '2025-10-17T00:00:00Z',
       is_active: true,
       necesita_riego: false,
+      es_favorita: false,
+      es_regalo: false,
     },
     {
       id: 2,
@@ -88,6 +91,7 @@ describe('DashboardPage', () => {
       ubicacion: 'Balcón',
       notas: 'Hojas amarillentas',
       imagen_principal_id: null,
+      imagen_principal_url: null,
       fecha_ultimo_riego: '2025-10-10T10:00:00Z',
       frecuencia_riego_dias: 5,
       luz_actual: 'media',
@@ -97,6 +101,8 @@ describe('DashboardPage', () => {
       updated_at: '2025-10-17T00:00:00Z',
       is_active: true,
       necesita_riego: true,
+      es_favorita: false,
+      es_regalo: false,
     },
   ]
 
@@ -393,6 +399,144 @@ describe('DashboardPage', () => {
 
         const plantsGrid = container.querySelector('.grid.lg\\:grid-cols-3')
         expect(plantsGrid).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('Funcionalidad de Favoritas y Regalos', () => {
+    const mockPlantasConFavoritas = [
+      {
+        ...mockPlantas[0],
+        es_favorita: false,
+        es_regalo: false,
+      },
+      {
+        ...mockPlantas[1],
+        es_favorita: true,
+        es_regalo: false,
+      },
+    ]
+
+    beforeEach(() => {
+      ;(useAuth as jest.Mock).mockReturnValue({
+        usuario: mockUsuario,
+        estaAutenticado: true,
+        estaCargando: false,
+        cerrarSesion: jest.fn(),
+      })
+      ;(useRouter as jest.Mock).mockReturnValue(mockRouter)
+      ;(dashboardService.obtenerEstadisticas as jest.Mock).mockResolvedValue(
+        mockEstadisticas
+      )
+    })
+
+    it('debe mostrar botón de corazón para marcar como favorita', async () => {
+      ;(dashboardService.obtenerPlantas as jest.Mock).mockResolvedValue({
+        plantas: mockPlantasConFavoritas,
+        total: 2,
+      })
+
+      render(<DashboardPage />)
+
+      await waitFor(() => {
+        const botonesCorazon = screen.getAllByRole('button', {
+          hidden: true,
+        }).filter(btn => {
+          const svg = btn.querySelector('svg')
+          return svg && svg.classList.contains('lucide-heart')
+        })
+        
+        expect(botonesCorazon.length).toBeGreaterThan(0)
+      })
+    })
+
+    it('debe mostrar corazón relleno cuando la planta es favorita', async () => {
+      ;(dashboardService.obtenerPlantas as jest.Mock).mockResolvedValue({
+        plantas: mockPlantasConFavoritas,
+        total: 2,
+      })
+
+      const { container } = render(<DashboardPage />)
+
+      await waitFor(() => {
+        // Buscar corazones con fill (favoritas)
+        const corazonesFavoritos = container.querySelectorAll('.fill-red-500')
+        expect(corazonesFavoritos.length).toBeGreaterThan(0)
+      })
+    })
+
+    it('debe mostrar botón para marcar como regalo', async () => {
+      ;(dashboardService.obtenerPlantas as jest.Mock).mockResolvedValue({
+        plantas: mockPlantasConFavoritas,
+        total: 2,
+      })
+
+      render(<DashboardPage />)
+
+      await waitFor(() => {
+        const botonesRegalo = screen.getAllByRole('button', {
+          name: /marcar como regalo/i,
+        })
+        expect(botonesRegalo.length).toBe(2)
+      })
+    })
+
+    it('debe mostrar badge de regalo cuando está marcado', async () => {
+      const plantasConRegalo = [
+        {
+          ...mockPlantasConFavoritas[0],
+          es_regalo: true,
+        },
+      ]
+
+      ;(dashboardService.obtenerPlantas as jest.Mock).mockResolvedValue({
+        plantas: plantasConRegalo,
+        total: 1,
+      })
+
+      render(<DashboardPage />)
+
+      await waitFor(() => {
+        const badgeRegalo = screen.getByText(/regalo/i)
+        expect(badgeRegalo).toBeInTheDocument()
+      })
+    })
+
+    it('debe ordenar plantas favoritas primero', async () => {
+      const plantasDesordenadas = [
+        {
+          ...mockPlantas[0],
+          id: 3,
+          nombre_personal: 'Planta Normal',
+          es_favorita: false,
+          es_regalo: false,
+          created_at: '2025-10-20T00:00:00Z',
+        },
+        {
+          ...mockPlantas[1],
+          id: 4,
+          nombre_personal: 'Planta Favorita',
+          es_favorita: true,
+          es_regalo: false,
+          created_at: '2025-10-10T00:00:00Z',
+        },
+      ]
+
+      ;(dashboardService.obtenerPlantas as jest.Mock).mockResolvedValue({
+        plantas: plantasDesordenadas,
+        total: 2,
+      })
+
+      const { container } = render(<DashboardPage />)
+
+      await waitFor(() => {
+        const tarjetas = container.querySelectorAll('.hover\\:shadow-lg')
+        expect(tarjetas.length).toBe(2)
+        
+        // La primera tarjeta debería tener el corazón favorito
+        const primeraTarjeta = tarjetas[0]
+        const corazonFavorito = primeraTarjeta.querySelector('.fill-red-500')
+        expect(corazonFavorito).toBeInTheDocument()
       })
     })
   })

@@ -598,11 +598,19 @@ class PlantaService:
             nombre_final = f"Mi planta #{identificacion_id}"
         
         # Determinar la imagen principal
+        # Primero intentar con imagen_id (caso de 1 imagen)
         imagen_principal_id = identificacion.imagen_id
         
-        # Si la identificación tiene múltiples imágenes, usar la primera
-        if not imagen_principal_id and identificacion.imagenes:
-            imagen_principal_id = identificacion.imagenes[0].id if identificacion.imagenes else None
+        # Si no hay imagen_id, buscar imágenes por identificacion_id (múltiples imágenes)
+        if not imagen_principal_id:
+            from app.db.models import Imagen
+            imagenes = db.query(Imagen).filter(
+                Imagen.identificacion_id == identificacion_id
+            ).order_by(Imagen.id.asc()).all()
+            
+            if imagenes:
+                # Usar la primera imagen como principal
+                imagen_principal_id = imagenes[0].id
         
         # Crear la nueva planta
         nueva_planta = Planta(

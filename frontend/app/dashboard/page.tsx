@@ -30,6 +30,7 @@ import { Plus, Droplets, Sun, Leaf, LogOut, Camera, Heart } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import dashboardService from "@/lib/dashboard.service"
 import plantService from "@/lib/plant.service"
+import { SaludWidget } from "@/components/dashboard/SaludWidget"
 import type { Planta, DashboardStats } from "@/models/dashboard.types"
 import type { PlantaUsuario } from "@/models/plant.types"
 import { NOMBRES_ORGANOS } from "@/models/plant.types"
@@ -407,6 +408,11 @@ export default function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
               </Card>
+            </div>
+
+            {/* Health Widget */}
+            <div className="mb-8">
+              <SaludWidget />
             </div>
 
             {/* Plants Grid */}

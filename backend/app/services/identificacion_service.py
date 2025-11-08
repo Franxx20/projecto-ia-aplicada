@@ -493,8 +493,12 @@ class IdentificacionService:
             origen="plantnet",
             validado=False,
             metadatos_ia=json.dumps({
-                "plantnet_response": respuesta,
-                "mejor_resultado": mejor_resultado,
+                "mejor_resultado": {
+                    "nombre_cientifico": mejor_resultado["nombre_cientifico"],
+                    "nombres_comunes": mejor_resultado["nombres_comunes"][:3],  # Solo primeros 3 nombres
+                    "familia": mejor_resultado["familia"],
+                    "score": mejor_resultado["score"]
+                },
                 "organos_detectados": [
                     {
                         "organ": img.get("organ"),
@@ -502,7 +506,9 @@ class IdentificacionService:
                     }
                     for img in respuesta.get("images", [])
                 ],
-                "num_imagenes": len(imagenes_guardadas)
+                "num_imagenes": len(imagenes_guardadas),
+                "resultados_alternativos": len(respuesta.get("results", [])),
+                "requests_restantes": respuesta.get("remainingIdentificationRequests")
             }, default=str)
         )
         
@@ -520,8 +526,10 @@ class IdentificacionService:
         db.commit()
         
         # Formatear respuesta según IdentificacionResponse schema
+        # IMPORTANTE: Incluir plantnet_response para que el frontend pueda mostrar
+        # resultados alternativos y permitir al usuario elegir la especie correcta
         respuesta_formateada = {
-            "id": identificacion.id,  # Para compatibilidad con frontend
+            "id": identificacion.id,
             "identificacion_id": identificacion.id,
             "especie": {
                 "nombre_cientifico": mejor_resultado["nombre_cientifico"],
@@ -543,6 +551,7 @@ class IdentificacionService:
             "fecha_identificacion": identificacion.fecha_identificacion.isoformat(),
             "validado": identificacion.validado,
             "origen": identificacion.origen,
+            "plantnet_response": respuesta,  # Respuesta completa para mostrar alternativas
             "metadatos_plantnet": {
                 "version": respuesta.get("version", ""),
                 "proyecto": respuesta.get("query", {}).get("project", ""),

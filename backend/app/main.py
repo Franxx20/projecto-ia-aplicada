@@ -92,11 +92,20 @@ def crear_aplicacion() -> FastAPI:
                     content = content.replace('https://azurite:10000', 'http://localhost:10000')
                     content = content.replace('https://127.0.0.1:10000', 'http://localhost:10000')
                 
+                # Codificar a bytes para calcular Content-Length correcto
+                content_bytes = content.encode('utf-8')
+                
                 # Crear nueva respuesta con el contenido modificado
+                # IMPORTANTE: Eliminar Content-Length del dict para que Response() lo calcule automáticamente
+                # Esto evita ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH
+                headers = dict(response.headers)
+                headers.pop('Content-Length', None)  # Eliminar si existe
+                headers.pop('content-length', None)  # Eliminar variante en minúsculas
+                
                 return Response(
-                    content=content,
+                    content=content_bytes,
                     status_code=response.status_code,
-                    headers=dict(response.headers),
+                    headers=headers,
                     media_type=response.media_type
                 )
             except Exception as e:

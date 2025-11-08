@@ -337,7 +337,6 @@ async def obtener_quota(
 
 @router.post(
     "/multiple",
-    response_model=dict,
     status_code=status.HTTP_201_CREATED,
     summary="Identificar planta con múltiples imágenes (T-022)",
     description="Identifica una planta usando de 1 a 5 imágenes con especificación opcional de órgano por imagen"
@@ -421,6 +420,8 @@ async def identificar_multiples_imagenes(
             guardar_resultado=guardar_resultado
         )
         
+        # Retornar directamente el dict - FastAPI maneja la serialización JSON
+        # y calcula el Content-Length correctamente
         return resultado
         
     except HTTPException:

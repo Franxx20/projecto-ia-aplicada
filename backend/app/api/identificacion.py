@@ -337,7 +337,6 @@ async def obtener_quota(
 
 @router.post(
     "/multiple",
-    response_model=dict,
     status_code=status.HTTP_201_CREATED,
     summary="Identificar planta con múltiples imágenes (T-022)",
     description="Identifica una planta usando de 1 a 5 imágenes con especificación opcional de órgano por imagen"

@@ -1,0 +1,252 @@
+name: 🔒 Security Scan
+
+# Ejecutar diariamente y en PRs a main
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Ejecutar todos los días a las 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  # ===============================================
+  # Python Security Scan
+  # ===============================================
+  python-security:
+    name: 🐍 Python Security (Bandit + Safety)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Instalar herramientas de seguridad
+        run: |
+          pip install bandit safety pip-audit
+      
+      - name: 🔍 Escanear código con Bandit
+        working-directory: backend
+        run: |
+          echo "🔍 Ejecutando Bandit para detectar problemas de seguridad..."
+          bandit -r app/ -f json -o bandit-report.json || true
+          bandit -r app/ -f screen || true
+          echo "✅ Escaneo de Bandit completado"
+      
+      - name: 🔒 Verificar vulnerabilidades con Safety
+        working-directory: backend
+        run: |
+          echo "🔒 Verificando vulnerabilidades conocidas en dependencias..."
+          safety check --json --output safety-report.json || true
+          safety check || true
+          echo "✅ Verificación de Safety completada"
+      
+      - name: 🔍 Auditoría de pip
+        working-directory: backend
+        run: |
+          echo "🔍 Ejecutando auditoría de dependencias con pip-audit..."
+          pip-audit -r requirements.txt --format json --output pip-audit-report.json || true
+          pip-audit -r requirements.txt || true
+          echo "✅ Auditoría completada"
+      
+      - name: 📤 Subir reportes de seguridad Python
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-security-reports
+          path: |
+            backend/bandit-report.json
+            backend/safety-report.json
+            backend/pip-audit-report.json
+          retention-days: 30
+
+  # ===============================================
+  # NPM Security Scan
+  # ===============================================
+  npm-security:
+    name: ⚛️ NPM Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 📦 Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: 🔒 Auditoría de dependencias NPM
+        working-directory: frontend
+        run: |
+          echo "🔒 Ejecutando npm audit..."
+          npm audit --json > npm-audit-report.json || true
+          npm audit || true
+          echo "✅ Auditoría de NPM completada"
+      
+      - name: 📤 Subir reporte de npm audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-security-reports
+          path: frontend/npm-audit-report.json
+          retention-days: 30
+
+  # ===============================================
+  # Docker Image Scan
+  # ===============================================
+  docker-security:
+    name: 🐳 Docker Image Scan (Trivy)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🏗️ Build Backend Image (sin push)
+        run: |
+          docker build -t backend-security-scan:latest ./backend
+      
+      - name: 🏗️ Build Frontend Image (sin push)
+        run: |
+          docker build -t frontend-security-scan:latest ./frontend
+      
+      - name: 🔍 Escanear Backend Image con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'backend-security-scan:latest'
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: 🔍 Escanear Frontend Image con Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'frontend-security-scan:latest'
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: 📤 Subir resultados a GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: '.'
+          category: 'trivy-scan'
+      
+      - name: 📊 Reporte de vulnerabilidades
+        run: |
+          echo "## 🔒 Resumen de Escaneo Docker" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Backend Image:** Escaneada" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Frontend Image:** Escaneada" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 Revisa la pestaña Security para detalles" >> $GITHUB_STEP_SUMMARY
+
+  # ===============================================
+  # CodeQL Analysis
+  # ===============================================
+  codeql-analysis:
+    name: 🔬 CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    
+    strategy:
+      matrix:
+        language: [ 'python', 'javascript' ]
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🔬 Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+      
+      - name: 🏗️ Autobuild
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: 🔍 Ejecutar análisis CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ===============================================
+  # Dependency Review (PRs only)
+  # ===============================================
+  dependency-review:
+    name: 📦 Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🔍 Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  # ===============================================
+  # Secret Scanning
+  # ===============================================
+  secret-scan:
+    name: 🔐 Secret Detection (Gitleaks)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔍 Escanear secretos con Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ===============================================
+  # Resumen de Seguridad
+  # ===============================================
+  security-summary:
+    name: 📊 Resumen de Seguridad
+    runs-on: ubuntu-latest
+    needs: [python-security, npm-security, docker-security, codeql-analysis, secret-scan]
+    if: always()
+    
+    steps:
+      - name: 📊 Generar resumen
+        run: |
+          echo "## 🔒 Resumen de Escaneo de Seguridad" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Escaneos Realizados:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Python Security:** Bandit, Safety, pip-audit" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **NPM Security:** npm audit" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Docker Security:** Trivy scan" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Code Analysis:** CodeQL (Python + JavaScript)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Secret Detection:** Gitleaks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Revisa la pestaña Security para ver vulnerabilidades detectadas**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎯 **Próximos pasos:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Revisar y corregir vulnerabilidades CRITICAL y HIGH" >> $GITHUB_STEP_SUMMARY
+          echo "2. Actualizar dependencias con vulnerabilidades conocidas" >> $GITHUB_STEP_SUMMARY
+          echo "3. Verificar que no haya secretos expuestos en el código" >> $GITHUB_STEP_SUMMARY

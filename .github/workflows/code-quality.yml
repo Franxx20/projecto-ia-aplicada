@@ -1,0 +1,277 @@
+name: 🎨 Code Quality & Linting
+
+# Ejecutar en PRs y push a ramas principales
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  # ===============================================
+  # Python Code Quality
+  # ===============================================
+  python-quality:
+    name: 🐍 Python Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Instalar herramientas
+        run: |
+          pip install flake8 black isort mypy pylint autopep8
+      
+      - name: 🔍 Flake8 - Análisis de estilo
+        working-directory: backend
+        run: |
+          echo "🔍 Ejecutando Flake8..."
+          flake8 app/ --count --statistics --show-source \
+            --max-line-length=127 \
+            --extend-ignore=E203,W503 \
+            --exclude=__pycache__,.git,__init__.py \
+            --format='%(path)s:%(row)d:%(col)d: %(code)s %(text)s' \
+            > flake8-report.txt || true
+          cat flake8-report.txt
+          echo "✅ Flake8 completado"
+      
+      - name: 🎨 Black - Verificar formato
+        working-directory: backend
+        run: |
+          echo "🎨 Verificando formato con Black..."
+          black --check --diff app/ || echo "⚠️ Algunos archivos necesitan formato"
+      
+      - name: 📦 isort - Verificar imports
+        working-directory: backend
+        run: |
+          echo "📦 Verificando orden de imports con isort..."
+          isort --check-only --diff app/ || echo "⚠️ Algunos imports necesitan ordenarse"
+      
+      - name: 🔬 MyPy - Type checking
+        working-directory: backend
+        run: |
+          echo "🔬 Ejecutando type checking con MyPy..."
+          mypy app/ --ignore-missing-imports --no-strict-optional || true
+      
+      - name: 📊 Pylint - Análisis profundo
+        working-directory: backend
+        run: |
+          echo "📊 Ejecutando Pylint..."
+          pylint app/ --exit-zero --output-format=text --reports=y > pylint-report.txt || true
+          cat pylint-report.txt | head -100
+          echo "✅ Pylint completado"
+      
+      - name: 📤 Subir reportes Python
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-quality-reports
+          path: |
+            backend/flake8-report.txt
+            backend/pylint-report.txt
+          retention-days: 7
+
+  # ===============================================
+  # JavaScript/TypeScript Code Quality
+  # ===============================================
+  javascript-quality:
+    name: ⚛️ JavaScript/TypeScript Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 📦 Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: 📦 Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+      
+      - name: 🎨 ESLint - Análisis de código
+        working-directory: frontend
+        run: |
+          echo "🎨 Ejecutando ESLint..."
+          npm run lint -- --format json --output-file eslint-report.json || true
+          npm run lint || echo "⚠️ ESLint encontró problemas"
+      
+      - name: 🔬 TypeScript - Type checking
+        working-directory: frontend
+        run: |
+          echo "🔬 Ejecutando TypeScript compiler..."
+          npx tsc --noEmit --pretty || echo "⚠️ TypeScript encontró errores de tipos"
+      
+      - name: 📊 Prettier - Verificar formato
+        working-directory: frontend
+        run: |
+          echo "📊 Verificando formato con Prettier..."
+          npx prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}" || echo "⚠️ Algunos archivos necesitan formato"
+      
+      - name: 📤 Subir reportes JavaScript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: javascript-quality-reports
+          path: frontend/eslint-report.json
+          retention-days: 7
+
+  # ===============================================
+  # Code Complexity Analysis
+  # ===============================================
+  complexity-analysis:
+    name: 📈 Complexity Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Instalar radon
+        run: pip install radon
+      
+      - name: 📈 Análisis de complejidad ciclomática
+        working-directory: backend
+        run: |
+          echo "📈 Analizando complejidad ciclomática..."
+          radon cc app/ -a -s -j > complexity-report.json || true
+          radon cc app/ -a -s || true
+          echo "✅ Análisis completado"
+      
+      - name: 📊 Análisis de mantenibilidad
+        working-directory: backend
+        run: |
+          echo "📊 Analizando índice de mantenibilidad..."
+          radon mi app/ -s -j > maintainability-report.json || true
+          radon mi app/ -s || true
+      
+      - name: 📤 Subir reportes de complejidad
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complexity-reports
+          path: |
+            backend/complexity-report.json
+            backend/maintainability-report.json
+          retention-days: 7
+
+  # ===============================================
+  # Documentation Quality
+  # ===============================================
+  documentation-quality:
+    name: 📚 Documentation Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Instalar pydocstyle
+        run: pip install pydocstyle
+      
+      - name: 📚 Verificar docstrings Python
+        working-directory: backend
+        run: |
+          echo "📚 Verificando docstrings con pydocstyle..."
+          pydocstyle app/ --count || echo "⚠️ Algunos docstrings necesitan mejoras"
+      
+      - name: 📝 Verificar README
+        run: |
+          echo "📝 Verificando existencia de documentación..."
+          [ -f README.md ] && echo "✅ README.md existe" || echo "❌ README.md no encontrado"
+          [ -f docs/API.md ] && echo "✅ Documentación API existe" || echo "⚠️ Considera agregar docs/API.md"
+
+  # ===============================================
+  # Code Duplication Detection
+  # ===============================================
+  duplication-detection:
+    name: 🔄 Duplicate Code Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      - name: 📦 Instalar jscpd
+        run: npm install -g jscpd
+      
+      - name: 🔄 Detectar código duplicado
+        run: |
+          echo "🔄 Buscando código duplicado..."
+          jscpd . \
+            --ignore "**/__pycache__/**,**/node_modules/**,**/dist/**,**/build/**,**/.next/**" \
+            --min-lines 5 \
+            --min-tokens 50 \
+            --format "json" \
+            --output "./jscpd-report.json" || true
+          
+          jscpd . \
+            --ignore "**/__pycache__/**,**/node_modules/**,**/dist/**,**/build/**,**/.next/**" \
+            --min-lines 5 \
+            --min-tokens 50 || true
+      
+      - name: 📤 Subir reporte de duplicación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duplication-report
+          path: jscpd-report.json
+          retention-days: 7
+
+  # ===============================================
+  # Resumen de Calidad
+  # ===============================================
+  quality-summary:
+    name: 📊 Quality Summary
+    runs-on: ubuntu-latest
+    needs: [python-quality, javascript-quality, complexity-analysis, documentation-quality, duplication-detection]
+    if: always()
+    
+    steps:
+      - name: 📊 Generar resumen
+        run: |
+          echo "## 🎨 Resumen de Calidad de Código" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Análisis Completados:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🐍 Python:" >> $GITHUB_STEP_SUMMARY
+          echo "- Flake8: Análisis de estilo" >> $GITHUB_STEP_SUMMARY
+          echo "- Black: Verificación de formato" >> $GITHUB_STEP_SUMMARY
+          echo "- isort: Orden de imports" >> $GITHUB_STEP_SUMMARY
+          echo "- MyPy: Type checking" >> $GITHUB_STEP_SUMMARY
+          echo "- Pylint: Análisis profundo" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### ⚛️ JavaScript/TypeScript:" >> $GITHUB_STEP_SUMMARY
+          echo "- ESLint: Análisis de código" >> $GITHUB_STEP_SUMMARY
+          echo "- TypeScript: Type checking" >> $GITHUB_STEP_SUMMARY
+          echo "- Prettier: Verificación de formato" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📈 Métricas:" >> $GITHUB_STEP_SUMMARY
+          echo "- Complejidad ciclomática" >> $GITHUB_STEP_SUMMARY
+          echo "- Índice de mantenibilidad" >> $GITHUB_STEP_SUMMARY
+          echo "- Detección de código duplicado" >> $GITHUB_STEP_SUMMARY
+          echo "- Calidad de documentación" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Descarga los reportes detallados desde los Artifacts**" >> $GITHUB_STEP_SUMMARY

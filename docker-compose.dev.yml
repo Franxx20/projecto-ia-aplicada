@@ -1,6 +1,10 @@
 version: '3.8'
 
 # Docker Compose para desarrollo con hot reload y volúmenes en vivo
+# IMPORTANTE: Este archivo lee las variables de entorno del archivo .env
+# ubicado en la RAÍZ del proyecto (mismo directorio que este archivo).
+# No se necesitan archivos .env separados para backend o frontend.
+
 services:
   # Base de datos PostgreSQL
   db:

@@ -55,8 +55,7 @@ projecto-ia-aplicada/
 │   ├── Dockerfile.dev      # Dockerfile desarrollo
 │   ├── next.config.ts      # Configuración Next.js
 │   ├── tailwind.config.ts  # Configuración Tailwind
-│   ├── package.json        # Dependencias NPM
-│   └── .env.local          # Variables de entorno
+│   └── package.json        # Dependencias NPM
 ├── tests/                   # Tests del proyecto
 │   ├── backend/            # Tests Python
 │   ├── frontend/           # Tests Next.js/React
@@ -92,6 +91,10 @@ cd projecto-ia-aplicada
 
 #### 2. Configurar Variables de Entorno
 
+**⚠️ IMPORTANTE: Configuración Unificada**
+
+El proyecto ahora usa un **ÚNICO archivo `.env`** en la raíz para toda la configuración (backend, frontend, Docker, APIs externas, etc.). Ya no se necesitan archivos `.env` separados en `backend/` o `frontend/`.
+
 ```bash
 # Copiar el template de configuración
 cp .env.example .env
@@ -104,24 +107,52 @@ cp .env.example .env
 **Variables importantes a configurar:**
 
 ```env
-# Cambiar contraseñas
+# ==================== Seguridad ====================
+# CAMBIAR ESTAS CONTRASEÑAS EN PRODUCCIÓN
 POSTGRES_PASSWORD=tu_password_seguro
-SECRET_KEY=tu_clave_secreta_muy_larga_y_segura
+SECRET_KEY=tu_clave_secreta_muy_larga_y_segura_min_32_chars
+JWT_SECRET_KEY=tu_jwt_secret_key_diferente
 REDIS_PASSWORD=tu_redis_password
 
-# Configurar puertos si están ocupados
-FRONTEND_PORT=80
+# ==================== Puertos ====================
+# Ajustar si están ocupados en tu sistema
+FRONTEND_PORT=4200
 BACKEND_PORT=8000
 POSTGRES_PORT=5432
+ADMINER_PORT=8080
 
-# Configurar rutas de volúmenes
+# ==================== APIs de IA ====================
+# Obtener en: https://my.plantnet.org/
+PLANTNET_API_KEY=tu_plantnet_api_key
+
+# Obtener en: https://makersuite.google.com/app/apikey
+GEMINI_API_KEY=tu_gemini_api_key
+
+# Opcional - Otras APIs de IA
+CLAUDE_API_KEY=tu_claude_api_key
+AZURE_OPENAI_API_KEY=tu_azure_openai_key
+
+# ==================== Azure Storage ====================
+# Para producción: usar credenciales reales de Azure
+AZURE_STORAGE_CONNECTION_STRING=tu_connection_string
+AZURE_STORAGE_CONTAINER_NAME=plantitas-imagenes
+
+# Para desarrollo: usar emulador Azurite
+AZURE_STORAGE_USE_EMULATOR=true
+
+# ==================== Rutas de Volúmenes ====================
 POSTGRES_DATA_PATH=./data/postgres
 BACKEND_CODE_PATH=./backend
 FRONTEND_CODE_PATH=./frontend
-
-# API Key de Claude (opcional)
-CLAUDE_API_KEY=tu_api_key_de_claude
+AZURITE_DATA_PATH=./data/azurite
 ```
+
+**📌 Notas sobre el archivo `.env`:**
+- ✅ Un solo archivo `.env` en la raíz del proyecto
+- ✅ Backend y frontend leen del mismo archivo
+- ✅ Docker Compose también usa el mismo archivo
+- ✅ El archivo está en `.gitignore` - nunca se sube a Git
+- ✅ Usa `.env.example` como referencia completa
 
 #### 3. Configuración Inicial
 
@@ -247,16 +278,17 @@ npm test
 
 #### Variables de Entorno
 
-El frontend requiere estas variables en `.env.local`:
+**⚠️ NOTA: El frontend ahora usa el archivo `.env` unificado en la raíz del proyecto.**
+
+Ya no es necesario crear un archivo `.env.local` en el directorio `frontend/`. Todas las variables se configuran en el archivo `.env` de la raíz:
 
 ```env
-# URL del backend (cambiar según entorno)
+# Estas variables se leen del archivo .env en la raíz del proyecto
 NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# Otras variables públicas (opcionales)
-NEXT_PUBLIC_APP_NAME=Asistente Plantitas
-NEXT_PUBLIC_APP_VERSION=1.0.0
+INTERNAL_API_URL=http://backend:8000  # Para llamadas server-side dentro de Docker
 ```
+
+Para desarrollo local fuera de Docker, solo necesitas ajustar `NEXT_PUBLIC_API_URL` en el archivo `.env` de la raíz.
 
 #### Agregar Componentes shadcn/ui
 
@@ -412,12 +444,16 @@ manage.bat dev
 
 #### Variables de Entorno
 
+**⚠️ Configurar en el archivo `.env` de la raíz del proyecto:**
+
 ```env
 # Azure Storage (Azurite para desarrollo)
-AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;..."
-AZURE_STORAGE_CONTAINER_NAME="plantitas-imagenes"
-AZURE_STORAGE_USE_EMULATOR="true"
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+AZURE_STORAGE_CONTAINER_NAME=plantitas-imagenes
+AZURE_STORAGE_USE_EMULATOR=true
 ```
+
+Estas variables ya están pre-configuradas en `.env.example`. Para producción, cambia a las credenciales reales de Azure Storage y establece `AZURE_STORAGE_USE_EMULATOR=false`.
 
 #### Probar Conectividad
 
@@ -576,9 +612,13 @@ npm run build
 # Verificar logs del contenedor
 manage.bat logs frontend
 
-# Verificar variables de entorno
-cat .env.local  # Linux/Mac
-type .env.local # Windows
+# Verificar variables de entorno en la raíz del proyecto
+cat .env  # Linux/Mac
+type .env # Windows
+
+# Verificar que NEXT_PUBLIC_API_URL esté correctamente configurado
+grep NEXT_PUBLIC_API_URL .env  # Linux/Mac
+findstr NEXT_PUBLIC_API_URL .env  # Windows
 ```
 
 ### Comandos de Diagnóstico
@@ -724,7 +764,7 @@ Este script verificará:
 - ✅ Puertos 4200, 8000, 5432, 8080 disponibles
 - ✅ Permisos de escritura en directorios
 - ✅ Espacio en disco suficiente (mínimo 2GB)
-- ✅ Archivo .env configurado
+- ✅ Archivo .env unificado configurado en la raíz del proyecto
 
 #### 2. Ejecutar Setup
 

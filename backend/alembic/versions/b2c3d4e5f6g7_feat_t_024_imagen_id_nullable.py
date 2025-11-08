@@ -28,15 +28,17 @@ def upgrade() -> None:
     
     Modifica:
     - Campo imagen_id en tabla identificaciones para permitir NULL
+    
+    Usa batch mode para compatibilidad con SQLite.
     """
-    # Modificar columna imagen_id para ser nullable
-    op.alter_column(
-        'identificaciones',
-        'imagen_id',
-        existing_type=sa.Integer(),
-        nullable=True,
-        comment="ID de la imagen (NULL para identificaciones con múltiples imágenes)"
-    )
+    # Modificar columna imagen_id para ser nullable usando batch mode
+    with op.batch_alter_table('identificaciones', schema=None) as batch_op:
+        batch_op.alter_column(
+            'imagen_id',
+            existing_type=sa.Integer(),
+            nullable=True,
+            comment="ID de la imagen (NULL para identificaciones con múltiples imágenes)"
+        )
     
     print("✅ Migración T-024 aplicada exitosamente")
     print("   - Campo 'imagen_id' en tabla identificaciones ahora es nullable")
@@ -47,15 +49,16 @@ def downgrade() -> None:
     Revierte los cambios de la migración.
     
     ADVERTENCIA: Esto fallará si existen identificaciones con imagen_id NULL.
+    Usa batch mode para compatibilidad con SQLite.
     """
-    # Revertir columna imagen_id a NOT NULL
-    op.alter_column(
-        'identificaciones',
-        'imagen_id',
-        existing_type=sa.Integer(),
-        nullable=False,
-        comment="ID de la imagen"
-    )
+    # Revertir columna imagen_id a NOT NULL usando batch mode
+    with op.batch_alter_table('identificaciones', schema=None) as batch_op:
+        batch_op.alter_column(
+            'imagen_id',
+            existing_type=sa.Integer(),
+            nullable=False,
+            comment="ID de la imagen"
+        )
     
     print("⚠️  Migración T-024 revertida")
     print("   - Campo 'imagen_id' en tabla identificaciones ya no es nullable")

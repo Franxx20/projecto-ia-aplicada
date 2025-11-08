@@ -1,7 +1,7 @@
 """feat: agregar es_favorita y es_regalo a plantas
 
 Revision ID: c4d5e6f7g8h9
-Revises: b2c3d4e5f6g7
+Revises: 5ec4e34950c1
 Create Date: 2025-11-07 12:00:00.000000
 
 """

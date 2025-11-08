@@ -51,6 +51,22 @@ from .identificacion import (
     EstadisticasOrganResponse
 )
 
+from .salud_planta import (
+    EstadoSaludDetallado,
+    TipoProblema,
+    SeveridadProblema,
+    PrioridadRecomendacion,
+    ProblemaDetectado,
+    RecomendacionItem,
+    VerificarSaludRequest,
+    SaludAnalisisMetadata,
+    SaludAnalisisResponse,
+    HistorialSaludItem,
+    HistorialSaludResponse,
+    EstadisticasSaludPlanta,
+    AnalisisRapidoRequest
+)
+
 __all__ = [
     # Auth schemas
     "UserRegisterRequest",
@@ -83,4 +99,18 @@ __all__ = [
     "ImagenIdentificacionResponse",
     "IdentificacionResponse",
     "EstadisticasOrganResponse",
+    # Salud de plantas schemas (Health Check Feature)
+    "EstadoSaludDetallado",
+    "TipoProblema",
+    "SeveridadProblema",
+    "PrioridadRecomendacion",
+    "ProblemaDetectado",
+    "RecomendacionItem",
+    "VerificarSaludRequest",
+    "SaludAnalisisMetadata",
+    "SaludAnalisisResponse",
+    "HistorialSaludItem",
+    "HistorialSaludResponse",
+    "EstadisticasSaludPlanta",
+    "AnalisisRapidoRequest",
 ]

@@ -1228,3 +1228,326 @@ class Identificacion(Base):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+
+# ==================== MODELO ANÁLISIS DE SALUD ====================
+
+class AnalisisSalud(Base):
+    """
+    Modelo para almacenar análisis de salud de plantas con Gemini AI.
+    
+    Este modelo registra cada análisis de salud realizado sobre una planta,
+    incluyendo el diagnóstico, problemas detectados, recomendaciones y metadatos
+    del análisis con IA.
+    
+    Attributes:
+        id (int): Identificador único del análisis
+        planta_id (int): ID de la planta analizada (Foreign Key a plantas)
+        usuario_id (int): ID del usuario que solicitó el análisis (Foreign Key a usuarios)
+        imagen_id (int): ID de la imagen analizada (Foreign Key a imagenes, opcional)
+        estado_salud (str): Estado determinado: excelente, saludable, necesita_atencion, enfermedad, plaga, critica
+        confianza (float): Nivel de confianza del diagnóstico (0.0-100.0)
+        resumen_diagnostico (str): Resumen del diagnóstico en lenguaje natural
+        diagnostico_detallado (str): Diagnóstico técnico detallado (opcional)
+        problemas_detectados (str): JSON con lista de problemas detectados
+        recomendaciones (str): JSON con lista de recomendaciones
+        modelo_ia_usado (str): Modelo de IA usado (ej: gemini-2.5-flash)
+        tiempo_analisis_ms (int): Tiempo de análisis en milisegundos
+        version_prompt (str): Versión del prompt usado
+        con_imagen (bool): Si el análisis incluyó imagen
+        fecha_analisis (datetime): Fecha y hora del análisis
+        created_at (datetime): Fecha de creación del registro
+        updated_at (datetime): Fecha de última actualización
+        
+    Relations:
+        planta: Relación many-to-one con el modelo Planta
+        usuario: Relación many-to-one con el modelo Usuario
+        imagen: Relación many-to-one con el modelo Imagen (opcional)
+    """
+    
+    __tablename__ = "analisis_salud"
+    
+    # Campos del modelo
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único del análisis"
+    )
+    
+    planta_id = Column(
+        Integer,
+        ForeignKey("plantas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID de la planta analizada"
+    )
+    
+    usuario_id = Column(
+        Integer,
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID del usuario que solicitó el análisis"
+    )
+    
+    imagen_id = Column(
+        Integer,
+        ForeignKey("imagenes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID de la imagen analizada (opcional)"
+    )
+    
+    estado_salud = Column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Estado: excelente, saludable, necesita_atencion, enfermedad, plaga, critica"
+    )
+    
+    confianza = Column(
+        Integer,
+        nullable=False,
+        comment="Nivel de confianza del diagnóstico (0-100)"
+    )
+    
+    resumen_diagnostico = Column(
+        Text,
+        nullable=False,
+        comment="Resumen del diagnóstico en lenguaje natural"
+    )
+    
+    diagnostico_detallado = Column(
+        Text,
+        nullable=True,
+        comment="Diagnóstico técnico detallado (opcional)"
+    )
+    
+    problemas_detectados = Column(
+        Text,
+        nullable=False,
+        default='[]',
+        comment="JSON con lista de problemas detectados"
+    )
+    
+    recomendaciones = Column(
+        Text,
+        nullable=False,
+        default='[]',
+        comment="JSON con lista de recomendaciones"
+    )
+    
+    modelo_ia_usado = Column(
+        String(100),
+        nullable=False,
+        comment="Modelo de IA usado (ej: gemini-2.5-flash, gemini-2.5-pro)"
+    )
+    
+    tiempo_analisis_ms = Column(
+        Integer,
+        nullable=False,
+        comment="Tiempo de análisis en milisegundos"
+    )
+    
+    version_prompt = Column(
+        String(20),
+        nullable=False,
+        default='v1',
+        comment="Versión del prompt usado"
+    )
+    
+    con_imagen = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Indica si el análisis incluyó imagen"
+    )
+    
+    fecha_analisis = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        index=True,
+        comment="Fecha y hora del análisis"
+    )
+    
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de creación del registro"
+    )
+    
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de última actualización"
+    )
+    
+    # Relaciones
+    planta = relationship("Planta", backref="analisis_salud")
+    usuario = relationship("Usuario", backref="analisis_salud")
+    imagen = relationship("Imagen", backref="analisis_salud")
+    
+    # Índices compuestos para optimización de queries
+    __table_args__ = (
+        Index('idx_analisis_planta_fecha', 'planta_id', 'fecha_analisis'),
+        Index('idx_analisis_usuario_fecha', 'usuario_id', 'fecha_analisis'),
+        Index('idx_analisis_estado', 'estado_salud'),
+        Index('idx_analisis_planta_estado', 'planta_id', 'estado_salud'),
+    )
+    
+    @property
+    def confianza_porcentaje(self) -> str:
+        """Retorna la confianza como string con formato de porcentaje."""
+        return f"{self.confianza}%"
+    
+    @property
+    def es_confiable(self) -> bool:
+        """Retorna True si la confianza es >= 70%."""
+        return self.confianza >= 70
+    
+    @property
+    def requiere_atencion(self) -> bool:
+        """Retorna True si el estado requiere atención del usuario."""
+        estados_que_requieren_atencion = [
+            'necesita_atencion', 
+            'enfermedad', 
+            'plaga', 
+            'critica'
+        ]
+        return self.estado_salud in estados_que_requieren_atencion
+    
+    @property
+    def es_critico(self) -> bool:
+        """Retorna True si el estado es crítico."""
+        return self.estado_salud in ['critica', 'enfermedad', 'plaga']
+    
+    def get_problemas_list(self) -> list:
+        """
+        Obtiene la lista de problemas detectados parseando el JSON.
+        
+        Returns:
+            list: Lista de diccionarios con problemas detectados
+        """
+        if not self.problemas_detectados or self.problemas_detectados == '[]':
+            return []
+        
+        try:
+            import json
+            return json.loads(self.problemas_detectados)
+        except:
+            return []
+    
+    def get_recomendaciones_list(self) -> list:
+        """
+        Obtiene la lista de recomendaciones parseando el JSON.
+        
+        Returns:
+            list: Lista de diccionarios con recomendaciones
+        """
+        if not self.recomendaciones or self.recomendaciones == '[]':
+            return []
+        
+        try:
+            import json
+            return json.loads(self.recomendaciones)
+        except:
+            return []
+    
+    def set_problemas(self, problemas: list) -> None:
+        """
+        Establece la lista de problemas serializándola a JSON.
+        
+        Args:
+            problemas (list): Lista de diccionarios con problemas
+        """
+        import json
+        self.problemas_detectados = json.dumps(problemas, ensure_ascii=False)
+        self.updated_at = datetime.utcnow()
+    
+    def set_recomendaciones(self, recomendaciones: list) -> None:
+        """
+        Establece la lista de recomendaciones serializándola a JSON.
+        
+        Args:
+            recomendaciones (list): Lista de diccionarios con recomendaciones
+        """
+        import json
+        self.recomendaciones = json.dumps(recomendaciones, ensure_ascii=False)
+        self.updated_at = datetime.utcnow()
+    
+    def __repr__(self) -> str:
+        """
+        Representación en string del modelo AnalisisSalud.
+        
+        Returns:
+            str: Representación legible del análisis
+        """
+        return (
+            f"<AnalisisSalud(id={self.id}, planta_id={self.planta_id}, "
+            f"estado='{self.estado_salud}', confianza={self.confianza}%)>"
+        )
+    
+    def __str__(self) -> str:
+        """
+        Representación en string para display.
+        
+        Returns:
+            str: Descripción del análisis
+        """
+        return f"Análisis #{self.id} - {self.estado_salud} ({self.confianza}%)"
+    
+    def to_dict(self, include_relations: bool = False) -> dict:
+        """
+        Convierte el modelo a diccionario.
+        
+        Args:
+            include_relations (bool): Si True, incluye datos de relaciones
+            
+        Returns:
+            dict: Diccionario con los datos del análisis
+        """
+        data = {
+            'id': self.id,
+            'planta_id': self.planta_id,
+            'usuario_id': self.usuario_id,
+            'imagen_id': self.imagen_id,
+            'estado_salud': self.estado_salud,
+            'confianza': self.confianza,
+            'confianza_porcentaje': self.confianza_porcentaje,
+            'es_confiable': self.es_confiable,
+            'requiere_atencion': self.requiere_atencion,
+            'es_critico': self.es_critico,
+            'resumen_diagnostico': self.resumen_diagnostico,
+            'diagnostico_detallado': self.diagnostico_detallado,
+            'problemas_detectados': self.get_problemas_list(),
+            'recomendaciones': self.get_recomendaciones_list(),
+            'modelo_ia_usado': self.modelo_ia_usado,
+            'tiempo_analisis_ms': self.tiempo_analisis_ms,
+            'version_prompt': self.version_prompt,
+            'con_imagen': self.con_imagen,
+            'fecha_analisis': self.fecha_analisis.isoformat() if self.fecha_analisis else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+        
+        if include_relations:
+            if self.planta:
+                data['planta'] = {
+                    'id': self.planta.id,
+                    'nombre_personal': self.planta.nombre_personal,
+                    'especie_id': self.planta.especie_id
+                }
+            
+            if self.imagen:
+                data['imagen'] = {
+                    'id': self.imagen.id,
+                    'url_blob': self.imagen.url_blob,
+                    'nombre_archivo': self.imagen.nombre_archivo
+                }
+        
+        return data

@@ -1,0 +1,69 @@
+version: '3.8'
+
+# Docker Compose para TESTING con PostgreSQL
+# Este archivo crea un ambiente aislado para ejecutar tests
+
+services:
+  # PostgreSQL para tests
+  db_test:
+    image: postgres:15-alpine
+    container_name: plantitas_test_db
+    environment:
+      POSTGRES_DB: plantitas_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"  # Puerto diferente para no conflictuar con BD de desarrollo
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d plantitas_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data  # Usar RAM para tests más rápidos
+
+  # Backend para tests
+  backend_test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: plantitas_test_backend
+    environment:
+      # Base de datos de test
+      DATABASE_URL: postgresql://test_user:test_password@db_test:5432/plantitas_test
+      
+      # Configuración de test
+      ENVIRONMENT: testing
+      DEBUG: false
+      
+      # Desactivar servicios externos en tests
+      AZURE_STORAGE_USE_EMULATOR: true
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-test_key}
+      PLANTNET_API_KEY: ${PLANTNET_API_KEY:-test_key}
+      
+      # JWT para tests
+      SECRET_KEY: test_secret_key_for_testing_only
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      
+      # Timeouts
+      DB_CONNECTION_TIMEOUT: 30
+      DB_POOL_PRE_PING: "true"
+      
+    volumes:
+      - ./backend:/app
+      - ./backend/tests:/app/tests
+    depends_on:
+      db_test:
+        condition: service_healthy
+    networks:
+      - test-network
+    command: ["python", "-m", "pytest", "--version"]  # Comando por defecto
+
+networks:
+  test-network:
+    driver: bridge
+    name: plantitas_test_network

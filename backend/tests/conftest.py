@@ -4,11 +4,15 @@ Configuración de fixtures compartidos para todos los tests
 Este archivo define fixtures de pytest que son compartidos por todos los módulos de test.
 Los fixtures incluyen configuración de base de datos, sesiones, clientes HTTP, y datos de prueba.
 
+IMPORTANTE: Los tests deben ejecutarse en Docker con PostgreSQL para paridad con producción.
+Usar: python -m pytest (en Docker) o ./tests/docker_test_runner.ps1
+
 @author Equipo Backend
 @date Enero 2026
 """
 
 import pytest
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
@@ -23,17 +27,44 @@ from app.db.session import get_db
 @pytest.fixture(scope="function")
 def engine():
     """
-    Crea un engine SQLAlchemy con base de datos SQLite en memoria.
+    Crea un engine SQLAlchemy con base de datos PostgreSQL.
+    
+    CAMBIO IMPORTANTE: Ahora usa PostgreSQL en lugar de SQLite para paridad con producción.
+    La URL se obtiene de la variable de entorno DATABASE_URL (configurada en docker-compose.test.yml)
     
     Scope: function - Se crea un nuevo engine para cada test
     
     Yields:
-        Engine: SQLAlchemy engine configurado con SQLite en memoria
+        Engine: SQLAlchemy engine configurado con PostgreSQL
     """
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    from sqlalchemy import text
+    
+    # Obtener URL de base de datos (PostgreSQL en Docker)
+    database_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql://test_user:test_password@localhost:5433/plantitas_test"
+    )
+    
+    engine = create_engine(database_url, echo=False)
     Base.metadata.create_all(engine)
     yield engine
-    Base.metadata.drop_all(engine)
+    
+    # Limpieza manual para evitar dependencia circular
+    with engine.begin() as conn:
+        # Desactivar temporalmente las FKs para limpiar
+        conn.execute(text("SET session_replication_role = 'replica';"))
+        
+        # Truncar tablas en orden inverso
+        conn.execute(text("TRUNCATE TABLE analisis_salud CASCADE;"))
+        conn.execute(text("TRUNCATE TABLE plantas CASCADE;"))
+        conn.execute(text("TRUNCATE TABLE identificaciones CASCADE;"))
+        conn.execute(text("TRUNCATE TABLE imagenes CASCADE;"))
+        conn.execute(text("TRUNCATE TABLE especies CASCADE;"))
+        conn.execute(text("TRUNCATE TABLE usuarios CASCADE;"))
+        
+        # Reactivar FKs
+        conn.execute(text("SET session_replication_role = 'origin';"))
+    
     engine.dispose()
 
 
@@ -135,6 +166,46 @@ def client_with_db(db):
             pass
     
     app.dependency_overrides[get_db] = override_get_db
+    
+    with TestClient(app) as test_client:
+        yield test_client
+    
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_with_auth(db, usuario_test):
+    """
+    Cliente de prueba con autenticación y base de datos configuradas.
+    
+    Sobrescribe tanto get_db como get_current_user para tests que requieren
+    un usuario autenticado.
+    
+    Args:
+        db: Sesión de base de datos (fixture)
+        usuario_test: Usuario autenticado (fixture)
+        
+    Returns:
+        TestClient: Cliente configurado con BD y autenticación
+        
+    Example:
+        def test_protected(client_with_auth):
+            response = client_with_auth.get("/api/plantas")
+            assert response.status_code == 200
+    """
+    from app.utils.jwt import get_current_user
+    
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    
+    async def override_get_current_user():
+        return usuario_test
+    
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
     
     with TestClient(app) as test_client:
         yield test_client
@@ -251,3 +322,137 @@ def pytest_collection_modifyitems(config, items):
         # Agregar marker 'unit' a todos los tests que no tienen otros markers
         if not any(item.iter_markers()):
             item.add_marker(pytest.mark.unit)
+
+
+# ==================== Data Fixtures para Health Endpoints ====================
+
+@pytest.fixture
+def usuario_test(db):
+    """
+    Crea un usuario de prueba para health endpoints.
+    
+    Genera email único con timestamp+UUID para evitar duplicados.
+    """
+    import uuid
+    from datetime import datetime
+    from app.db.models import Usuario
+    
+    email_unico = f"test_salud_{datetime.utcnow().timestamp()}_{uuid.uuid4().hex[:8]}@example.com"
+    
+    usuario = Usuario(
+        email=email_unico,
+        nombre="Usuario Test Salud",
+        password_hash="$2b$12$test_hash"
+    )
+    db.add(usuario)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
+@pytest.fixture
+def especie_test(db):
+    """Crea una especie de prueba."""
+    from app.db.models import Especie
+    
+    # Query-or-create pattern
+    especie = db.query(Especie).filter(
+        Especie.nombre_cientifico == "Epipremnum aureum"
+    ).first()
+    
+    if not especie:
+        especie = Especie(
+            nombre_cientifico="Epipremnum aureum",
+            nombre_comun="Potus",
+            familia="Araceae"
+        )
+        db.add(especie)
+        db.commit()
+        db.refresh(especie)
+    
+    return especie
+
+
+@pytest.fixture
+def planta_test(db, usuario_test, especie_test):
+    """Crea una planta de prueba."""
+    from app.db.models import Planta
+    
+    planta = Planta(
+        usuario_id=usuario_test.id,
+        especie_id=especie_test.id,
+        nombre_personal="Potus de Prueba",
+        ubicacion="Sala",
+        luz_actual="indirecta",
+        frecuencia_riego_dias=3,
+        notas="Planta para tests"
+    )
+    db.add(planta)
+    db.commit()
+    db.refresh(planta)
+    return planta
+
+
+@pytest.fixture
+def imagen_test(db, usuario_test):
+    """Crea una imagen de prueba."""
+    from app.db.models import Imagen
+    
+    imagen = Imagen(
+        usuario_id=usuario_test.id,
+        nombre_archivo="test_planta.jpg",
+        nombre_blob="images/test_planta.jpg",
+        url_blob="https://test.blob.core.windows.net/images/test_planta.jpg",
+        content_type="image/jpeg",
+        tamano_bytes=1024000,
+        container_name="plantitas-imagenes"
+    )
+    db.add(imagen)
+    db.commit()
+    db.refresh(imagen)
+    return imagen
+
+
+@pytest.fixture
+def analisis_salud_test(db, usuario_test, planta_test, imagen_test):
+    """
+    Crea un análisis de salud de prueba.
+    
+    IMPORTANTE: problemas_detectados y recomendaciones deben ser strings JSON.
+    """
+    import json
+    from app.db.models import AnalisisSalud
+    
+    analisis = AnalisisSalud(
+        planta_id=planta_test.id,
+        usuario_id=usuario_test.id,
+        imagen_id=imagen_test.id,
+        estado_salud="saludable",
+        confianza=85.5,
+        resumen_diagnostico="Planta en buen estado",
+        diagnostico_detallado="Análisis detallado...",
+        problemas_detectados=json.dumps([
+            {
+                "nombre": "Test problema",
+                "descripcion": "Descripción test",
+                "severidad": "baja",
+                "confianza": 60.0
+            }
+        ]),
+        recomendaciones=json.dumps([
+            {
+                "titulo": "Test recomendación",
+                "descripcion": "Descripción test",
+                "prioridad": "media",
+                "implementacion": "corto_plazo"
+            }
+        ]),
+        con_imagen=True,
+        modelo_ia_usado="gemini-1.5-pro",
+        tiempo_analisis_ms=1500,
+        version_prompt="v1.0"
+    )
+    db.add(analisis)
+    db.commit()
+    db.refresh(analisis)
+    return analisis

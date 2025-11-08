@@ -99,6 +99,9 @@ class AuthService {
     if (typeof window !== 'undefined') {
       localStorage.setItem('access_token', tokenData.access_token)
       localStorage.setItem('user', JSON.stringify(tokenData.user))
+      
+      // También guardar en cookies para que el middleware pueda acceder
+      document.cookie = `access_token=${tokenData.access_token}; path=/; max-age=${30 * 60}; SameSite=Lax`
     }
 
     return tokenData
@@ -129,6 +132,9 @@ class AuthService {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
+      
+      // También limpiar la cookie
+      document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     }
   }
 
@@ -158,9 +164,10 @@ class AuthService {
 
     const data = await response.json()
     
-    // Actualizar token en localStorage
+    // Actualizar token en localStorage y cookie
     if (typeof window !== 'undefined') {
       localStorage.setItem('access_token', data.access_token)
+      document.cookie = `access_token=${data.access_token}; path=/; max-age=${30 * 60}; SameSite=Lax`
     }
 
     return data.access_token

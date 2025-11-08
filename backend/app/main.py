@@ -17,14 +17,16 @@ Date: Octubre 2025
 Version: 0.1.0 (Sprint 1 - T-001)
 """
 
-from fastapi import FastAPI, status, Depends
+from fastapi import FastAPI, status, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import datetime
 import os
 import sys
+import json
+import re
 
 # Importar configuración
 from .core.config import obtener_configuracion
@@ -59,6 +61,55 @@ def crear_aplicacion() -> FastAPI:
         redoc_url="/redoc" if configuracion.debug else None,
         openapi_url="/openapi.json" if configuracion.debug else None,
     )
+    
+    # ==================== Middleware de Azurite URL Replacement ====================
+    @aplicacion.middleware("http")
+    async def reemplazar_urls_azurite(request: Request, call_next):
+        """
+        Middleware que reemplaza las URLs de Azurite en las respuestas JSON.
+        
+        Esto soluciona el problema de que Azurite dentro de Docker usa 'azurite:10000'
+        pero el navegador necesita acceder a 'localhost:10000'.
+        """
+        response = await call_next(request)
+        
+        # Solo procesar respuestas JSON
+        if response.headers.get("content-type", "").startswith("application/json"):
+            # Leer el contenido de la respuesta
+            body = b""
+            async for chunk in response.body_iterator:
+                body += chunk
+            
+            try:
+                # Decodificar JSON
+                content = body.decode("utf-8")
+                
+                # Reemplazar URLs de Azurite si estamos usando el emulador
+                if configuracion.azure_storage_use_emulator:
+                    # Reemplazar todas las variaciones posibles
+                    content = content.replace('http://azurite:10000', 'http://localhost:10000')
+                    content = content.replace('http://127.0.0.1:10000', 'http://localhost:10000')
+                    content = content.replace('https://azurite:10000', 'http://localhost:10000')
+                    content = content.replace('https://127.0.0.1:10000', 'http://localhost:10000')
+                
+                # Crear nueva respuesta con el contenido modificado
+                return Response(
+                    content=content,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.media_type
+                )
+            except Exception as e:
+                # Si hay error, devolver respuesta original
+                print(f"⚠️  Error al reemplazar URLs: {e}")
+                return Response(
+                    content=body,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.media_type
+                )
+        
+        return response
     
     # ==================== Configurar CORS ====================
     aplicacion.add_middleware(

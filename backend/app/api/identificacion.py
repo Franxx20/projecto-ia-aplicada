@@ -6,6 +6,7 @@ y gestionar identificaciones validadas por el usuario.
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -420,7 +421,7 @@ async def identificar_multiples_imagenes(
             guardar_resultado=guardar_resultado
         )
         
-        return resultado
+        return JSONResponse(content=resultado, status_code=status.HTTP_201_CREATED)
         
     except HTTPException:
         raise

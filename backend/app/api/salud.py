@@ -14,9 +14,13 @@ Task: T-078
 
 from datetime import datetime, timedelta
 from typing import List, Optional
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, func
+
+# Configurar logger
+logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.schemas.salud_planta import (
@@ -96,7 +100,7 @@ async def crear_analisis_salud(
         
         # 2. Obtener imagen si se proporcionó imagen_id
         imagen = None
-        imagen_base64 = None
+        imagen_bytes = None
         
         if solicitud.imagen_id:
             imagen = db.query(Imagen).filter(
@@ -112,9 +116,18 @@ async def crear_analisis_salud(
                     detail=f"Imagen con ID {solicitud.imagen_id} no encontrada o no pertenece al usuario"
                 )
             
-            # TODO: Cargar imagen desde Azure Blob Storage y convertir a bytes
-            # Por ahora dejamos None para análisis solo por texto
-            imagen_bytes = None
+            # Descargar imagen desde Azure Blob Storage
+            try:
+                from app.services.imagen_service import AzureBlobService
+                azure_service = AzureBlobService()
+                imagen_bytes = azure_service.descargar_blob(imagen.nombre_blob)
+                logger.info(f"✅ Imagen descargada desde Azure Blob Storage: {len(imagen_bytes)} bytes")
+            except Exception as e:
+                logger.error(f"❌ Error al descargar imagen desde Azure: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error al cargar la imagen para análisis: {str(e)}"
+                )
         else:
             imagen_bytes = None
         

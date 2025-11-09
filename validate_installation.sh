@@ -69,7 +69,7 @@ fi
 # Verificar base de datos
 echo ""
 echo "3. Verificando base de datos..."
-DB_CHECK=$(docker-compose exec -T db psql -U postgres -d asistente_plantitas -c "SELECT 1" 2>/dev/null)
+DB_CHECK=$(docker-compose exec -T db psql -U postgres -d proyecto_ia_db -c "SELECT 1" 2>/dev/null)
 if echo "$DB_CHECK" | grep -q "1 row"; then
     echo -e "${GREEN}✅ Base de datos accesible${NC}"
 else

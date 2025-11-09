@@ -244,51 +244,146 @@ class SaludAnalisisResponse(BaseModel):
         description="ID del usuario que solicitó el análisis",
         ge=1
     )
+    imagen_id: Optional[int] = Field(
+        None,
+        description="ID de la imagen analizada",
+        ge=1
+    )
     estado: EstadoSaludDetallado = Field(
         ...,
         description="Estado de salud determinado por el análisis",
         examples=["excelente", "necesita_atencion", "enfermedad"]
     )
-    confianza: float = Field(
+    confianza: int = Field(
         ...,
-        ge=0.0,
-        le=100.0,
-        description="Nivel de confianza del diagnóstico (0-100%)",
-        examples=[85.5, 92.0]
+        ge=0,
+        le=100,
+        description="Nivel de confianza del diagnóstico (0-100)",
+        examples=[85, 92]
     )
-    resumen: str = Field(
+    resumen_diagnostico: str = Field(
         ...,
         min_length=1,
         max_length=2000,
         description="Resumen del diagnóstico en lenguaje natural",
         examples=["La planta presenta un estado saludable con crecimiento vigoroso..."]
     )
-    problemas_detectados: List[ProblemaDetectado] = Field(
-        default_factory=list,
-        description="Lista de problemas detectados (vacía si no hay problemas)"
-    )
-    recomendaciones: List[RecomendacionItem] = Field(
-        default_factory=list,
-        description="Lista de recomendaciones para mejorar la salud"
-    )
     diagnostico_detallado: Optional[str] = Field(
         None,
         max_length=3000,
         description="Diagnóstico técnico detallado (opcional)"
     )
-    imagen_analizada_url: Optional[str] = Field(
-        None,
-        description="URL de la imagen usada en el análisis"
+    problemas_detectados: List[dict] = Field(
+        default_factory=list,
+        description="Lista de problemas detectados (vacía si no hay problemas)"
     )
-    metadata: SaludAnalisisMetadata = Field(
+    recomendaciones: List[dict] = Field(
+        default_factory=list,
+        description="Lista de recomendaciones para mejorar la salud"
+    )
+    modelo_ia_usado: str = Field(
         ...,
-        description="Metadatos del análisis"
+        description="Modelo de IA usado para el análisis"
+    )
+    tiempo_analisis_ms: int = Field(
+        ...,
+        ge=0,
+        description="Tiempo de análisis en milisegundos"
+    )
+    version_prompt: str = Field(
+        ...,
+        description="Versión del prompt usado"
+    )
+    con_imagen: bool = Field(
+        ...,
+        description="Indica si el análisis incluyó imagen"
+    )
+    notas_usuario: Optional[str] = Field(
+        None,
+        description="Notas adicionales del usuario"
+    )
+    fecha_analisis: datetime = Field(
+        ...,
+        description="Fecha y hora del análisis"
+    )
+    created_at: datetime = Field(
+        ...,
+        description="Fecha de creación del registro"
+    )
+    updated_at: datetime = Field(
+        ...,
+        description="Fecha de última actualización"
     )
     
     class Config:
         """Configuración del schema."""
         from_attributes = True
-        use_enum_values = True
+
+
+# Alias para compatibilidad
+AnalisisSaludResponse = SaludAnalisisResponse
+
+
+class DetalleAnalisisSaludResponse(SaludAnalisisResponse):
+    """
+    Schema extendido para respuesta con detalles adicionales.
+    
+    Incluye toda la información de SaludAnalisisResponse más:
+    - Información de tendencia
+    - Indicador si es crítico
+    - Color del estado para UI
+    - Información de planta asociada
+    """
+    tendencia: Optional[str] = Field(
+        None,
+        description="Tendencia de salud (mejorando/estable/empeorando)"
+    )
+    es_critico: Optional[bool] = Field(
+        None,
+        description="Indica si el estado requiere atención urgente"
+    )
+    color_estado: Optional[str] = Field(
+        None,
+        description="Color hexadecimal para UI según estado"
+    )
+    planta: Optional[dict] = Field(
+        None,
+        description="Información básica de la planta"
+    )
+    imagen_url: Optional[str] = Field(
+        None,
+        description="URL de la imagen analizada"
+    )
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
+
+
+class EstadisticasSaludResponse(BaseModel):
+    """
+    Schema para respuesta de estadísticas de salud.
+    """
+    planta_id: int = Field(..., description="ID de la planta")
+    nombre_planta: str = Field(..., description="Nombre de la planta")
+    periodo_dias: int = Field(..., description="Periodo de días analizado")
+    total_analisis: int = Field(..., ge=0, description="Total de análisis realizados")
+    estado_actual: str = Field(..., description="Estado de salud actual")
+    confianza_actual: int = Field(..., ge=0, le=100, description="Confianza del último análisis")
+    tendencia_general: str = Field(..., description="Tendencia general de salud")
+    confianza_promedio: float = Field(..., ge=0, le=100, description="Confianza promedio")
+    distribucion_estados: dict = Field(..., description="Distribución de estados")
+    problemas_frecuentes: List[dict] = Field(default_factory=list, description="Problemas más frecuentes")
+    ultimo_analisis: Optional[dict] = Field(None, description="Último análisis realizado")
+    requiere_atencion: bool = Field(..., description="Si requiere atención")
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
+
+
+# Alias para compatibilidad con el endpoint
+AnalisisSaludResponse = SaludAnalisisResponse
 
 
 class HistorialSaludItem(BaseModel):
@@ -366,10 +461,20 @@ class HistorialSaludResponse(BaseModel):
         ge=0,
         description="Número total de análisis en la BD"
     )
-    planta_id: int = Field(
-        ...,
+    planta_id: Optional[int] = Field(
+        None,
         ge=1,
-        description="ID de la planta"
+        description="ID de la planta (si se filtró por planta)"
+    )
+    limite: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Límite de resultados por página"
+    )
+    offset: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Desplazamiento para paginación"
     )
     
     class Config:
@@ -421,7 +526,39 @@ class EstadisticasSaludPlanta(BaseModel):
     class Config:
         """Configuración del schema."""
         from_attributes = True
-        use_enum_values = True
+
+
+class SolicitudAnalisisSalud(BaseModel):
+    """
+    Schema para solicitud de análisis de salud de una planta.
+    
+    Este schema se usa en el endpoint POST /api/salud/analisis
+    para crear un nuevo análisis de salud.
+    """
+    planta_id: int = Field(
+        ...,
+        ge=1,
+        description="ID de la planta a analizar"
+    )
+    imagen_id: Optional[int] = Field(
+        None,
+        ge=1,
+        description="ID de la imagen para análisis visual (opcional)"
+    )
+    sintomas_observados: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Síntomas observados por el usuario"
+    )
+    notas_adicionales: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Notas adicionales del usuario"
+    )
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
 
 
 class AnalisisRapidoRequest(BaseModel):

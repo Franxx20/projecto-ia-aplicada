@@ -542,7 +542,7 @@ class IdentificacionService:
             "imagenes": [
                 {
                     "id": img_data["imagen_db"].id,
-                    "url": img_data["url"],
+                    "url": img_data["imagen_db"].url_publica,  # Usar URL pública (transforma azurite:10000 → localhost:10000)
                     "organ": img_data["organ"],
                     "nombre_archivo": img_data["imagen_db"].nombre_archivo
                 }

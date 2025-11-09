@@ -161,6 +161,11 @@ class AzureBlobService:
             # Obtener URL del blob
             url_blob = blob_client.url
             
+            # Para Azurite (emulador local), transformar la URL para que sea accesible desde el navegador
+            # La URL interna de Docker (azurite:10000) no es accesible desde localhost
+            if 'azurite:10000' in url_blob:
+                url_blob = url_blob.replace('azurite:10000', 'localhost:10000')
+            
             return nombre_blob, url_blob
             
         except AzureError as e:
@@ -273,7 +278,13 @@ class AzureBlobService:
             container=self.container_name,
             blob=nombre_blob
         )
-        return blob_client.url
+        url = blob_client.url
+        
+        # Para Azurite (emulador local), transformar la URL para que sea accesible desde el navegador
+        if 'azurite:10000' in url:
+            url = url.replace('azurite:10000', 'localhost:10000')
+        
+        return url
     
     def generar_url_con_sas(self, nombre_blob: str, expiracion_horas: int = 1) -> str:
         """

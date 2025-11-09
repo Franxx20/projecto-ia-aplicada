@@ -378,7 +378,15 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         Raises:
             GeminiInvalidResponseError: Si no se puede parsear el JSON
         """
+        if not texto:
+            logger.error("❌ Texto vacío recibido para parsear")
+            raise GeminiInvalidResponseError("Respuesta vacía de Gemini")
+        
         texto = texto.strip()
+        
+        if not texto:
+            logger.error("❌ Texto solo contiene espacios en blanco")
+            raise GeminiInvalidResponseError("Respuesta de Gemini solo contiene espacios")
         
         # Limpiar markdown si existe
         if "```json" in texto:
@@ -388,13 +396,21 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             partes = texto.split("```")
             if len(partes) >= 2:
                 texto = partes[1].strip()
+                # Si la primera parte después de ``` es un nombre de lenguaje, quitarlo
+                if texto and '\n' in texto:
+                    lineas = texto.split('\n', 1)
+                    if lineas[0].lower() in ['json', 'javascript', 'js']:
+                        texto = lineas[1].strip()
         
         try:
             data = json.loads(texto)
+            logger.info("✅ JSON parseado correctamente")
             return data
         except json.JSONDecodeError as e:
-            logger.error(f"Error parseando JSON: {e}")
-            logger.error(f"Texto recibido: {texto[:500]}...")
+            logger.error(f"❌ Error parseando JSON: {e}")
+            logger.error(f"Posición del error: línea {e.lineno}, columna {e.colno}")
+            logger.error(f"Texto completo recibido ({len(texto)} chars):")
+            logger.error(f"{texto[:1000]}{'...' if len(texto) > 1000 else ''}")
             raise GeminiInvalidResponseError(
                 f"La respuesta de Gemini no es JSON válido: {str(e)}"
             )
@@ -566,7 +582,74 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         
         # Parsear respuesta
         try:
-            texto_respuesta = response.text
+            # Manejar respuestas con múltiples partes
+            texto_respuesta = ""
+            
+            # Verificar si hay candidatos
+            if not hasattr(response, 'candidates') or not response.candidates:
+                logger.error("❌ Respuesta sin candidatos")
+                raise GeminiInvalidResponseError(
+                    "La respuesta de Gemini no contiene candidatos"
+                )
+            
+            candidate = response.candidates[0]
+            
+            # Verificar finish_reason para detectar problemas
+            if hasattr(candidate, 'finish_reason'):
+                finish_reason = str(candidate.finish_reason)
+                logger.info(f"📋 Finish reason: {finish_reason}")
+                
+                if finish_reason == 'MAX_TOKENS':
+                    logger.error("❌ La respuesta se cortó por límite de tokens")
+                    raise GeminiInvalidResponseError(
+                        "La respuesta de Gemini se cortó por alcanzar el límite de tokens. "
+                        f"Actual: {config.gemini_max_output_tokens}. "
+                        "Intenta simplificar el prompt o aumentar max_output_tokens."
+                    )
+                elif finish_reason == 'SAFETY':
+                    logger.error("❌ Respuesta bloqueada por filtros de seguridad")
+                    raise GeminiInvalidResponseError(
+                        "La respuesta fue bloqueada por los filtros de seguridad de Gemini"
+                    )
+                elif finish_reason not in ['STOP', '1']:  # 1 es STOP en algunos casos
+                    logger.warning(f"⚠️ Finish reason inusual: {finish_reason}")
+            
+            # Método 1: Intentar obtener de candidates[0].content.parts
+            try:
+                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    # Combinar todas las partes de texto
+                    partes_texto = [
+                        part.text for part in candidate.content.parts 
+                        if hasattr(part, 'text') and part.text
+                    ]
+                    if partes_texto:
+                        texto_respuesta = ''.join(partes_texto)
+                        logger.info(f"✅ Texto extraído de {len(partes_texto)} parte(s)")
+                    else:
+                        logger.warning("⚠️ Parts array está vacío o sin texto")
+            except Exception as e:
+                logger.warning(f"No se pudo extraer de candidates.content.parts: {e}")
+            
+            # Método 2: Fallback al accessor .text si el método 1 falló
+            if not texto_respuesta:
+                try:
+                    texto_respuesta = response.text
+                    logger.info("✅ Texto extraído usando response.text")
+                except Exception as e:
+                    logger.warning(f"No se pudo usar response.text: {e}")
+            
+            # Verificar que tenemos contenido
+            if not texto_respuesta or not texto_respuesta.strip():
+                logger.error("❌ No se pudo extraer texto de la respuesta de Gemini")
+                logger.error(f"Estructura de respuesta: {type(response)}")
+                logger.error(f"Candidato completo: {candidate}")
+                raise GeminiInvalidResponseError(
+                    "La respuesta de Gemini está vacía o no contiene texto"
+                )
+            
+            logger.info(f"📄 Longitud de respuesta: {len(texto_respuesta)} caracteres")
+            logger.debug(f"Primeros 200 chars: {texto_respuesta[:200]}")
+                
             data = cls._parsear_respuesta_json(texto_respuesta)
             data = cls._validar_respuesta(data)
             
@@ -639,11 +722,35 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
                 "Responde solo 'OK'"
             )
             
-            if "ok" in response.text.lower():
+            # Extraer texto de la respuesta (manejar multi-part)
+            texto_respuesta = ""
+            
+            try:
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                        partes_texto = [
+                            part.text for part in candidate.content.parts 
+                            if hasattr(part, 'text') and part.text
+                        ]
+                        if partes_texto:
+                            texto_respuesta = ''.join(partes_texto)
+            except Exception as e:
+                logger.warning(f"Error extrayendo de candidates: {e}")
+            
+            if not texto_respuesta:
+                try:
+                    texto_respuesta = response.text
+                except Exception as e:
+                    logger.warning(f"Error usando response.text: {e}")
+            
+            if texto_respuesta and "ok" in texto_respuesta.lower():
                 resultado["disponible"] = True
                 logger.info("✅ Servicio Gemini disponible y funcionando")
             else:
-                resultado["errores"].append("Respuesta inesperada del modelo")
+                resultado["errores"].append(
+                    f"Respuesta inesperada: '{texto_respuesta[:100]}'"
+                )
                 
         except Exception as e:
             resultado["errores"].append(f"Error de conectividad: {str(e)}")

@@ -428,6 +428,28 @@ class Imagen(Base):
         Index('idx_imagenes_identificacion', 'identificacion_id'),
     )
     
+    @property
+    def url_publica(self) -> str:
+        """
+        Retorna la URL pública accesible desde el navegador.
+        
+        Para Azurite (desarrollo), transforma la URL interna de Docker
+        a una URL accesible desde localhost.
+        
+        Returns:
+            str: URL pública de la imagen
+        """
+        if not self.url_blob:
+            return ""
+        
+        # Si la URL contiene 'azurite:10000' (Docker interno),
+        # reemplazarla por 'localhost:10000' (accesible desde navegador)
+        if 'azurite:10000' in self.url_blob:
+            return self.url_blob.replace('azurite:10000', 'localhost:10000')
+        
+        # Para Azure Storage real, devolver la URL tal cual
+        return self.url_blob
+    
     def __repr__(self) -> str:
         """
         Representación en string del modelo Imagen.
@@ -464,7 +486,7 @@ class Imagen(Base):
             'usuario_id': self.usuario_id,
             'nombre_archivo': self.nombre_archivo,
             'nombre_blob': self.nombre_blob,
-            'url_blob': self.url_blob,
+            'url_blob': self.url_publica,  # Usar url_publica para transformar URLs de Azurite
             'container_name': self.container_name,
             'content_type': self.content_type,
             'tamano_bytes': self.tamano_bytes,
@@ -1219,10 +1241,22 @@ class Identificacion(Base):
                 'nombres_comunes': nombres_comunes_list
             }
         
+        # Incluir información de la imagen si existe
+        imagen_dict = None
+        if self.imagen:
+            imagen_dict = {
+                'id': self.imagen.id,
+                'nombre': self.imagen.nombre_archivo,
+                'url': self.imagen.url_publica or self.imagen.url_blob,
+                'tamano_bytes': self.imagen.tamano_bytes,
+                'tipo_contenido': self.imagen.tipo_contenido
+            }
+        
         return {
             'id': self.id,
             'usuario_id': self.usuario_id,
             'imagen_id': self.imagen_id,
+            'imagen': imagen_dict,  # Agregar información de la imagen
             'especie_id': self.especie_id,
             # Incluir datos de la especie directamente (para retrocompatibilidad)
             'nombre_cientifico': especie_dict.get('nombre_cientifico', ''),
@@ -1238,7 +1272,341 @@ class Identificacion(Base):
             'notas_usuario': self.notas_usuario,
             'metadatos_ia': self.metadatos_ia,
             'plantnet_response': metadatos_plantnet,  # Para el frontend
+            'fecha_creacion': self.created_at.isoformat() if self.created_at else None,  # Alias para el frontend
             'api_name': 'plantnet' if self.origen == 'plantnet' else self.origen,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+
+class AnalisisSalud(Base):
+    """
+    Modelo de análisis de salud de plantas con Gemini AI.
+    
+    Este modelo almacena los resultados de los análisis de salud realizados
+    por el sistema de IA (Gemini) sobre las plantas del usuario, incluyendo
+    diagnósticos, recomendaciones y estadísticas de seguimiento.
+    
+    Attributes:
+        id (int): Identificador único del análisis (Primary Key)
+        planta_id (int): ID de la planta analizada (Foreign Key a plantas)
+        usuario_id (int): ID del usuario propietario (Foreign Key a usuarios)
+        imagen_id (int): ID de la imagen analizada (Foreign Key a imagenes, opcional)
+        estado (str): Estado de salud detectado: excelente, saludable, necesita_atencion, 
+                     enfermedad, plaga, critica
+        confianza (float): Nivel de confianza del análisis (0-100)
+        diagnostico (str): Diagnóstico detallado generado por la IA
+        recomendaciones (str): JSON con lista de recomendaciones personalizadas
+        problemas_detectados (str): JSON con lista de problemas identificados
+        notas_usuario (str): Notas adicionales proporcionadas por el usuario
+        fecha_analisis (datetime): Fecha y hora en que se realizó el análisis
+        metadatos_ia (str): JSON con metadatos adicionales de la respuesta de Gemini
+        created_at (datetime): Fecha de creación del registro
+        updated_at (datetime): Fecha de última actualización
+        
+    Relations:
+        planta: Relación many-to-one con el modelo Planta
+        usuario: Relación many-to-one con el modelo Usuario
+        imagen: Relación many-to-one con el modelo Imagen (opcional)
+        
+    Example:
+        >>> analisis = AnalisisSalud(
+        ...     planta_id=1,
+        ...     usuario_id=1,
+        ...     estado="necesita_atencion",
+        ...     confianza=85.5,
+        ...     diagnostico="Se observan hojas amarillentas...",
+        ...     recomendaciones='["Aumentar frecuencia de riego", "Verificar drenaje"]'
+        ... )
+    """
+    
+    __tablename__ = "analisis_salud"
+    
+    # Campos del modelo
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único del análisis de salud"
+    )
+    
+    planta_id = Column(
+        Integer,
+        ForeignKey("plantas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID de la planta analizada"
+    )
+    
+    usuario_id = Column(
+        Integer,
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID del usuario propietario de la planta"
+    )
+    
+    imagen_id = Column(
+        Integer,
+        ForeignKey("imagenes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID de la imagen utilizada para el análisis (opcional)"
+    )
+    
+    estado = Column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Estado de salud: excelente, saludable, necesita_atencion, enfermedad, plaga, critica"
+    )
+    
+    confianza = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Nivel de confianza del análisis (0-100)"
+    )
+    
+    resumen_diagnostico = Column(
+        Text,
+        nullable=False,
+        comment="Resumen del diagnóstico en lenguaje natural"
+    )
+    
+    diagnostico_detallado = Column(
+        Text,
+        nullable=True,
+        comment="Diagnóstico técnico detallado (opcional)"
+    )
+    
+    problemas_detectados = Column(
+        Text,
+        nullable=False,
+        default='[]',
+        comment="JSON con lista de problemas detectados y su severidad"
+    )
+    
+    recomendaciones = Column(
+        Text,
+        nullable=False,
+        default='[]',
+        comment="JSON con lista de recomendaciones personalizadas"
+    )
+    
+    modelo_ia_usado = Column(
+        String(100),
+        nullable=False,
+        comment="Modelo de IA usado (ej: gemini-2.5-flash, gemini-2.5-pro)"
+    )
+    
+    tiempo_analisis_ms = Column(
+        Integer,
+        nullable=False,
+        comment="Tiempo de análisis en milisegundos"
+    )
+    
+    version_prompt = Column(
+        String(20),
+        nullable=False,
+        default='v1',
+        comment="Versión del prompt usado"
+    )
+    
+    con_imagen = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Indica si el análisis incluyó imagen"
+    )
+    
+    notas_usuario = Column(
+        Text,
+        nullable=True,
+        comment="Notas o síntomas adicionales proporcionados por el usuario"
+    )
+    
+    fecha_analisis = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True,
+        comment="Fecha y hora en que se realizó el análisis"
+    )
+    
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de creación del registro"
+    )
+    
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        comment="Fecha de última actualización"
+    )
+    
+    # Relaciones
+    planta = relationship("Planta", backref="analisis_salud")
+    usuario = relationship("Usuario", backref="analisis_salud")
+    imagen = relationship("Imagen", backref="analisis_salud", foreign_keys=[imagen_id])
+    
+    # Índices compuestos para optimización de queries
+    __table_args__ = (
+        Index('idx_planta_fecha', 'planta_id', 'fecha_analisis'),
+        Index('idx_usuario_fecha', 'usuario_id', 'fecha_analisis'),
+        Index('idx_planta_estado', 'planta_id', 'estado'),
+        Index('idx_usuario_estado', 'usuario_id', 'estado'),
+        Index('idx_fecha_analisis', 'fecha_analisis'),
+    )
+    
+    def __repr__(self) -> str:
+        """
+        Representación en string del modelo AnalisisSalud.
+        
+        Returns:
+            str: Representación legible del análisis de salud
+        """
+        return (
+            f"<AnalisisSalud(id={self.id}, planta_id={self.planta_id}, "
+            f"estado='{self.estado}', confianza={self.confianza})>"
+        )
+    
+    def __str__(self) -> str:
+        """
+        Representación en string para display.
+        
+        Returns:
+            str: Estado de salud y fecha
+        """
+        fecha_str = self.fecha_analisis.strftime('%Y-%m-%d %H:%M') if self.fecha_analisis else 'N/A'
+        return f"Análisis {self.estado} - {fecha_str}"
+    
+    def to_dict(self) -> dict:
+        """
+        Convierte el modelo a diccionario para serialización.
+        
+        Returns:
+            dict: Diccionario con todos los campos del análisis
+            
+        Example:
+            >>> analisis = AnalisisSalud(planta_id=1, estado="saludable")
+            >>> data = analisis.to_dict()
+            >>> print(data['estado'])
+            saludable
+        """
+        import json
+        
+        # Parsear JSON fields
+        recomendaciones_list = []
+        if self.recomendaciones:
+            try:
+                recomendaciones_list = json.loads(self.recomendaciones)
+            except (json.JSONDecodeError, TypeError):
+                recomendaciones_list = []
+        
+        problemas_list = []
+        if self.problemas_detectados:
+            try:
+                problemas_list = json.loads(self.problemas_detectados)
+            except (json.JSONDecodeError, TypeError):
+                problemas_list = []
+        
+        return {
+            'id': self.id,
+            'planta_id': self.planta_id,
+            'usuario_id': self.usuario_id,
+            'imagen_id': self.imagen_id,
+            'estado': self.estado,
+            'confianza': self.confianza,
+            'resumen_diagnostico': self.resumen_diagnostico,
+            'diagnostico_detallado': self.diagnostico_detallado,
+            'recomendaciones': recomendaciones_list,
+            'problemas_detectados': problemas_list,
+            'notas_usuario': self.notas_usuario,
+            'modelo_ia_usado': self.modelo_ia_usado,
+            'tiempo_analisis_ms': self.tiempo_analisis_ms,
+            'version_prompt': self.version_prompt,
+            'con_imagen': self.con_imagen,
+            'fecha_analisis': self.fecha_analisis.isoformat() if self.fecha_analisis else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def calcular_tendencia(self, analisis_previos: list) -> str:
+        """
+        Calcula la tendencia de salud basándose en análisis anteriores.
+        
+        Args:
+            analisis_previos (list): Lista de análisis anteriores ordenados por fecha
+            
+        Returns:
+            str: 'mejorando', 'estable', o 'empeorando'
+            
+        Example:
+            >>> # Supongamos que tenemos análisis anteriores
+            >>> tendencia = analisis_actual.calcular_tendencia(analisis_previos)
+            >>> print(tendencia)
+            mejorando
+        """
+        if not analisis_previos or len(analisis_previos) == 0:
+            return 'estable'
+        
+        # Mapa de estados a valores numéricos (mayor = mejor)
+        estados_valor = {
+            'critica': 1,
+            'plaga': 2,
+            'enfermedad': 2,
+            'necesita_atencion': 3,
+            'saludable': 4,
+            'excelente': 5
+        }
+        
+        valor_actual = estados_valor.get(self.estado, 3)
+        valor_anterior = estados_valor.get(analisis_previos[0].estado, 3)
+        
+        if valor_actual > valor_anterior:
+            return 'mejorando'
+        elif valor_actual < valor_anterior:
+            return 'empeorando'
+        else:
+            return 'estable'
+    
+    def es_critico(self) -> bool:
+        """
+        Determina si el estado de salud requiere atención urgente.
+        
+        Returns:
+            bool: True si el estado es crítico, plaga o enfermedad
+            
+        Example:
+            >>> analisis = AnalisisSalud(estado="critica")
+            >>> analisis.es_critico()
+            True
+        """
+        return self.estado in ['critica', 'plaga', 'enfermedad']
+    
+    def obtener_color_estado(self) -> str:
+        """
+        Retorna el código de color hexadecimal asociado al estado de salud.
+        
+        Returns:
+            str: Código de color hexadecimal
+            
+        Example:
+            >>> analisis = AnalisisSalud(estado="excelente")
+            >>> analisis.obtener_color_estado()
+            '#22c55e'
+        """
+        colores = {
+            'excelente': '#22c55e',      # Verde brillante
+            'saludable': '#84cc16',       # Verde lima
+            'necesita_atencion': '#f59e0b',  # Ámbar
+            'enfermedad': '#ef4444',      # Rojo
+            'plaga': '#dc2626',           # Rojo oscuro
+            'critica': '#991b1b'          # Rojo muy oscuro
+        }
+        return colores.get(self.estado, '#6b7280')  # Gris por defecto

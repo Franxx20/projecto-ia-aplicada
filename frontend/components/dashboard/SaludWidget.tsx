@@ -170,7 +170,8 @@ export function SaludWidget({ className }: SaludWidgetProps) {
       const historiales = await Promise.all(
         plantasConAnalisis.slice(0, 10).map(async ({ planta }) => {
           try {
-            const historial = await saludService.obtenerHistorial(planta.id, {
+            const historial = await saludService.obtenerHistorial({
+              planta_id: planta.id,
               limite: 2,
               offset: 0
             })

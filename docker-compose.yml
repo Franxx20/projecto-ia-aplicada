@@ -59,6 +59,7 @@ services:
       
       # IA Configuration
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      PLANTNET_API_KEY: ${PLANTNET_API_KEY:-}
       
       # Timeouts para migraciones y conexiones BD
       DB_CONNECTION_TIMEOUT: 60

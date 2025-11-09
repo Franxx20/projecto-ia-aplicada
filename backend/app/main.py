@@ -69,7 +69,7 @@ def crear_aplicacion() -> FastAPI:
         Middleware que reemplaza las URLs de Azurite en las respuestas JSON.
         
         Esto soluciona el problema de que Azurite dentro de Docker usa 'azurite:10000'
-        pero el navegador necesita acceder a 'localhost:10000'.
+        pero el navegador (o frontend en Docker) necesita acceder a través del proxy del backend.
         """
         response = await call_next(request)
         
@@ -81,16 +81,19 @@ def crear_aplicacion() -> FastAPI:
                 body += chunk
             
             try:
+                import re
                 # Decodificar JSON
                 content = body.decode("utf-8")
                 
                 # Reemplazar URLs de Azurite si estamos usando el emulador
                 if configuracion.azure_storage_use_emulator:
-                    # Reemplazar todas las variaciones posibles
-                    content = content.replace('http://azurite:10000', 'http://localhost:10000')
-                    content = content.replace('http://127.0.0.1:10000', 'http://localhost:10000')
-                    content = content.replace('https://azurite:10000', 'http://localhost:10000')
-                    content = content.replace('https://127.0.0.1:10000', 'http://localhost:10000')
+                    # Patrón para extraer URLs de Azurite y reemplazarlas con el proxy del backend
+                    # Captura URLs como: http://azurite:10000/devstoreaccount1/plantitas-imagenes/uuid.jpg
+                    patron = r'https?://(?:azurite|localhost|127\.0\.0\.1):10000/devstoreaccount1/plantitas-imagenes/([^"\'}\s]+)'
+                    
+                    # Reemplazar con la URL del proxy del backend
+                    # Nota: Usamos /api/imagenes/proxy/ para que funcione tanto desde el navegador como desde Docker
+                    content = re.sub(patron, r'/api/imagenes/proxy/\1', content)
                 
                 # Codificar a bytes para calcular Content-Length correcto
                 content_bytes = content.encode('utf-8')

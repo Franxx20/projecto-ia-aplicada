@@ -97,21 +97,20 @@ timeout /t 5 /nobreak > nul
 echo.
 REM 5. Crear base de datos usando variables del .env
 echo [INFO] Verificando base de datos...
-REM Leer el nombre de la base de datos del archivo .env
-for /f "tokens=2 delims==" %%a in ('findstr /r "^POSTGRES_DB=" .env') do set DB_NAME=%%a
-if "%DB_NAME%"=="" set DB_NAME=proyecto_ia_db
-echo [INFO] Base de datos configurada: %DB_NAME%
-docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '%DB_NAME%'" | findstr /C:"1" > nul
+docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | findstr /C:"1" > nul
 if errorlevel 1 (
-    echo [INFO] Creando base de datos %DB_NAME%...
-    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE %DB_NAME%;"
+    echo [INFO] Creando base de datos proyecto_ia_db...
+    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE proyecto_ia_db;" 2>nul
+    REM Verificar si la base de datos existe después del intento de creación
+    docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | findstr /C:"1" > nul
     if errorlevel 1 (
         echo [ERROR] Error al crear base de datos
         docker-compose down
         goto end
     )
+    echo [INFO] Base de datos proyecto_ia_db creada exitosamente
 ) else (
-    echo [INFO] Base de datos %DB_NAME% ya existe
+    echo [INFO] Base de datos proyecto_ia_db ya existe
 )
 echo.
 REM 6. Aplicar migraciones con script mejorado
@@ -133,12 +132,21 @@ if errorlevel 1 (
     echo [WARNING] O verifica los logs: manage.bat logs backend
 )
 echo.
-REM 7. Verificar dependencias frontend (se instalarán al iniciar el contenedor)
+REM 7. Verificar dependencias frontend (opcional - solo en desarrollo local)
 echo [INFO] Verificando dependencias del frontend...
 if not exist frontend\node_modules (
-    echo [INFO] Las dependencias de NPM se instalarán al iniciar el contenedor frontend
+    echo [INFO] node_modules no encontrado. Instalando dependencias...
+    echo [INFO] Nota: Esto requiere Node.js instalado localmente o usar docker-compose.dev.yml
+    where npm >nul 2>&1
+    if not errorlevel 1 (
+        cd frontend
+        call npm install
+        cd ..
+    ) else (
+        echo [WARNING] NPM no encontrado. Las dependencias se instalarán al usar 'manage.bat dev'
+    )
 ) else (
-    echo [INFO] Dependencias de NPM ya instaladas
+    echo [INFO] Dependencias del frontend ya instaladas
 )
 echo.
 REM 8. Detener servicios temporales

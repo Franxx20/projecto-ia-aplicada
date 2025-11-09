@@ -18,7 +18,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Sparkles, AlertCircle, Loader2, Stethoscope, Camera, FileText, Leaf, Upload, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, Sparkles, AlertCircle, Loader2, Stethoscope, Camera, FileText, Leaf, Upload, Image as ImageIcon, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,8 +30,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useAuth } from '@/hooks/useAuth'
 import saludService from '@/lib/salud.service'
 import dashboardService from '@/lib/dashboard.service'
+import { imageService } from '@/lib/image.service'
 import type { AnalisisSalud } from '@/models/salud'
 import type { Planta } from '@/models/dashboard.types'
+import type { ImageUploadResponse } from '@/models/image.types'
 import {
   ESTADO_TEXTOS,
   ESTADO_COLORES,
@@ -40,6 +42,17 @@ import {
   obtenerColorEstado,
   obtenerEmojiEstado
 } from '@/models/salud'
+
+/**
+ * Interfaz para imagen de planta simplificada
+ */
+interface ImagenPlanta {
+  id: number
+  nombre_archivo: string
+  url_blob: string
+  organ?: string
+  tamano_bytes: number
+}
 
 /**
  * Resultado del análisis de salud
@@ -62,6 +75,9 @@ function SaludPageContent() {
   const [plantaSeleccionada, setPlantaSeleccionada] = useState<string>('')
   const [imagenSeleccionada, setImagenSeleccionada] = useState<File | null>(null)
   const [imagenPreview, setImagenPreview] = useState<string | null>(null)
+  const [imagenExistenteId, setImagenExistenteId] = useState<number | null>(null)
+  const [imagenesPlanta, setImagenesPlanta] = useState<ImagenPlanta[]>([])
+  const [cargandoImagenes, setCargandoImagenes] = useState(false)
   const [sintomasObservados, setSintomasObservados] = useState('')
   const [notasAdicionales, setNotasAdicionales] = useState('')
   
@@ -86,6 +102,15 @@ function SaludPageContent() {
     }
   }, [searchParams, plantasDisponibles])
 
+  // Cargar imágenes de la planta cuando se selecciona
+  useEffect(() => {
+    if (plantaSeleccionada) {
+      cargarImagenesPlanta(parseInt(plantaSeleccionada))
+    } else {
+      setImagenesPlanta([])
+    }
+  }, [plantaSeleccionada])
+
   /**
    * Carga las plantas del jardín del usuario
    */
@@ -97,6 +122,33 @@ function SaludPageContent() {
       console.error('Error al cargar plantas:', error)
       setErrorAnalisis('No se pudieron cargar tus plantas. Por favor, intenta de nuevo.')
     }
+  }
+
+  /**
+   * Carga las imágenes asociadas a una planta
+   */
+  const cargarImagenesPlanta = async (plantaId: number) => {
+    try {
+      setCargandoImagenes(true)
+      const imagenes = await imageService.obtenerImagenesPlanta(plantaId)
+      setImagenesPlanta(imagenes)
+    } catch (error) {
+      console.error('Error al cargar imágenes de la planta:', error)
+      // No mostramos error si no hay imágenes, es opcional
+      setImagenesPlanta([])
+    } finally {
+      setCargandoImagenes(false)
+    }
+  }
+
+  /**
+   * Selecciona una imagen existente de la planta
+   */
+  const seleccionarImagenExistente = (imagen: ImagenPlanta) => {
+    setImagenExistenteId(imagen.id)
+    setImagenPreview(imagen.url_blob)
+    setImagenSeleccionada(null)
+    setErrorAnalisis(null)
   }
 
   /**
@@ -114,6 +166,7 @@ function SaludPageContent() {
   const handleEliminarImagen = () => {
     setImagenSeleccionada(null)
     setImagenPreview(null)
+    setImagenExistenteId(null)
   }
 
   /**
@@ -125,7 +178,7 @@ function SaludPageContent() {
       return false
     }
 
-    if (!imagenSeleccionada && !sintomasObservados.trim()) {
+    if (!imagenSeleccionada && !imagenExistenteId && !sintomasObservados.trim()) {
       setErrorAnalisis('Debes proporcionar una imagen o describir los síntomas observados')
       return false
     }
@@ -150,7 +203,8 @@ function SaludPageContent() {
 
       console.log('Analizando salud de planta:', {
         plantaId,
-        conImagen: !!imagenSeleccionada,
+        conImagenNueva: !!imagenSeleccionada,
+        conImagenExistente: !!imagenExistenteId,
         conSintomas: !!sintomasObservados.trim()
       })
 
@@ -165,9 +219,16 @@ function SaludPageContent() {
         })
       }, 300)
 
-      // Subir imagen si existe
+      // Determinar ID de imagen a usar
       let imagenId: number | null = null
-      if (imagenSeleccionada) {
+      
+      // Si hay una imagen existente seleccionada, usarla
+      if (imagenExistenteId) {
+        imagenId = imagenExistenteId
+        console.log('Usando imagen existente. ID:', imagenId)
+      }
+      // Si no, subir imagen nueva si existe
+      else if (imagenSeleccionada) {
         try {
           console.log('Subiendo imagen...')
           const { imageService } = await import('@/lib/image.service')
@@ -246,6 +307,8 @@ function SaludPageContent() {
     setPlantaSeleccionada('')
     setImagenSeleccionada(null)
     setImagenPreview(null)
+    setImagenExistenteId(null)
+    setImagenesPlanta([])
     setSintomasObservados('')
     setNotasAdicionales('')
     setResultadoAnalisis(null)
@@ -356,6 +419,51 @@ function SaludPageContent() {
               <p className="text-sm text-muted-foreground">
                 Una imagen ayuda a Gemini AI a hacer un diagnóstico más preciso
               </p>
+              
+              {/* Mostrar imágenes previas de la planta si existen */}
+              {plantaSeleccionada && imagenesPlanta.length > 0 && !imagenPreview && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium mb-2">O usa una imagen previa:</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {imagenesPlanta.slice(0, 4).map((imagen) => (
+                      <button
+                        key={imagen.id}
+                        type="button"
+                        onClick={() => seleccionarImagenExistente(imagen)}
+                        disabled={estaAnalizando}
+                        className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                      >
+                        <img
+                          src={imagen.url_blob}
+                          alt={imagen.nombre_archivo}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Camera className="h-6 w-6 text-white" />
+                        </div>
+                        {imagen.id === imagenesPlanta[0]?.id && (
+                          <Badge className="absolute top-1 right-1 text-xs bg-primary">
+                            Última
+                          </Badge>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {imagenesPlanta.length > 4 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      +{imagenesPlanta.length - 4} más
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {cargandoImagenes && plantaSeleccionada && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Cargando imágenes...</span>
+                </div>
+              )}
+              
               {!imagenPreview ? (
                 <div className="border-2 border-dashed rounded-lg p-8 text-center">
                   <div className="space-y-4">
@@ -404,8 +512,17 @@ function SaludPageContent() {
                     <AlertCircle className="h-4 w-4" />
                   </Button>
                   <Badge className="absolute bottom-2 left-2 bg-black/70 text-white">
-                    <Camera className="h-3 w-3 mr-1" />
-                    Imagen cargada
+                    {imagenExistenteId ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Imagen existente
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="h-3 w-3 mr-1" />
+                        Imagen nueva
+                      </>
+                    )}
                   </Badge>
                 </div>
               )}

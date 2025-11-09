@@ -436,3 +436,112 @@ async def obtener_archivo_imagen(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener el archivo de imagen: {str(e)}"
         )
+
+
+@router.get(
+    "/planta/{planta_id}",
+    response_model=ImagenListResponse,
+    summary="Obtener imágenes de una planta",
+    description="Obtiene todas las imágenes asociadas a una planta específica (imagen principal + imágenes de análisis)",
+    response_description="Lista de imágenes de la planta",
+    responses={
+        200: {
+            "description": "Imágenes encontradas",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "imagenes": [
+                            {
+                                "id": 1,
+                                "usuario_id": 1,
+                                "nombre_archivo": "mi_monstera.jpg",
+                                "url_blob": "https://storage.blob.core.windows.net/container/file.jpg",
+                                "tamano_bytes": 245678,
+                                "created_at": "2025-11-09T10:30:00",
+                                "descripcion": "Imagen principal"
+                            }
+                        ],
+                        "total": 1,
+                        "pagina": 1,
+                        "tamano_pagina": 20,
+                        "total_paginas": 1
+                    }
+                }
+            }
+        },
+        404: {"description": "Planta no encontrada"},
+        401: {"description": "No autenticado"}
+    }
+)
+async def obtener_imagenes_planta(
+    planta_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene todas las imágenes asociadas a una planta específica.
+    
+    Incluye:
+    - La imagen principal de la planta (si existe)
+    - Todas las imágenes de análisis de salud previos
+    
+    Las imágenes se devuelven ordenadas por fecha de creación (más recientes primero).
+    Solo el usuario propietario de la planta puede acceder a sus imágenes.
+    """
+    from app.db.models import Planta, Imagen, AnalisisSalud
+    from sqlalchemy import or_, and_
+    
+    # Verificar que la planta existe y pertenece al usuario
+    planta = db.query(Planta).filter(
+        and_(
+            Planta.id == planta_id,
+            Planta.usuario_id == current_user.id
+        )
+    ).first()
+    
+    if not planta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Planta con ID {planta_id} no encontrada o no tienes acceso"
+        )
+    
+    # Obtener IDs de imágenes asociadas a la planta
+    imagen_ids = set()
+    
+    # 1. Imagen principal de la planta
+    if planta.imagen_principal_id:
+        imagen_ids.add(planta.imagen_principal_id)
+    
+    # 2. Imágenes de análisis de salud
+    analisis = db.query(AnalisisSalud).filter(
+        AnalisisSalud.planta_id == planta_id
+    ).all()
+    
+    for analisis_item in analisis:
+        if analisis_item.imagen_id:
+            imagen_ids.add(analisis_item.imagen_id)
+    
+    # Obtener las imágenes
+    if not imagen_ids:
+        return ImagenListResponse(
+            imagenes=[],
+            total=0,
+            pagina=1,
+            tamano_pagina=20,
+            total_paginas=0
+        )
+    
+    imagenes = db.query(Imagen).filter(
+        and_(
+            Imagen.id.in_(imagen_ids),
+            Imagen.is_deleted == False
+        )
+    ).order_by(Imagen.created_at.desc()).all()
+    
+    return ImagenListResponse(
+        imagenes=[ImagenResponse.model_validate(img) for img in imagenes],
+        total=len(imagenes),
+        pagina=1,
+        tamano_pagina=len(imagenes),
+        total_paginas=1
+    )

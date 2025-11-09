@@ -125,6 +125,55 @@ class ImageService {
   }
 
   /**
+   * Obtiene todas las imágenes asociadas a una planta específica
+   * 
+   * @param plantaId - ID de la planta
+   * @returns Promise con la lista de imágenes de la planta
+   * @throws Error si no se pueden obtener las imágenes
+   */
+  async obtenerImagenesPlanta(plantaId: number): Promise<{
+    id: number
+    nombre_archivo: string
+    url_blob: string
+    organ?: string
+    tamano_bytes: number
+  }[]> {
+    try {
+      const response = await axiosInstance.get<{
+        imagenes: Array<{
+          id: number
+          usuario_id: number
+          nombre_archivo: string
+          nombre_blob: string
+          url_blob: string
+          container_name: string
+          content_type: string
+          tamano_bytes: number
+          descripcion?: string
+          organ?: string
+          created_at: string
+          updated_at: string
+          is_deleted: boolean
+        }>
+        total: number
+      }>(`${this.BASE_PATH}/planta/${plantaId}`)
+      
+      // Mapear al formato esperado
+      return response.data.imagenes.map(img => ({
+        id: img.id,
+        nombre_archivo: img.nombre_archivo,
+        url_blob: img.url_blob,
+        organ: img.organ,
+        tamano_bytes: img.tamano_bytes
+      }))
+    } catch (error) {
+      console.error('Error al obtener imágenes de la planta:', error)
+      // No lanzar error, devolver array vacío si falla
+      return []
+    }
+  }
+
+  /**
    * Obtiene la URL completa de una imagen
    * 
    * @param rutaRelativa - Ruta relativa de la imagen

@@ -8,7 +8,7 @@ psycopg2-binary==2.9.9
 alembic==1.12.1
 
 # Seguridad y autenticación
-bcrypt==4.2.0
+bcrypt==4.0.1
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.6
@@ -35,3 +35,6 @@ pytest-cov==4.1.0
 
 # Procesamiento de imágenes
 Pillow==10.1.0
+
+# Google Generative AI (Gemini)
+google-generativeai==0.3.2

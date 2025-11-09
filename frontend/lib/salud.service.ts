@@ -50,13 +50,32 @@ class SaludService {
    */
   async crearAnalisis(request: AnalisisSaludRequest): Promise<AnalisisSaludResponse> {
     try {
+      console.log('🔵 SaludService.crearAnalisis - Iniciando petición')
+      console.log('🔵 URL:', `${this.baseUrl}/analisis`)
+      console.log('🔵 Request:', request)
+      
       const response = await axios.post<AnalisisSaludResponse>(
         `${this.baseUrl}/analisis`,
         request
       )
+      
+      console.log('🟢 SaludService.crearAnalisis - Respuesta exitosa:', response.data)
       return response.data
     } catch (error) {
+      console.error('🔴 SaludService.crearAnalisis - Error completo:', error)
+      
       if (error instanceof AxiosError) {
+        console.error('🔴 AxiosError details:', {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          data: error.response?.data,
+          config: {
+            url: error.config?.url,
+            method: error.config?.method,
+            data: error.config?.data
+          }
+        })
         const mensaje = error.response?.data?.detail || 'Error al crear análisis de salud'
         throw new Error(mensaje)
       }
@@ -103,47 +122,47 @@ class SaludService {
   }
 
   /**
-   * Obtiene el historial de análisis de salud de una planta
+   * Obtiene el historial de análisis de salud
    * 
    * Soporta:
    * - Paginación (limite, offset)
+   * - Filtrado por planta_id
    * - Filtrado por estado
    * - Filtrado por rango de fechas
    * 
-   * @param plantaId - ID de la planta
    * @param params - Parámetros de consulta (opcional)
    * @returns Promise con el historial de análisis
    * 
-   * @throws {Error} Si la planta no existe
+   * @throws {Error} Si hay un error al obtener el historial
    * 
    * @example
    * ```typescript
-   * // Obtener últimos 10 análisis
-   * const historial = await saludService.obtenerHistorial(123, {
+   * // Obtener últimos 10 análisis de una planta
+   * const historial = await saludService.obtenerHistorial({
+   *   planta_id: 123,
    *   limite: 10,
    *   offset: 0
    * })
    * 
    * // Filtrar por estado
-   * const criticos = await saludService.obtenerHistorial(123, {
+   * const criticos = await saludService.obtenerHistorial({
    *   estado: 'enfermedad',
    *   limite: 20
    * })
    * 
    * // Filtrar por fechas
-   * const recientes = await saludService.obtenerHistorial(123, {
-   *   fecha_desde: '2025-11-01T00:00:00Z',
-   *   fecha_hasta: '2025-11-08T23:59:59Z'
+   * const recientes = await saludService.obtenerHistorial({
+   *   fecha_desde: '2025-11-01',
+   *   fecha_hasta: '2025-11-08'
    * })
    * ```
    */
   async obtenerHistorial(
-    plantaId: number,
     params?: HistorialSaludParams
   ): Promise<HistorialSaludResponse> {
     try {
       const response = await axios.get<HistorialSaludResponse>(
-        `${this.baseUrl}/historial/${plantaId}`,
+        `${this.baseUrl}/historial`,
         { params }
       )
       return response.data

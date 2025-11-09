@@ -138,6 +138,7 @@ def crear_aplicacion() -> FastAPI:
     from .api.imagenes import router as imagenes_router
     from .api.plantas import router as plantas_router
     from .api.identificacion import router as identificacion_router
+    from .api.salud import router as salud_router
     
     # Registrar router de autenticación (T-003A)
     aplicacion.include_router(
@@ -165,6 +166,13 @@ def crear_aplicacion() -> FastAPI:
         identificacion_router,
         prefix="/api/identificar",
         tags=["Identificación"]
+    )
+    
+    # Registrar router de salud (Epic 3 - T-078)
+    aplicacion.include_router(
+        salud_router,
+        prefix="/api/salud",
+        tags=["Salud de Plantas"]
     )
     
     # TODO: Agregar más routers cuando se implementen

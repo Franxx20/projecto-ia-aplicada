@@ -205,8 +205,16 @@ function ResultadosPageContent() {
             console.log('Usando resultado desde sessionStorage');
             
             // Adaptar al formato esperado si es necesario
+            // IMPORTANTE: Mapear el campo 'url' a 'url_blob' para que coincida con ImagenIdentificacionResponse
             const respuestaAdaptada: IdentificarResponse = {
               ...respuestaCacheada,
+              imagenes: respuestaCacheada.imagenes?.map((img: any) => ({
+                id: img.id,
+                nombre_archivo: img.nombre_archivo,
+                url_blob: img.url || img.url_blob,  // Soportar ambos nombres de campo
+                organ: img.organ,
+                tamano_bytes: img.tamano_bytes || 0
+              })) || [],
               resultados: respuestaCacheada.plantnet_response || respuestaCacheada.resultados,
               usuario_id: respuestaCacheada.usuario_id,
               especie_id: respuestaCacheada.especie_id,

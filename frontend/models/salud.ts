@@ -35,8 +35,9 @@ export type TendenciaSalud = 'mejorando' | 'estable' | 'empeorando'
  */
 export interface AnalisisSaludRequest {
   planta_id: number
-  imagen_id: number
-  notas?: string
+  imagen_id?: number | null
+  sintomas_observados?: string
+  notas_adicionales?: string
 }
 
 /**
@@ -45,13 +46,36 @@ export interface AnalisisSaludRequest {
 export interface AnalisisSalud {
   id: number
   planta_id: number
+  usuario_id?: number
+  imagen_id?: number | null
   estado: EstadoSalud
   confianza: number // 0-100
-  diagnostico: string
-  recomendaciones: string[]
+  resumen_diagnostico: string
+  diagnostico_detallado?: string | null
+  problemas_detectados: Array<{
+    tipo: string
+    severidad: string
+    descripcion: string
+    recomendacion?: string
+  }>
+  recomendaciones: Array<{
+    categoria: string
+    prioridad: string
+    accion: string
+    descripcion: string
+  }>
+  modelo_ia_usado: string
+  tiempo_analisis_ms: number
+  version_prompt: string
+  con_imagen: boolean
+  notas_usuario?: string | null
   imagen_analisis_url: string | null
   fecha_analisis: string // ISO datetime
   created_at: string
+  updated_at?: string
+  // Legacy fields (para backward compatibility)
+  diagnostico?: string
+  recomendaciones_legacy?: string[]
 }
 
 /**
@@ -75,10 +99,37 @@ export interface EstadisticasSalud {
 }
 
 /**
- * Item del historial de salud
+ * Item del historial de salud (coincide con backend HistorialSaludItem + campos extras del endpoint)
  */
-export interface HistorialSaludItem extends AnalisisSalud {
-  nombre_planta?: string
+export interface HistorialSaludItem {
+  id: number
+  planta_id: number
+  estado: EstadoSalud
+  confianza: number
+  resumen: string
+  fecha_analisis: string
+  con_imagen: boolean
+  imagen_analizada_url: string | null
+  num_problemas: number
+  num_recomendaciones: number
+  // Campos adicionales agregados por el endpoint
+  planta_nombre?: string
+  es_critico?: boolean
+  color_estado?: string
+  modelo_ia_usado?: string
+  tiempo_analisis_ms?: number
+  problemas_detectados?: Array<{
+    tipo: string
+    severidad: string
+    descripcion: string
+  }>
+  recomendaciones?: Array<{
+    prioridad: string
+    accion: string
+    descripcion: string
+  }>
+  resumen_diagnostico?: string
+  diagnostico_detallado?: string
 }
 
 /**
@@ -87,14 +138,16 @@ export interface HistorialSaludItem extends AnalisisSalud {
 export interface HistorialSaludResponse {
   analisis: HistorialSaludItem[]
   total: number
-  pagina: number
-  limite: number
+  planta_id?: number
+  limite?: number
+  offset?: number
 }
 
 /**
  * Parámetros de consulta para el historial
  */
 export interface HistorialSaludParams {
+  planta_id?: number
   limite?: number
   offset?: number
   estado?: EstadoSalud

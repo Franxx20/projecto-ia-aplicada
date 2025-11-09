@@ -121,6 +121,15 @@ class Configuracion(BaseSettings):
     azure_openai_endpoint: str = ""
     claude_api_key: str = ""
     
+    # Google Gemini API (para Epic 3 - Sistema de Verificación de Salud)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"  # Modelo por defecto
+    gemini_max_requests_per_day: int = 1500  # Límite diario de requests a Gemini API
+    gemini_max_requests_per_user_per_day: int = 50  # Límite por usuario por día
+    gemini_temperature: float = 0.7  # Temperatura para generación (0.0 - 1.0)
+    gemini_max_output_tokens: int = 8192  # Máximo de tokens en la respuesta (aumentado para JSON completo)
+    gemini_timeout_seconds: int = 30  # Timeout para requests a Gemini API
+    
     # ==================== Rate Limiting ====================
     rate_limit_por_minuto: int = 60  # Número máximo de requests por minuto
     

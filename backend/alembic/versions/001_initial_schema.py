@@ -211,7 +211,7 @@ def upgrade() -> None:
         sa.Column('planta_id', sa.Integer(), nullable=False, comment='ID de la planta analizada'),
         sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario que solicitó el análisis'),
         sa.Column('imagen_id', sa.Integer(), nullable=True, comment='ID de la imagen analizada (opcional)'),
-        sa.Column('estado_salud', sa.String(length=50), nullable=False, comment='Estado: excelente, saludable, necesita_atencion, enfermedad, plaga, critica'),
+        sa.Column('estado', sa.String(length=50), nullable=False, comment='Estado: excelente, saludable, necesita_atencion, enfermedad, plaga, critica'),
         sa.Column('confianza', sa.Integer(), nullable=False, comment='Nivel de confianza del diagnóstico (0-100)'),
         sa.Column('resumen_diagnostico', sa.Text(), nullable=False, comment='Resumen del diagnóstico en lenguaje natural'),
         sa.Column('diagnostico_detallado', sa.Text(), nullable=True, comment='Diagnóstico técnico detallado (opcional)'),
@@ -221,6 +221,7 @@ def upgrade() -> None:
         sa.Column('tiempo_analisis_ms', sa.Integer(), nullable=False, comment='Tiempo de análisis en milisegundos'),
         sa.Column('version_prompt', sa.String(length=20), nullable=False, server_default='v1', comment='Versión del prompt usado'),
         sa.Column('con_imagen', sa.Boolean(), nullable=False, server_default=sa.false(), comment='Indica si el análisis incluyó imagen'),
+        sa.Column('notas_usuario', sa.Text(), nullable=True, comment='Notas o síntomas adicionales proporcionados por el usuario'),
         sa.Column('fecha_analisis', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha y hora del análisis'),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha de creación del registro'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha de última actualización'),
@@ -235,11 +236,12 @@ def upgrade() -> None:
     op.create_index('ix_analisis_salud_planta_id', 'analisis_salud', ['planta_id'], unique=False)
     op.create_index('ix_analisis_salud_usuario_id', 'analisis_salud', ['usuario_id'], unique=False)
     op.create_index('ix_analisis_salud_imagen_id', 'analisis_salud', ['imagen_id'], unique=False)
+    op.create_index('ix_analisis_salud_estado', 'analisis_salud', ['estado'], unique=False)
     op.create_index('ix_analisis_salud_fecha_analisis', 'analisis_salud', ['fecha_analisis'], unique=False)
     op.create_index('idx_analisis_planta_fecha', 'analisis_salud', ['planta_id', 'fecha_analisis'], unique=False)
     op.create_index('idx_analisis_usuario_fecha', 'analisis_salud', ['usuario_id', 'fecha_analisis'], unique=False)
-    op.create_index('idx_analisis_estado', 'analisis_salud', ['estado_salud'], unique=False)
-    op.create_index('idx_analisis_planta_estado', 'analisis_salud', ['planta_id', 'estado_salud'], unique=False)
+    op.create_index('idx_analisis_planta_estado', 'analisis_salud', ['planta_id', 'estado'], unique=False)
+    op.create_index('idx_analisis_usuario_estado', 'analisis_salud', ['usuario_id', 'estado'], unique=False)
     
     print("✅ Schema inicial creado exitosamente")
     print("   - Tabla usuarios")

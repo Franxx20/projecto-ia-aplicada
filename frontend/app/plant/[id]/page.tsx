@@ -193,6 +193,7 @@ export default function PlantDetailPage() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [nombreEditado, setNombreEditado] = useState("")
   const [isSavingName, setIsSavingName] = useState(false)
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false)
 
   // Redirigir si no está autenticado
   useEffect(() => {
@@ -275,6 +276,24 @@ export default function PlantDetailPage() {
       alert("Error al actualizar el nombre de la planta")
     } finally {
       setIsSavingName(false)
+    }
+  }
+
+  // Handler para verificar salud
+  const handleVerificarSalud = async () => {
+    if (!planta) return
+
+    try {
+      setIsCheckingHealth(true)
+      
+      // Redirigir a la página de salud con el ID de la planta
+      // Esto permitirá al usuario subir una imagen y hacer el análisis
+      router.push(`/salud?planta_id=${planta.id}`)
+    } catch (err) {
+      console.error("Error al verificar salud:", err)
+      alert("Error al iniciar verificación de salud")
+    } finally {
+      setIsCheckingHealth(false)
     }
   }
 
@@ -481,9 +500,22 @@ export default function PlantDetailPage() {
                     )}
                   </div>
 
-                  <Button className="w-full">
-                    <Camera className="w-4 h-4 mr-2" />
-                    Verificar Salud
+                  <Button 
+                    className="w-full"
+                    onClick={handleVerificarSalud}
+                    disabled={isCheckingHealth}
+                  >
+                    {isCheckingHealth ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4 mr-2" />
+                        Verificar Salud
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -562,7 +594,7 @@ export default function PlantDetailPage() {
                       ) : (
                         <>
                           <Droplets className="w-4 h-4 mr-2" />
-                          Mark as Watered
+                          Marcar como Regada
                         </>
                       )}
                     </Button>
@@ -574,23 +606,23 @@ export default function PlantDetailPage() {
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Sprout className="w-5 h-5 text-primary" />
-                      <CardTitle>Fertilizing Schedule</CardTitle>
+                      <CardTitle>Calendario de Fertilización</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Last Fertilized</p>
-                        <p className="font-semibold">2 weeks ago</p>
+                        <p className="text-sm text-muted-foreground mb-1">Última Fertilización</p>
+                        <p className="font-semibold">Hace 2 semanas</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Next Fertilizing</p>
-                        <p className="font-semibold">in 2 weeks</p>
+                        <p className="text-sm text-muted-foreground mb-1">Próxima Fertilización</p>
+                        <p className="font-semibold">en 2 semanas</p>
                       </div>
                     </div>
                     <Button variant="outline" className="w-full bg-transparent">
                       <Sprout className="w-4 h-4 mr-2" />
-                      Mark as Fertilized
+                      Marcar como Fertilizada
                     </Button>
                   </CardContent>
                 </Card>
@@ -598,9 +630,9 @@ export default function PlantDetailPage() {
                 {/* Care Tips */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Care Tips</CardTitle>
+                    <CardTitle>Consejos de Cuidado</CardTitle>
                     <CardDescription>
-                      Personalized recommendations for your plant
+                      Recomendaciones personalizadas para tu planta
                     </CardDescription>
                   </CardHeader>
                     <CardContent>
@@ -608,25 +640,25 @@ export default function PlantDetailPage() {
                         <li className="flex items-start gap-3">
                           <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                           <span className="text-sm leading-relaxed">
-                            Water when top 2 inches of soil are dry
+                            Riega cuando los primeros 5 cm de tierra estén secos
                           </span>
                         </li>
                         <li className="flex items-start gap-3">
                           <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                           <span className="text-sm leading-relaxed">
-                            Wipe leaves monthly to remove dust
+                            Limpia las hojas mensualmente para quitar el polvo
                           </span>
                         </li>
                         <li className="flex items-start gap-3">
                           <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                           <span className="text-sm leading-relaxed">
-                            Rotate plant weekly for even growth
+                            Rota la planta semanalmente para un crecimiento uniforme
                           </span>
                         </li>
                         <li className="flex items-start gap-3">
                           <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                           <span className="text-sm leading-relaxed">
-                            Provide support for climbing growth
+                            Proporciona soporte para el crecimiento trepador
                           </span>
                         </li>
                       </ul>
@@ -641,7 +673,7 @@ export default function PlantDetailPage() {
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Sun className="w-5 h-5 text-accent" />
-                      <CardTitle>Light Requirements</CardTitle>
+                      <CardTitle>Requisitos de Luz</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -649,7 +681,7 @@ export default function PlantDetailPage() {
                       <>
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm text-muted-foreground">Current Light Level</span>
+                            <span className="text-sm text-muted-foreground">Nivel de Luz Actual</span>
                             <span className="text-sm font-semibold">
                               {planta.luz_actual === 'directa' ? '100%' : 
                                planta.luz_actual === 'alta' ? '75%' : 
@@ -664,15 +696,15 @@ export default function PlantDetailPage() {
                           />
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground mb-1">Current Level</p>
-                          <p className="font-semibold capitalize">{planta.luz_actual} light</p>
+                          <p className="text-sm text-muted-foreground mb-1">Nivel Actual</p>
+                          <p className="font-semibold capitalize">Luz {planta.luz_actual}</p>
                         </div>
                       </>
                     )}
                     <div className="bg-muted p-4 rounded-lg">
                       <p className="text-sm leading-relaxed">
-                        Most plants thrive with bright indirect light. Keep near a window
-                        with filtered sunlight for optimal growth.
+                        La mayoría de las plantas prosperan con luz brillante indirecta. Mantenlas cerca de una ventana
+                        con luz solar filtrada para un crecimiento óptimo.
                       </p>
                     </div>
                   </CardContent>
@@ -683,18 +715,18 @@ export default function PlantDetailPage() {
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Thermometer className="w-5 h-5 text-accent" />
-                      <CardTitle>Temperature</CardTitle>
+                      <CardTitle>Temperatura</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">Ideal Range</p>
-                      <p className="font-semibold">65-85°F (18-29°C)</p>
+                      <p className="text-sm text-muted-foreground mb-1">Rango Ideal</p>
+                      <p className="font-semibold">18-29°C (65-85°F)</p>
                     </div>
                     <div className="bg-muted p-4 rounded-lg mt-4">
                       <p className="text-sm leading-relaxed">
-                        Maintain consistent temperatures and avoid placing near heating vents 
-                        or air conditioning units.
+                        Mantén temperaturas consistentes y evita colocar cerca de rejillas de calefacción 
+                        o unidades de aire acondicionado.
                       </p>
                     </div>
                   </CardContent>
@@ -705,18 +737,18 @@ export default function PlantDetailPage() {
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Droplets className="w-5 h-5 text-primary" />
-                      <CardTitle>Humidity</CardTitle>
+                      <CardTitle>Humedad</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">Recommended Range</p>
+                      <p className="text-sm text-muted-foreground mb-1">Rango Recomendado</p>
                       <p className="font-semibold">60-80%</p>
                     </div>
                     <div className="bg-muted p-4 rounded-lg">
                       <p className="text-sm leading-relaxed">
-                        Mist leaves regularly or use a humidifier to maintain optimal 
-                        humidity levels for tropical plants.
+                        Rocía las hojas regularmente o usa un humidificador para mantener 
+                        niveles óptimos de humedad para plantas tropicales.
                       </p>
                     </div>
                   </CardContent>
@@ -727,8 +759,8 @@ export default function PlantDetailPage() {
               <TabsContent value="activity" className="space-y-6 mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                    <CardDescription>Track your plant care history</CardDescription>
+                    <CardTitle>Actividad Reciente</CardTitle>
+                    <CardDescription>Rastrea el historial de cuidado de tu planta</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
@@ -738,7 +770,7 @@ export default function PlantDetailPage() {
                             <Droplets className="w-4 h-4 text-primary" />
                           </div>
                           <div className="flex-1">
-                            <p className="font-semibold text-sm">Watered</p>
+                            <p className="font-semibold text-sm">Regada</p>
                             <p className="text-sm text-muted-foreground">
                               {formatearFechaRelativa(planta.fecha_ultimo_riego)}
                             </p>
@@ -750,7 +782,7 @@ export default function PlantDetailPage() {
                           <Sprout className="w-4 h-4 text-primary" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-sm">Plant added</p>
+                          <p className="font-semibold text-sm">Planta agregada</p>
                           <p className="text-sm text-muted-foreground">
                             {formatearFechaRelativa(planta.created_at)}
                           </p>
@@ -762,7 +794,7 @@ export default function PlantDetailPage() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Add Activity</CardTitle>
+                    <CardTitle>Agregar Actividad</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <Button 
@@ -772,19 +804,19 @@ export default function PlantDetailPage() {
                       disabled={isWatering}
                     >
                       <Droplets className="w-4 h-4 mr-2" />
-                      Log Watering
+                      Registrar Riego
                     </Button>
                     <Button variant="outline" className="w-full justify-start bg-transparent">
                       <Sprout className="w-4 h-4 mr-2" />
-                      Log Fertilizing
+                      Registrar Fertilización
                     </Button>
                     <Button variant="outline" className="w-full justify-start bg-transparent">
                       <Camera className="w-4 h-4 mr-2" />
-                      Add Photo
+                      Agregar Foto
                     </Button>
                     <Button variant="outline" className="w-full justify-start bg-transparent">
                       <AlertCircle className="w-4 h-4 mr-2" />
-                      Report Issue
+                      Reportar Problema
                     </Button>
                   </CardContent>
                 </Card>
@@ -794,8 +826,8 @@ export default function PlantDetailPage() {
               <TabsContent value="photos" className="space-y-6 mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Photo Gallery</CardTitle>
-                    <CardDescription>Track your plant&apos;s growth over time</CardDescription>
+                    <CardTitle>Galería de Fotos</CardTitle>
+                    <CardDescription>Rastrea el crecimiento de tu planta a través del tiempo</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {imagenesParaMostrar.length > 0 ? (
@@ -828,7 +860,7 @@ export default function PlantDetailPage() {
                     )}
                     <Button variant="outline" className="w-full mt-6 bg-transparent">
                       <Camera className="w-4 h-4 mr-2" />
-                      Add New Photo
+                      Agregar Nueva Foto
                     </Button>
                   </CardContent>
                 </Card>

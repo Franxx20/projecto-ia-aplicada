@@ -74,11 +74,15 @@ set /a counter=0
 :wait_db_loop
 docker-compose exec -T db pg_isready -U postgres >nul 2>&1
 if not errorlevel 1 (
-    echo [INFO] Base de datos lista!
-    goto db_ready
+    REM Verificar que puede aceptar conexiones SQL reales
+    docker-compose exec -T db psql -U postgres -c "SELECT 1;" >nul 2>&1
+    if not errorlevel 1 (
+        echo [INFO] Base de datos lista!
+        goto db_ready
+    )
 )
 set /a counter+=1
-if %counter% GEQ 30 (
+if %counter% GEQ 40 (
     echo [WARNING] Timeout esperando la base de datos
     goto db_ready
 )
@@ -87,8 +91,11 @@ timeout /t 2 /nobreak > nul
 goto wait_db_loop
 :db_ready
 echo.
+REM Esperar un poco más para asegurar que PostgreSQL está completamente listo
+echo [INFO] Esperando estabilización de PostgreSQL...
+timeout /t 5 /nobreak > nul
 echo.
-REM 5. Crear base de datos
+REM 5. Crear base de datos usando variables del .env
 echo [INFO] Verificando base de datos...
 docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | findstr /C:"1" > nul
 if errorlevel 1 (
@@ -144,24 +151,25 @@ if not exist frontend\node_modules (
 echo.
 REM 8. Detener servicios temporales
 echo [INFO] Deteniendo servicios temporales...
-docker-compose down
+docker-compose down >nul 2>&1
 echo.
 REM 9. Resumen final
 echo ================================================================
-echo [INFO] Configuración completada exitosamente!
+echo [INFO] Configuracion completada exitosamente!
 echo ================================================================
 echo.
-echo [INFO] Próximos pasos:
+echo [INFO] Proximos pasos:
 echo   1. Revisa y edita el archivo .env con tus configuraciones
 echo   2. Inicia el entorno:
 echo      - Desarrollo:  manage.bat dev
-echo      - Producción:  manage.bat prod
+echo      - Produccion:  manage.bat prod
 echo.
 echo [INFO] URLs disponibles:
 echo   - Frontend: http://localhost:4200
 echo   - Backend:  http://localhost:8000
 echo   - API Docs: http://localhost:8000/docs
 echo.
+goto end
 goto end
 
 :db_migrate

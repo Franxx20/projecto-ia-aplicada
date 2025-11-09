@@ -122,29 +122,47 @@ setup() {
     
     # 6. Esperar a que la BD esté lista (aumentar timeout a 60s)
     print_message "Esperando a que la base de datos esté lista (hasta 60 segundos)..."
-    for i in {1..30}; do
+    DB_READY=0
+    for i in {1..40}; do
         if docker-compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
-            print_message "Base de datos lista!"
-            break
+            # Verificar que puede aceptar conexiones SQL reales
+            if docker-compose exec -T db psql -U postgres -c "SELECT 1;" >/dev/null 2>&1; then
+                print_message "Base de datos lista!"
+                DB_READY=1
+                break
+            fi
         fi
         echo -n "."
         sleep 2
     done
     echo ""
     
-    # 7. Crear base de datos
+    if [ $DB_READY -eq 1 ]; then
+        # Esperar un poco más para asegurar que PostgreSQL está completamente listo
+        print_message "Esperando estabilización de PostgreSQL..."
+        sleep 5
+    fi
+    echo ""
+    
+    # 7. Crear base de datos usando variables del .env
     echo ""
     print_message "Verificando base de datos..."
-    DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | grep -c 1 || true)
+    # Leer el nombre de la base de datos del archivo .env
+    DB_NAME=$(grep "^POSTGRES_DB=" .env | cut -d '=' -f2)
+    if [ -z "$DB_NAME" ]; then
+        DB_NAME="proyecto_ia_db"
+    fi
+    print_message "Base de datos configurada: $DB_NAME"
+    DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -c 1 || true)
     if [ "$DB_EXISTS" -eq "0" ]; then
-        print_message "Creando base de datos asistente_plantitas..."
-        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;" || {
+        print_message "Creando base de datos $DB_NAME..."
+        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE $DB_NAME;" || {
             print_error "Error al crear base de datos"
             docker-compose down
             exit 1
         }
     else
-        print_message "Base de datos asistente_plantitas ya existe"
+        print_message "Base de datos $DB_NAME ya existe"
     fi
     
     # 8. Aplicar migraciones con script mejorado

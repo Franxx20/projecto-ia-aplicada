@@ -74,11 +74,15 @@ set /a counter=0
 :wait_db_loop
 docker-compose exec -T db pg_isready -U postgres >nul 2>&1
 if not errorlevel 1 (
-    echo [INFO] Base de datos lista!
-    goto db_ready
+    REM Verificar que puede aceptar conexiones SQL reales
+    docker-compose exec -T db psql -U postgres -c "SELECT 1;" >nul 2>&1
+    if not errorlevel 1 (
+        echo [INFO] Base de datos lista!
+        goto db_ready
+    )
 )
 set /a counter+=1
-if %counter% GEQ 30 (
+if %counter% GEQ 40 (
     echo [WARNING] Timeout esperando la base de datos
     goto db_ready
 )
@@ -87,20 +91,27 @@ timeout /t 2 /nobreak > nul
 goto wait_db_loop
 :db_ready
 echo.
+REM Esperar un poco más para asegurar que PostgreSQL está completamente listo
+echo [INFO] Esperando estabilización de PostgreSQL...
+timeout /t 5 /nobreak > nul
 echo.
-REM 5. Crear base de datos
+REM 5. Crear base de datos usando variables del .env
 echo [INFO] Verificando base de datos...
-docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | findstr /C:"1" > nul
+REM Leer el nombre de la base de datos del archivo .env
+for /f "tokens=2 delims==" %%a in ('findstr /r "^POSTGRES_DB=" .env') do set DB_NAME=%%a
+if "%DB_NAME%"=="" set DB_NAME=proyecto_ia_db
+echo [INFO] Base de datos configurada: %DB_NAME%
+docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '%DB_NAME%'" | findstr /C:"1" > nul
 if errorlevel 1 (
-    echo [INFO] Creando base de datos asistente_plantitas...
-    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;"
+    echo [INFO] Creando base de datos %DB_NAME%...
+    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE %DB_NAME%;"
     if errorlevel 1 (
         echo [ERROR] Error al crear base de datos
         docker-compose down
         goto end
     )
 ) else (
-    echo [INFO] Base de datos asistente_plantitas ya existe
+    echo [INFO] Base de datos %DB_NAME% ya existe
 )
 echo.
 REM 6. Aplicar migraciones con script mejorado
@@ -122,36 +133,35 @@ if errorlevel 1 (
     echo [WARNING] O verifica los logs: manage.bat logs backend
 )
 echo.
-REM 7. Verificar dependencias frontend
+REM 7. Verificar dependencias frontend (se instalarán al iniciar el contenedor)
 echo [INFO] Verificando dependencias del frontend...
 if not exist frontend\node_modules (
-    echo [INFO] Instalando dependencias de NPM (primera vez)...
-    docker-compose run --rm frontend npm install
-    if errorlevel 1 (
-        echo [WARNING] Error al instalar dependencias de NPM
-    )
+    echo [INFO] Las dependencias de NPM se instalarán al iniciar el contenedor frontend
+) else (
+    echo [INFO] Dependencias de NPM ya instaladas
 )
 echo.
 REM 8. Detener servicios temporales
 echo [INFO] Deteniendo servicios temporales...
-docker-compose down
+docker-compose down >nul 2>&1
 echo.
 REM 9. Resumen final
 echo ================================================================
-echo [INFO] Configuración completada exitosamente!
+echo [INFO] Configuracion completada exitosamente!
 echo ================================================================
 echo.
-echo [INFO] Próximos pasos:
+echo [INFO] Proximos pasos:
 echo   1. Revisa y edita el archivo .env con tus configuraciones
 echo   2. Inicia el entorno:
 echo      - Desarrollo:  manage.bat dev
-echo      - Producción:  manage.bat prod
+echo      - Produccion:  manage.bat prod
 echo.
 echo [INFO] URLs disponibles:
 echo   - Frontend: http://localhost:4200
 echo   - Backend:  http://localhost:8000
 echo   - API Docs: http://localhost:8000/docs
 echo.
+goto end
 goto end
 
 :db_migrate

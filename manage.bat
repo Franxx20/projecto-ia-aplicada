@@ -90,17 +90,20 @@ echo.
 echo.
 REM 5. Crear base de datos
 echo [INFO] Verificando base de datos...
-docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | findstr /C:"1" > nul
+docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | findstr /C:"1" > nul
 if errorlevel 1 (
-    echo [INFO] Creando base de datos asistente_plantitas...
-    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;"
+    echo [INFO] Creando base de datos proyecto_ia_db...
+    docker-compose exec -T db psql -U postgres -c "CREATE DATABASE proyecto_ia_db;" 2>nul
+    REM Verificar si la base de datos existe después del intento de creación
+    docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | findstr /C:"1" > nul
     if errorlevel 1 (
         echo [ERROR] Error al crear base de datos
         docker-compose down
         goto end
     )
+    echo [INFO] Base de datos proyecto_ia_db creada exitosamente
 ) else (
-    echo [INFO] Base de datos asistente_plantitas ya existe
+    echo [INFO] Base de datos proyecto_ia_db ya existe
 )
 echo.
 REM 6. Aplicar migraciones con script mejorado
@@ -122,14 +125,21 @@ if errorlevel 1 (
     echo [WARNING] O verifica los logs: manage.bat logs backend
 )
 echo.
-REM 7. Verificar dependencias frontend
+REM 7. Verificar dependencias frontend (opcional - solo en desarrollo local)
 echo [INFO] Verificando dependencias del frontend...
 if not exist frontend\node_modules (
-    echo [INFO] Instalando dependencias de NPM (primera vez)...
-    docker-compose run --rm frontend npm install
-    if errorlevel 1 (
-        echo [WARNING] Error al instalar dependencias de NPM
+    echo [INFO] node_modules no encontrado. Instalando dependencias...
+    echo [INFO] Nota: Esto requiere Node.js instalado localmente o usar docker-compose.dev.yml
+    where npm >nul 2>&1
+    if not errorlevel 1 (
+        cd frontend
+        call npm install
+        cd ..
+    ) else (
+        echo [WARNING] NPM no encontrado. Las dependencias se instalarán al usar 'manage.bat dev'
     )
+) else (
+    echo [INFO] Dependencias del frontend ya instaladas
 )
 echo.
 REM 8. Detener servicios temporales

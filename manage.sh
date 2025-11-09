@@ -135,16 +135,20 @@ setup() {
     # 7. Crear base de datos
     echo ""
     print_message "Verificando base de datos..."
-    DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'asistente_plantitas'" | grep -c 1 || true)
+    DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | grep -c 1 || true)
     if [ "$DB_EXISTS" -eq "0" ]; then
-        print_message "Creando base de datos asistente_plantitas..."
-        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE asistente_plantitas;" || {
+        print_message "Creando base de datos proyecto_ia_db..."
+        docker-compose exec -T db psql -U postgres -c "CREATE DATABASE proyecto_ia_db;" 2>/dev/null || true
+        # Verificar si la base de datos existe después del intento de creación
+        DB_EXISTS=$(docker-compose exec -T db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'proyecto_ia_db'" | grep -c 1 || true)
+        if [ "$DB_EXISTS" -eq "0" ]; then
             print_error "Error al crear base de datos"
             docker-compose down
             exit 1
-        }
+        fi
+        print_message "Base de datos proyecto_ia_db creada exitosamente"
     else
-        print_message "Base de datos asistente_plantitas ya existe"
+        print_message "Base de datos proyecto_ia_db ya existe"
     fi
     
     # 8. Aplicar migraciones con script mejorado
@@ -169,14 +173,21 @@ setup() {
         }
     fi
     
-    # 9. Verificar estado del frontend (npm install si es necesario)
+    # 9. Verificar dependencias frontend (opcional - solo en desarrollo local)
     echo ""
     print_message "Verificando dependencias del frontend..."
     if [ ! -d "frontend/node_modules" ]; then
-        print_message "Instalando dependencias de NPM (primera vez)..."
-        docker-compose run --rm frontend npm install || {
-            print_warning "Error al instalar dependencias de NPM"
-        }
+        print_message "node_modules no encontrado. Instalando dependencias..."
+        print_message "Nota: Esto requiere Node.js instalado localmente o usar docker-compose.dev.yml"
+        if command -v npm >/dev/null 2>&1; then
+            cd frontend
+            npm install
+            cd ..
+        else
+            print_warning "NPM no encontrado. Las dependencias se instalarán al usar './manage.sh dev'"
+        fi
+    else
+        print_message "Dependencias del frontend ya instaladas"
     fi
     
     # 10. Detener servicios temporales
@@ -220,10 +231,7 @@ prod() {
     print_message "Levantando entorno de producción..."
     docker-compose up -d --build
     
-    print_message "Servicios levantados. URLs disponibles:"
-    echo "  Frontend: http://localhost:$(grep FRONTEND_PORT .env | cut -d'=' -f2 | head -1)"
-    echo "  Backend:  http://localhost:$(grep BACKEND_PORT .env | cut -d'=' -f2 | head -1)"
-    echo "  Adminer:  http://localhost:$(grep ADMINER_PORT .env | cut -d'=' -f2 | head -1)"
+    print_message "Servicios levantados. Revisa las URLs en tu archivo .env"
 }
 
 # Detener servicios

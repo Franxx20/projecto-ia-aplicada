@@ -872,9 +872,9 @@ docker-compose restart db
 
 4. **Si persiste, verificar variables en `.env`**:
 ```bash
-POSTGRES_DB=asistente_plantitas
+POSTGRES_DB=proyecto_ia_db
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=tu_password_seguro
+POSTGRES_PASSWORD=postgres123
 ```
 
 ---

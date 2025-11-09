@@ -86,6 +86,13 @@ class IdentificacionService:
         # Obtener el mejor resultado
         mejor_resultado = PlantNetService.extraer_mejor_resultado(respuesta)
         
+        # Verificar que se obtuvo un resultado válido
+        if mejor_resultado is None:
+            raise ValueError(
+                "No se pudo identificar la planta. PlantNet no encontró coincidencias. "
+                "Intenta con imágenes más claras o desde diferentes ángulos."
+            )
+        
         # Buscar o crear la especie en la base de datos
         especie = await IdentificacionService._buscar_o_crear_especie(
             db=db,
@@ -165,6 +172,13 @@ class IdentificacionService:
         
         # Obtener el mejor resultado
         mejor_resultado = PlantNetService.extraer_mejor_resultado(respuesta)
+        
+        # Verificar que se obtuvo un resultado válido
+        if mejor_resultado is None:
+            raise ValueError(
+                "No se pudo identificar la planta. PlantNet no encontró coincidencias. "
+                "Intenta con imágenes más claras o desde diferentes ángulos."
+            )
         
         # Buscar o crear la especie
         especie = await IdentificacionService._buscar_o_crear_especie(
@@ -476,6 +490,13 @@ class IdentificacionService:
         
         # Obtener el mejor resultado
         mejor_resultado = PlantNetService.extraer_mejor_resultado(respuesta)
+        
+        # Verificar que se obtuvo un resultado válido
+        if mejor_resultado is None:
+            raise ValueError(
+                "No se pudo identificar la planta. PlantNet no encontró coincidencias. "
+                "Intenta con imágenes más claras o desde diferentes ángulos."
+            )
         
         # Buscar o crear la especie en la base de datos
         especie = await IdentificacionService._buscar_o_crear_especie(

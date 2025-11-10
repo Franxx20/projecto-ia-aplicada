@@ -10,8 +10,8 @@ $ErrorActionPreference = "Stop"
 # =============================================================================
 
 # IMPORTANTE: Configurar estas variables antes de ejecutar
-$ORGANIZATION_URL = "https://dev.azure.com/tu-organizacion"  # CAMBIAR
-$PROJECT_NAME = "projecto-ia-aplicada"  # CAMBIAR si es diferente
+$ORGANIZATION_URL = "https://dev.azure.com/ia-grupo-5"  # CAMBIAR
+$PROJECT_NAME = "proyecto-plantitas"  # CAMBIAR si es diferente
 $AREA_PATH = "$PROJECT_NAME"  # Ajustar si tienes área específica
 
 # =============================================================================
@@ -105,6 +105,7 @@ Ver documento completo: EPICA_DEPLOYMENT_AZURE_ESTUDIANTES.md
     $epic = az boards work-item create `
         --title "EPIC-DEPLOY-001: Deployment a Azure para Estudiantes" `
         --type "Epic" `
+        --project $PROJECT_NAME `
         --area $AREA_PATH `
         --description $epicDescription `
         --output json | ConvertFrom-Json
@@ -141,6 +142,7 @@ Ver detalles en: EPICA_DEPLOYMENT_AZURE_ESTUDIANTES.md
     $task = az boards work-item create `
         --title $Title `
         --type "Task" `
+        --project $PROJECT_NAME `
         --area $AREA_PATH `
         --description $fullDescription `
         --output json | ConvertFrom-Json
@@ -150,11 +152,13 @@ Ver detalles en: EPICA_DEPLOYMENT_AZURE_ESTUDIANTES.md
         --id $task.id `
         --relation-type "Parent" `
         --target-id $EpicId `
+        --project $PROJECT_NAME `
         --output none
     
     # Configurar prioridad
     az boards work-item update `
         --id $task.id `
+        --project $PROJECT_NAME `
         --fields "Microsoft.VSTS.Common.Priority=$Priority" `
         --output none
     

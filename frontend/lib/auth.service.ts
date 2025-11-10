@@ -86,6 +86,7 @@ class AuthService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
+      credentials: 'include', // Importante para cookies
     })
 
     if (!response.ok) {
@@ -99,6 +100,10 @@ class AuthService {
     if (typeof window !== 'undefined') {
       localStorage.setItem('access_token', tokenData.access_token)
       localStorage.setItem('user', JSON.stringify(tokenData.user))
+      
+      // También guardar en cookies para que el middleware pueda acceder
+      // Cookie expira en 30 minutos (igual que el token JWT)
+      document.cookie = `access_token=${tokenData.access_token}; path=/; max-age=1800; SameSite=Lax`
     }
 
     return tokenData
@@ -119,16 +124,20 @@ class AuthService {
             'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({ access_token: token }),
+          credentials: 'include',
         })
       } catch (error) {
         console.error('Error al cerrar sesión:', error)
       }
     }
 
-    // Limpiar localStorage
+    // Limpiar localStorage y cookies
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
+      
+      // Borrar cookie estableciendo max-age=0
+      document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax'
     }
   }
 
@@ -149,6 +158,7 @@ class AuthService {
         'Authorization': `Bearer ${currentToken}`,
       },
       body: JSON.stringify({ access_token: currentToken }),
+      credentials: 'include',
     })
 
     if (!response.ok) {
@@ -158,9 +168,10 @@ class AuthService {
 
     const data = await response.json()
     
-    // Actualizar token en localStorage
+    // Actualizar token en localStorage y cookies
     if (typeof window !== 'undefined') {
       localStorage.setItem('access_token', data.access_token)
+      document.cookie = `access_token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`
     }
 
     return data.access_token

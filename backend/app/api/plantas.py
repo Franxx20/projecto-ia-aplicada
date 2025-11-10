@@ -90,8 +90,9 @@ async def crear_planta(
     response_description="Lista de plantas del usuario"
 )
 async def listar_plantas(
-    skip: int = Query(0, ge=0, description="Número de registros a saltar"),
-    limit: int = Query(100, ge=1, le=1000, description="Número máximo de registros"),
+    skip: int = Query(0, ge=0, alias="offset", description="Número de registros a saltar"),
+    limit: int = Query(100, ge=1, le=1000, alias="limite", description="Número máximo de registros"),
+    solo_activas: bool = Query(True, description="Solo plantas activas (is_active=True)"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -99,18 +100,21 @@ async def listar_plantas(
     Lista todas las plantas activas del usuario con paginación.
     
     Retorna las plantas ordenadas por fecha de creación (más recientes primero).
+    El parámetro solo_activas filtra plantas activas (por defecto True).
     """
     try:
         plantas = PlantaService.obtener_plantas_usuario(
             db=db,
             usuario_id=current_user.id,
             skip=skip,
-            limit=limit
+            limit=limit,
+            solo_activas=solo_activas
         )
         
         total = PlantaService.contar_plantas_usuario(
             db=db,
-            usuario_id=current_user.id
+            usuario_id=current_user.id,
+            solo_activas=solo_activas
         )
         
         # Importar ImagenService para generar URLs con SAS

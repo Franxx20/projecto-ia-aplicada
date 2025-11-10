@@ -33,7 +33,7 @@ class PlantaBase(BaseModel):
     estado_salud: str = Field(
         default="buena",
         description="Estado de salud de la planta",
-        examples=["excelente", "buena", "necesita_atencion", "critica"]
+        examples=["excelente", "saludable", "buena", "necesita_atencion", "critica"]
     )
     ubicacion: Optional[str] = Field(
         None,
@@ -74,9 +74,12 @@ class PlantaBase(BaseModel):
     @classmethod
     def validar_estado_salud(cls, v: str) -> str:
         """Valida que el estado de salud sea uno de los valores permitidos."""
-        estados_validos = ['excelente', 'buena', 'necesita_atencion', 'critica']
-        if v not in estados_validos:
+        estados_validos = ['excelente', 'saludable', 'buena', 'necesita_atencion', 'critica']
+        v_norm = v.strip().lower()
+        if v_norm not in estados_validos:
             raise ValueError(f'Estado de salud debe ser uno de: {", ".join(estados_validos)}')
+        # Devolver el valor tal cual (permitimos mayúsculas iniciales),
+        # la validación es case-insensitive.
         return v
     
     @field_validator('luz_actual')
@@ -169,8 +172,9 @@ class PlantaUpdate(BaseModel):
         """Valida que el estado de salud sea uno de los valores permitidos."""
         if v is None:
             return v
-        estados_validos = ['excelente', 'buena', 'necesita_atencion', 'critica']
-        if v not in estados_validos:
+        estados_validos = ['excelente', 'saludable', 'buena', 'necesita_atencion', 'critica']
+        v_norm = v.strip().lower()
+        if v_norm not in estados_validos:
             raise ValueError(f'Estado de salud debe ser uno de: {", ".join(estados_validos)}')
         return v
     

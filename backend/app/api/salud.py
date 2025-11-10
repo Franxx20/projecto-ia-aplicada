@@ -213,10 +213,40 @@ async def crear_analisis_salud(
         db.add(nuevo_analisis)
         db.commit()
         db.refresh(nuevo_analisis)
-        
-        # 7. Preparar respuesta
+
+        # 7. Actualizar el estado de la planta en base al último análisis
+        try:
+            estado_gemini = resultado_gemini.get("estado")
+
+            def _map_estado_gemini_a_planta(eg: Optional[str]) -> str:
+                if not eg:
+                    return planta.estado_salud or "buena"
+                eg_norm = eg.strip().lower()
+                # Mapear valores de Gemini a los valores esperados por Planta.estado_salud
+                if eg_norm in ("excelente", "saludable", "buena", "good", "healthy"):
+                    return "saludable"
+                if eg_norm in ("necesita_atencion", "necesita atención", "needs_attention", "attention_needed"):
+                    return "necesita_atencion"
+                if eg_norm in ("enfermedad", "plaga", "critica", "crítica", "disease", "pest"):
+                    return "critica"
+                # Por defecto, mantener el estado actual
+                return planta.estado_salud or "buena"
+
+            nuevo_estado_planta = _map_estado_gemini_a_planta(estado_gemini)
+            # Guardar el estado de planta con la primera letra en mayúscula
+            if nuevo_estado_planta and nuevo_estado_planta != (planta.estado_salud or ""):
+                planta.estado_salud = nuevo_estado_planta.capitalize()
+                planta.updated_at = datetime.utcnow()
+                db.add(planta)
+                db.commit()
+                db.refresh(planta)
+        except Exception:
+            # No queremos que la actualización del estado de planta impida devolver el análisis
+            logger.exception("Error al actualizar estado de la planta después del análisis")
+
+        # 8. Preparar respuesta
         analisis_dict = nuevo_analisis.to_dict()
-        
+
         return AnalisisSaludResponse(**analisis_dict)
     
     except HTTPException:
@@ -305,7 +335,7 @@ async def obtener_analisis_salud(
         
         # Agregar info de imagen si existe
         if analisis.imagen:
-            analisis_dict["imagen_url"] = analisis.imagen.blob_url
+            analisis_dict["imagen_url"] = analisis.imagen.url_blob
         
         return DetalleAnalisisSaludResponse(**analisis_dict)
     
@@ -423,6 +453,9 @@ async def obtener_estadisticas_salud(
         
         problemas_frecuentes = Counter(todos_problemas).most_common(5)
         
+        # Calcular días desde el último análisis
+        dias_desde_ultimo = (datetime.utcnow() - analisis_reciente.fecha_analisis).days
+        
         # Preparar respuesta
         estadisticas = {
             "planta_id": planta_id,
@@ -436,7 +469,11 @@ async def obtener_estadisticas_salud(
             "distribucion_estados": dict(distribucion_estados),
             "problemas_frecuentes": [{"tipo": tipo, "frecuencia": freq} for tipo, freq in problemas_frecuentes],
             "ultimo_analisis": analisis_reciente.to_dict(),
-            "requiere_atencion": analisis_reciente.es_critico()
+            "requiere_atencion": analisis_reciente.es_critico(),
+            # Campos de compatibilidad con frontend
+            "ultimo_estado": analisis_reciente.estado,
+            "tendencia": tendencia,
+            "dias_desde_ultimo_analisis": dias_desde_ultimo
         }
         
         return EstadisticasSaludResponse(**estadisticas)
@@ -484,8 +521,12 @@ async def obtener_historial_salud(
     - Metadatos de paginación
     """
     try:
-        # Construir query base
-        query = db.query(AnalisisSalud).filter(
+        # Construir query base con eager loading de la relación planta
+        from sqlalchemy.orm import joinedload
+        
+        query = db.query(AnalisisSalud).options(
+            joinedload(AnalisisSalud.planta)
+        ).filter(
             AnalisisSalud.usuario_id == current_user.id
         )
         
@@ -524,20 +565,59 @@ async def obtener_historial_salud(
             desc(AnalisisSalud.fecha_analisis)
         ).limit(limite).offset(offset).all()
         
-        # Convertir a diccionarios y agregar información adicional
+        # Convertir a formato HistorialSaludItem
         resultados = []
         for analisis in analisis_lista:
-            analisis_dict = analisis.to_dict()
+            import json
             
-            # Agregar nombre de planta
-            if analisis.planta:
-                analisis_dict["planta_nombre"] = analisis.planta.nombre_personal
+            # Obtener URL de imagen si existe
+            imagen_url = None
+            if analisis.imagen_id is not None:
+                from app.db.models import Imagen
+                imagen = db.query(Imagen).filter(Imagen.id == analisis.imagen_id).first()
+                if imagen and imagen.url_blob:
+                    imagen_url = imagen.url_blob
             
-            # Agregar indicadores calculados
-            analisis_dict["es_critico"] = analisis.es_critico()
-            analisis_dict["color_estado"] = analisis.obtener_color_estado()
+            # Contar problemas y recomendaciones
+            num_problemas = 0
+            problemas_detectados_str = analisis.problemas_detectados
+            if problemas_detectados_str:
+                try:
+                    problemas_list = json.loads(problemas_detectados_str)
+                    num_problemas = len(problemas_list) if isinstance(problemas_list, list) else 0
+                except (json.JSONDecodeError, TypeError):
+                    num_problemas = 0
             
-            resultados.append(analisis_dict)
+            num_recomendaciones = 0
+            recomendaciones_str = analisis.recomendaciones
+            if recomendaciones_str:
+                try:
+                    recomendaciones_list = json.loads(recomendaciones_str)
+                    num_recomendaciones = len(recomendaciones_list) if isinstance(recomendaciones_list, list) else 0
+                except (json.JSONDecodeError, TypeError):
+                    num_recomendaciones = 0
+            
+            # Truncar resumen si es muy largo
+            resumen_original = analisis.resumen_diagnostico if analisis.resumen_diagnostico else ""
+            resumen = resumen_original
+            if len(resumen_original) > 200:
+                resumen = resumen_original[:197] + "..."
+            
+            # Crear item del historial según el schema HistorialSaludItem
+            item = {
+                "id": analisis.id,
+                "planta_id": analisis.planta_id,
+                "estado": analisis.estado,
+                "confianza": analisis.confianza,
+                "resumen": resumen,
+                "fecha_analisis": analisis.fecha_analisis,
+                "con_imagen": analisis.con_imagen,
+                "imagen_analizada_url": imagen_url,
+                "num_problemas": num_problemas,
+                "num_recomendaciones": num_recomendaciones
+            }
+            
+            resultados.append(item)
         
         # Preparar respuesta con metadata de paginación
         return HistorialSaludResponse(
@@ -551,6 +631,10 @@ async def obtener_historial_salud(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"ERROR en obtener_historial_salud: {str(e)}")
+        print(f"Traceback completo:\n{error_traceback}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener historial: {str(e)}"

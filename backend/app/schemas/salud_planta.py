@@ -377,6 +377,11 @@ class EstadisticasSaludResponse(BaseModel):
     ultimo_analisis: Optional[dict] = Field(None, description="Último análisis realizado")
     requiere_atencion: bool = Field(..., description="Si requiere atención")
     
+    # Campos adicionales para compatibilidad con frontend
+    ultimo_estado: Optional[str] = Field(None, description="Alias de estado_actual para compatibilidad")
+    tendencia: Optional[str] = Field(None, description="Alias de tendencia_general para compatibilidad")
+    dias_desde_ultimo_analisis: Optional[int] = Field(None, ge=0, description="Días desde el último análisis")
+    
     class Config:
         """Configuración del schema."""
         from_attributes = True

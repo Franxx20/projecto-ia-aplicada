@@ -17,6 +17,7 @@ import { AxiosError } from 'axios'
 import {
   AnalisisSaludRequest,
   AnalisisSaludResponse,
+  DetalleAnalisisSaludResponse,
   EstadisticasSalud,
   HistorialSaludResponse,
   HistorialSaludParams,
@@ -191,9 +192,9 @@ class SaludService {
    * console.log(analisis.recomendaciones)
    * ```
    */
-  async obtenerAnalisis(analisisId: number): Promise<AnalisisSaludResponse> {
+  async obtenerAnalisis(analisisId: number): Promise<DetalleAnalisisSaludResponse> {
     try {
-      const response = await axios.get<AnalisisSaludResponse>(
+      const response = await axios.get<DetalleAnalisisSaludResponse>(
         `${this.baseUrl}/analisis/${analisisId}`
       )
       return response.data

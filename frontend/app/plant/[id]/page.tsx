@@ -299,16 +299,38 @@ export default function PlantDetailPage() {
 
   // Calcular score de salud
   const calcularHealthScore = (planta: Planta): number => {
-    let score = 100
+    // Normalizar estado a minúsculas para comparación
+    const estadoNormalizado = planta.estado_salud.toLowerCase()
     
-    // Penalizar por estado de salud
-    if (planta.estado_salud === 'necesita_atencion') score -= 20
-    if (planta.estado_salud === 'critica') score -= 40
+    let baseScore = 100
     
-    // Penalizar si necesita riego
-    if (planta.necesita_riego) score -= 15
+    // Asignar score base según estado de salud
+    switch (estadoNormalizado) {
+      case 'excelente':
+        baseScore = 100
+        break
+      case 'saludable':
+      case 'buena':
+        baseScore = 85
+        break
+      case 'necesita_atencion':
+        baseScore = 50
+        break
+      case 'critica':
+      case 'enfermedad':
+      case 'plaga':
+        baseScore = 20
+        break
+      default:
+        baseScore = 70
+    }
     
-    return Math.max(0, score)
+    // Penalizar si necesita riego (hasta -15 puntos)
+    if (planta.necesita_riego) {
+      baseScore = Math.max(0, baseScore - 15)
+    }
+    
+    return Math.max(0, Math.min(100, baseScore))
   }
 
   if (authLoading || isLoading) {

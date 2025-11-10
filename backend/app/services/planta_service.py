@@ -422,13 +422,15 @@ class PlantaService:
         ).scalar()
         
         # Plantas saludables (excelente o buena)
+        # Comparar estado_salud de forma case-insensitive (puede guardarse capitalizado)
         plantas_saludables = db.query(func.count(Planta.id)).filter(
             and_(
                 Planta.usuario_id == usuario_id,
                 Planta.is_active == True,
                 or_(
-                    Planta.estado_salud == 'excelente',
-                    Planta.estado_salud == 'buena'
+                    func.lower(Planta.estado_salud) == 'excelente',
+                    func.lower(Planta.estado_salud) == 'buena',
+                    func.lower(Planta.estado_salud) == 'saludable'
                 )
             )
         ).scalar()
@@ -439,8 +441,8 @@ class PlantaService:
                 Planta.usuario_id == usuario_id,
                 Planta.is_active == True,
                 or_(
-                    Planta.estado_salud == 'necesita_atencion',
-                    Planta.estado_salud == 'critica'
+                    func.lower(Planta.estado_salud) == 'necesita_atencion',
+                    func.lower(Planta.estado_salud) == 'critica'
                 )
             )
         ).scalar()
@@ -525,11 +527,12 @@ class PlantaService:
         Returns:
             List[Planta]: Lista de plantas filtradas
         """
+        # Filtrar estado_salud case-insensitive
         return db.query(Planta).filter(
             and_(
                 Planta.usuario_id == usuario_id,
                 Planta.is_active == True,
-                Planta.estado_salud == estado_salud
+                func.lower(Planta.estado_salud) == estado_salud.lower()
             )
         ).order_by(Planta.created_at.desc()).offset(skip).limit(limit).all()
     

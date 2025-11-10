@@ -178,7 +178,7 @@ function AnalisisCard({
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => router.push(`/plant/${analisis.planta_id}?tab=health`)}
+              onClick={() => router.push(`/salud/analisis/${analisis.id}`)}
             >
               Ver detalles completos
             </Button>

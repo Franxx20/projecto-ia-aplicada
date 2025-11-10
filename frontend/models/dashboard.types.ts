@@ -10,7 +10,7 @@
 /**
  * Tipo para el estado de salud de una planta
  */
-export type EstadoSalud = 'excelente' | 'buena' | 'necesita_atencion' | 'critica';
+export type EstadoSalud = 'excelente' | 'saludable' | 'buena' | 'necesita_atencion' | 'enfermedad' | 'plaga' | 'critica' | 'desconocido';
 
 /**
  * Tipo para el nivel de luz que recibe una planta
@@ -126,14 +126,22 @@ export interface PlantaCard extends Planta {
  * Mapeo de estados de salud a variantes de Badge
  */
 export const estadoSaludToBadgeVariant = (estado: EstadoSalud): 'default' | 'destructive' | 'secondary' => {
-  switch (estado) {
+  // Normalizar a minúsculas para comparación case-insensitive
+  const estadoNormalizado = estado.toLowerCase() as EstadoSalud
+  
+  switch (estadoNormalizado) {
     case 'excelente':
+    case 'saludable':
     case 'buena':
       return 'default'; // Verde
     case 'necesita_atencion':
       return 'secondary'; // Amarillo/Warning
+    case 'enfermedad':
+    case 'plaga':
     case 'critica':
       return 'destructive'; // Rojo
+    case 'desconocido':
+      return 'secondary'; // Gris/Unknown
     default:
       return 'default';
   }
@@ -143,17 +151,28 @@ export const estadoSaludToBadgeVariant = (estado: EstadoSalud): 'default' | 'des
  * Mapeo de estados de salud a texto legible
  */
 export const estadoSaludToLabel = (estado: EstadoSalud): string => {
-  switch (estado) {
+  // Normalizar a minúsculas para comparación case-insensitive
+  const estadoNormalizado = estado.toLowerCase() as EstadoSalud
+  
+  switch (estadoNormalizado) {
     case 'excelente':
       return 'Excelente';
+    case 'saludable':
     case 'buena':
       return 'Saludable';
     case 'necesita_atencion':
       return 'Necesita Atención';
+    case 'enfermedad':
+      return 'Enferma';
+    case 'plaga':
+      return 'Con Plaga';
     case 'critica':
       return 'Estado Crítico';
+    case 'desconocido':
+      return 'Desconocido';
     default:
-      return estado;
+      // Si viene capitalizado, devolverlo tal cual
+      return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase();
   }
 };
 

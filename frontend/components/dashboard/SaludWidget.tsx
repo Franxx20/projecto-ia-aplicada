@@ -63,6 +63,7 @@ interface SaludJardinStats {
  */
 interface PlantaCritica {
   planta_id: number
+  analisis_id: number
   nombre: string
   estado: string
   dias_desde_analisis: number
@@ -142,10 +143,13 @@ export function SaludWidget({ className }: SaludWidgetProps) {
       plantasConAnalisis.forEach(({ planta, stats }) => {
         if (!stats?.ultimo_estado) return
 
+        // Normalizar estado para comparación case-insensitive
+        const estadoNormalizado = stats.ultimo_estado.toLowerCase()
+
         // Clasificar por estado
-        if (stats.ultimo_estado === 'excelente' || stats.ultimo_estado === 'saludable') {
+        if (estadoNormalizado === 'excelente' || estadoNormalizado === 'saludable' || estadoNormalizado === 'buena') {
           saludables++
-        } else if (stats.ultimo_estado === 'necesita_atencion') {
+        } else if (estadoNormalizado === 'necesita_atencion') {
           necesitanAtencion++
         } else {
           // enfermedad, plaga, critica
@@ -154,6 +158,7 @@ export function SaludWidget({ className }: SaludWidgetProps) {
           // Agregar a lista de críticas
           criticas_list.push({
             planta_id: planta.id,
+            analisis_id: stats.ultimo_analisis?.id || 0,
             nombre: planta.nombre_personal || 'Planta',
             estado: ESTADO_TEXTOS[stats.ultimo_estado] || stats.ultimo_estado,
             dias_desde_analisis: stats.dias_desde_ultimo_analisis || 0
@@ -226,6 +231,13 @@ export function SaludWidget({ className }: SaludWidgetProps) {
   useEffect(() => {
     cargarDatosSalud()
   }, [])
+
+  /**
+   * Navega a la página de detalle de un análisis de salud
+   */
+  const navegarAAnalisis = (analisisId: number) => {
+    router.push(`/salud/analisis/${analisisId}`)
+  }
 
   /**
    * Navega a la página de detalle de una planta
@@ -384,7 +396,7 @@ export function SaludWidget({ className }: SaludWidgetProps) {
                   {plantasCriticas.map((planta) => (
                     <button
                       key={planta.planta_id}
-                      onClick={() => navegarAPlanta(planta.planta_id)}
+                      onClick={() => navegarAAnalisis(planta.analisis_id)}
                       className="flex items-center justify-between w-full text-left p-2 rounded hover:bg-red-100 transition-colors"
                     >
                       <div>
@@ -463,7 +475,7 @@ export function SaludWidget({ className }: SaludWidgetProps) {
                 return (
                   <button
                     key={`${analisis.planta_id}-${analisis.id}`}
-                    onClick={() => navegarAPlanta(analisis.planta_id)}
+                    onClick={() => navegarAAnalisis(analisis.id)}
                     className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted transition-colors"
                   >
                     <div className="flex items-center gap-3">

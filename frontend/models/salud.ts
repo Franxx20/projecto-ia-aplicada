@@ -87,6 +87,21 @@ export interface AnalisisSaludResponse extends AnalisisSalud {
 }
 
 /**
+ * Response detallada del análisis de salud con información adicional
+ */
+export interface DetalleAnalisisSaludResponse extends AnalisisSaludResponse {
+  tendencia?: string // 'mejorando' | 'estable' | 'empeorando'
+  es_critico?: boolean
+  color_estado?: string // Color hexadecimal para UI
+  planta?: {
+    id: number
+    nombre_personal: string
+    especie: string | null
+  }
+  imagen_url?: string | null
+}
+
+/**
  * Estadísticas de salud de una planta
  */
 export interface EstadisticasSalud {
@@ -96,6 +111,13 @@ export interface EstadisticasSalud {
   confianza_promedio: number
   dias_desde_ultimo_analisis: number
   tendencia: TendenciaSalud
+  ultimo_analisis?: {
+    id: number
+    estado: EstadoSalud
+    confianza: number
+    resumen_diagnostico: string
+    fecha_analisis: string
+  } | null
 }
 
 /**
@@ -174,6 +196,7 @@ export interface SaludJardinStats {
  */
 export interface PlantaCritica {
   planta_id: number
+  analisis_id: number
   nombre: string
   estado: string
   dias_desde_analisis: number

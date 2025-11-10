@@ -444,6 +444,10 @@ class HistorialSaludItem(BaseModel):
         ge=0,
         description="Número de recomendaciones generadas"
     )
+    planta_nombre: Optional[str] = Field(
+        None,
+        description="Nombre personalizado de la planta"
+    )
     
     class Config:
         """Configuración del schema."""

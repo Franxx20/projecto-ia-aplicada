@@ -603,6 +603,11 @@ async def obtener_historial_salud(
             if len(resumen_original) > 200:
                 resumen = resumen_original[:197] + "..."
             
+            # Obtener nombre de la planta
+            planta_nombre = None
+            if analisis.planta:
+                planta_nombre = analisis.planta.nombre_personal
+            
             # Crear item del historial según el schema HistorialSaludItem
             item = {
                 "id": analisis.id,
@@ -614,7 +619,8 @@ async def obtener_historial_salud(
                 "con_imagen": analisis.con_imagen,
                 "imagen_analizada_url": imagen_url,
                 "num_problemas": num_problemas,
-                "num_recomendaciones": num_recomendaciones
+                "num_recomendaciones": num_recomendaciones,
+                "planta_nombre": planta_nombre
             }
             
             resultados.append(item)

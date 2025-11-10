@@ -19,8 +19,8 @@ $APP_PLAN = "plantitas-demo-plan"
 $BACKEND_APP = "plantitas-demo-backend"
 $FRONTEND_APP = "plantitas-demo-frontend"
 
-# Email para alertas de presupuesto (CAMBIAR)
-$ALERT_EMAIL = "tu-email@unlam.edu.ar"
+# Email para alertas de presupuesto
+$ALERT_EMAIL = "fgarcete@alumno.unlam.edu.ar"
 
 # =============================================================================
 # FUNCIONES DE LOGGING

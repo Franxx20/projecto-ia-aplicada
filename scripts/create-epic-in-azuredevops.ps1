@@ -152,13 +152,11 @@ Ver detalles en: EPICA_DEPLOYMENT_AZURE_ESTUDIANTES.md
         --id $task.id `
         --relation-type "Parent" `
         --target-id $EpicId `
-        --project $PROJECT_NAME `
         --output none
     
     # Configurar prioridad
     az boards work-item update `
         --id $task.id `
-        --project $PROJECT_NAME `
         --fields "Microsoft.VSTS.Common.Priority=$Priority" `
         --output none
     

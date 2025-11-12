@@ -15,7 +15,7 @@ Task: T-078
 from datetime import datetime, timedelta
 from typing import List, Optional
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, func
 
@@ -42,6 +42,202 @@ router = APIRouter()
 
 # Instanciar servicio de Gemini
 gemini_service = GeminiService()
+
+
+@router.post(
+    "/analisis-con-imagen",
+    response_model=AnalisisSaludResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear análisis de salud con imagen nueva",
+    description="Analiza la salud de una planta subiendo una nueva imagen que se asociará a la planta",
+    response_description="Análisis de salud creado exitosamente con imagen asociada"
+)
+async def crear_analisis_salud_con_imagen(
+    planta_id: int = Form(..., description="ID de la planta a analizar"),
+    archivo: UploadFile = File(..., description="Imagen de la planta para análisis"),
+    sintomas_observados: Optional[str] = Form(None, description="Síntomas observados"),
+    notas_adicionales: Optional[str] = Form(None, description="Notas adicionales"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Crea un nuevo análisis de salud subiendo una nueva imagen.
+    
+    La imagen se:
+    1. Sube a Azure Blob Storage
+    2. Guarda en la tabla imagenes
+    3. Asocia con la planta (aparecerá en la sección Photos)
+    4. Usa para el análisis de salud con Gemini AI
+    
+    **Parámetros:**
+    - **planta_id**: ID de la planta a analizar (requerido)
+    - **archivo**: Archivo de imagen (JPG, PNG, WEBP) (requerido)
+    - **sintomas_observados**: Descripción de síntomas (opcional)
+    - **notas_adicionales**: Notas adicionales (opcional)
+    
+    **Retorna:**
+    - Análisis completo de salud con recomendaciones
+    - La imagen queda asociada a la planta
+    """
+    try:
+        # 1. Validar que la planta existe y pertenece al usuario
+        planta = db.query(Planta).filter(
+            and_(
+                Planta.id == planta_id,
+                Planta.usuario_id == current_user.id
+            )
+        ).first()
+        
+        if not planta:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Planta con ID {planta_id} no encontrada o no pertenece al usuario"
+            )
+        
+        # 2. Subir la imagen a Azure y guardarla en BD
+        from app.services.imagen_service import ImagenService
+        imagen_service = ImagenService(db)
+        
+        nueva_imagen = await imagen_service.subir_imagen(
+            archivo=archivo,
+            usuario_id=current_user.id,
+            descripcion=f"Análisis de salud de {planta.nombre_personal}"
+        )
+        
+        logger.info(f"✅ Imagen subida: ID={nueva_imagen.id}, {nueva_imagen.tamano_bytes} bytes")
+        
+        # 3. Descargar la imagen para análisis
+        from app.services.imagen_service import AzureBlobService
+        azure_service = AzureBlobService()
+        imagen_bytes = azure_service.descargar_blob(nueva_imagen.nombre_blob)
+        
+        # 4. Construir contexto de la planta para el análisis
+        especie_nombre = "Desconocida"
+        especie_cientifica = None
+        familia = "Desconocida"
+        
+        if planta.especie_id:
+            from app.db.models import Especie
+            especie = db.query(Especie).filter(Especie.id == planta.especie_id).first()
+            if especie:
+                especie_nombre = especie.nombre_comun or "Desconocida"
+                especie_cientifica = especie.nombre_cientifico
+                familia = especie.familia or "Desconocida"
+        
+        # Calcular datos contextuales
+        dias_desde_adquisicion = (datetime.utcnow() - planta.fecha_adquisicion).days if planta.fecha_adquisicion else 0
+        dias_desde_riego = (datetime.utcnow() - planta.fecha_ultimo_riego).days if planta.fecha_ultimo_riego else None
+        
+        estado_riego = "normal"
+        if dias_desde_riego and planta.frecuencia_riego_dias:
+            if dias_desde_riego > planta.frecuencia_riego_dias + 2:
+                estado_riego = "atrasado"
+            elif dias_desde_riego < planta.frecuencia_riego_dias - 2:
+                estado_riego = "adelantado"
+        
+        contexto_planta = {
+            "nombre_personal": planta.nombre_personal,
+            "nombre_cientifico": especie_cientifica or "Desconocida",
+            "nombre_comun": especie_nombre,
+            "familia": familia,
+            "dias_desde_adquisicion": dias_desde_adquisicion,
+            "ubicacion": planta.ubicacion or "No especificada",
+            "luz_actual": planta.luz_actual or "No especificada",
+            "dias_desde_riego": dias_desde_riego or "N/A",
+            "frecuencia_riego_dias": planta.frecuencia_riego_dias or "N/A",
+            "estado_riego": estado_riego,
+            "estado_salud": planta.estado_salud or "desconocido",
+            "fecha_ultimo_analisis": "Nunca",
+            "notas": f"{planta.notas or ''}\n\nSíntomas observados: {sintomas_observados or 'Ninguno'}\n\nNotas adicionales: {notas_adicionales or 'Ninguna'}"
+        }
+        
+        # 5. Llamar a Gemini AI para análisis
+        resultado_gemini = gemini_service.analizar_salud_planta(
+            datos_planta=contexto_planta,
+            imagen_bytes=imagen_bytes,
+            usuario_id=current_user.id
+        )
+        
+        # 6. Crear registro de análisis en BD
+        import json
+        metadata = resultado_gemini.get("metadata", {})
+        
+        nuevo_analisis = AnalisisSalud(
+            planta_id=planta.id,
+            usuario_id=current_user.id,
+            imagen_id=nueva_imagen.id,  # ⭐ Asociar la imagen
+            estado=resultado_gemini["estado"],
+            confianza=resultado_gemini["confianza"],
+            resumen_diagnostico=resultado_gemini["resumen"],
+            diagnostico_detallado=resultado_gemini.get("diagnostico_completo"),
+            problemas_detectados=json.dumps(resultado_gemini.get("problemas_detectados", []), ensure_ascii=False),
+            recomendaciones=json.dumps(resultado_gemini.get("recomendaciones", []), ensure_ascii=False),
+            modelo_ia_usado=metadata.get("modelo", "gemini-2.5-flash"),
+            tiempo_analisis_ms=metadata.get("tiempo_analisis_ms", 0),
+            version_prompt=metadata.get("version_prompt", "v1.0"),
+            con_imagen=True,
+            notas_usuario=notas_adicionales,
+            fecha_analisis=datetime.utcnow()
+        )
+        
+        db.add(nuevo_analisis)
+        db.commit()
+        db.refresh(nuevo_analisis)
+        
+        # 7. Actualizar estado de la planta
+        try:
+            estado_gemini = resultado_gemini.get("estado")
+            
+            def _map_estado_gemini_a_planta(eg: Optional[str]) -> str:
+                if not eg:
+                    return planta.estado_salud or "desconocido"
+                eg_norm = eg.strip().lower()
+                if eg_norm in ("excelente", "excellent"):
+                    return "excelente"
+                if eg_norm in ("saludable", "buena", "good", "healthy"):
+                    return "saludable"
+                if eg_norm in ("necesita_atencion", "necesita atención", "needs_attention", "attention_needed"):
+                    return "necesita_atencion"
+                if eg_norm in ("enfermedad", "disease", "sick"):
+                    return "enfermedad"
+                if eg_norm in ("plaga", "pest", "infestation"):
+                    return "plaga"
+                if eg_norm in ("critica", "crítica", "critical"):
+                    return "critica"
+                if eg_norm in ("desconocido", "unknown"):
+                    return "desconocido"
+                return planta.estado_salud or "desconocido"
+            
+            nuevo_estado_planta = _map_estado_gemini_a_planta(estado_gemini)
+            if nuevo_estado_planta and nuevo_estado_planta != (planta.estado_salud or ""):
+                planta.estado_salud = nuevo_estado_planta
+                planta.updated_at = datetime.utcnow()
+                db.add(planta)
+                db.commit()
+                db.refresh(planta)
+        except Exception:
+            logger.exception("Error al actualizar estado de la planta después del análisis")
+        
+        logger.info(f"✅ Análisis creado con imagen asociada a la planta {planta_id}")
+        
+        # 8. Preparar respuesta
+        analisis_dict = nuevo_analisis.to_dict()
+        return AnalisisSaludResponse(**analisis_dict)
+    
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error al crear análisis de salud con imagen")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al crear análisis de salud: {str(e)}"
+        )
 
 
 @router.post(
@@ -219,23 +415,40 @@ async def crear_analisis_salud(
             estado_gemini = resultado_gemini.get("estado")
 
             def _map_estado_gemini_a_planta(eg: Optional[str]) -> str:
+                """
+                Mapea el estado devuelto por Gemini a los valores estándar del sistema.
+                
+                Estados estándar: excelente, saludable, necesita_atencion, enfermedad, plaga, critica, desconocido
+                """
                 if not eg:
-                    return planta.estado_salud or "buena"
+                    return planta.estado_salud or "desconocido"
+                
                 eg_norm = eg.strip().lower()
-                # Mapear valores de Gemini a los valores esperados por Planta.estado_salud
-                if eg_norm in ("excelente", "saludable", "buena", "good", "healthy"):
+                
+                # Mapear estados de Gemini a estados estándar (minúsculas, sin capitalizar)
+                if eg_norm in ("excelente", "excellent"):
+                    return "excelente"
+                if eg_norm in ("saludable", "buena", "good", "healthy"):
                     return "saludable"
                 if eg_norm in ("necesita_atencion", "necesita atención", "needs_attention", "attention_needed"):
                     return "necesita_atencion"
-                if eg_norm in ("enfermedad", "plaga", "critica", "crítica", "disease", "pest"):
+                if eg_norm in ("enfermedad", "disease", "sick"):
+                    return "enfermedad"
+                if eg_norm in ("plaga", "pest", "infestation"):
+                    return "plaga"
+                if eg_norm in ("critica", "crítica", "critical"):
                     return "critica"
-                # Por defecto, mantener el estado actual
-                return planta.estado_salud or "buena"
+                if eg_norm in ("desconocido", "unknown"):
+                    return "desconocido"
+                
+                # Si no coincide con ninguno, mantener el estado actual
+                return planta.estado_salud or "desconocido"
 
             nuevo_estado_planta = _map_estado_gemini_a_planta(estado_gemini)
-            # Guardar el estado de planta con la primera letra en mayúscula
+            
+            # Guardar el estado en minúsculas (sin capitalize)
             if nuevo_estado_planta and nuevo_estado_planta != (planta.estado_salud or ""):
-                planta.estado_salud = nuevo_estado_planta.capitalize()
+                planta.estado_salud = nuevo_estado_planta  # Sin .capitalize()
                 planta.updated_at = datetime.utcnow()
                 db.add(planta)
                 db.commit()
@@ -336,6 +549,40 @@ async def obtener_analisis_salud(
         # Agregar info de imagen si existe
         if analisis.imagen:
             analisis_dict["imagen_url"] = analisis.imagen.url_blob
+        
+        # 🆕 Agregar TODAS las imágenes usadas en el análisis (si están en metadatos)
+        imagenes_urls = []
+        try:
+            if analisis.metadatos_ia:
+                import json
+                metadatos = json.loads(analisis.metadatos_ia)
+                imagenes_ids = metadatos.get("imagenes_ids", [])
+                
+                if imagenes_ids:
+                    from app.db.models import Imagen
+                    from app.services.imagen_service import AzureBlobService
+                    
+                    azure_service = AzureBlobService()
+                    imagenes = db.query(Imagen).filter(Imagen.id.in_(imagenes_ids)).all()
+                    
+                    for imagen in imagenes:
+                        # Generar URL con SAS token
+                        url_con_sas = azure_service.generar_url_con_sas(
+                            imagen.nombre_blob,
+                            expiracion_horas=1
+                        )
+                        imagenes_urls.append({
+                            "id": imagen.id,
+                            "url": url_con_sas,
+                            "nombre_archivo": imagen.nombre_archivo,
+                            "organ": imagen.organ
+                        })
+                    
+                    logger.info(f"✅ Cargadas {len(imagenes_urls)} imágenes para análisis {analisis_id}")
+        except Exception as e:
+            logger.warning(f"⚠️  Error al cargar imágenes del análisis: {str(e)}")
+        
+        analisis_dict["imagenes"] = imagenes_urls if imagenes_urls else None
         
         return DetalleAnalisisSaludResponse(**analisis_dict)
     

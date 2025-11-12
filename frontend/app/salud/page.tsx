@@ -220,52 +220,41 @@ function SaludPageContent() {
       }, 300)
 
       // Determinar ID de imagen a usar
-      let imagenId: number | null = null
+      let resultado: any
       
+      // Si hay una imagen NUEVA seleccionada, usar el endpoint que sube y analiza en un solo paso
+      if (imagenSeleccionada) {
+        console.log('Usando imagen nueva. Subiendo y analizando en un paso...')
+        resultado = await saludService.crearAnalisisConImagen(
+          plantaId,
+          imagenSeleccionada,
+          sintomasObservados.trim() || undefined,
+          notasAdicionales.trim() || undefined
+        )
+        console.log('Análisis con imagen nueva completado:', resultado)
+      }
       // Si hay una imagen existente seleccionada, usarla
-      if (imagenExistenteId) {
-        imagenId = imagenExistenteId
-        console.log('Usando imagen existente. ID:', imagenId)
+      else if (imagenExistenteId) {
+        console.log('Usando imagen existente. ID:', imagenExistenteId)
+        resultado = await saludService.crearAnalisis({
+          planta_id: plantaId,
+          imagen_id: imagenExistenteId,
+          sintomas_observados: sintomasObservados.trim() || undefined,
+          notas_adicionales: notasAdicionales.trim() || undefined
+        })
+        console.log('Análisis con imagen existente completado:', resultado)
       }
-      // Si no, subir imagen nueva si existe
-      else if (imagenSeleccionada) {
-        try {
-          console.log('Subiendo imagen...')
-          const { imageService } = await import('@/lib/image.service')
-          const resultadoImagen = await imageService.subirImagen(
-            imagenSeleccionada,
-            (progreso: { percentage: number }) => {
-              console.log(`Progreso subida imagen: ${progreso.percentage}%`)
-            },
-            { descripcion: 'Imagen para análisis de salud' }
-          )
-          console.log('Respuesta de subida de imagen:', resultadoImagen)
-          
-          // El backend devuelve 'id' como number, pero el tipo frontend lo define como string
-          imagenId = typeof resultadoImagen.id === 'string' 
-            ? parseInt(resultadoImagen.id, 10) 
-            : resultadoImagen.id as number
-          console.log('Imagen subida exitosamente. ID:', imagenId)
-        } catch (errorImagen) {
-          console.error('Error al subir imagen:', errorImagen)
-          throw new Error(`Error al subir imagen: ${errorImagen instanceof Error ? errorImagen.message : 'Error desconocido'}`)
-        }
+      // Sin imagen
+      else {
+        console.log('Análisis sin imagen')
+        resultado = await saludService.crearAnalisis({
+          planta_id: plantaId,
+          imagen_id: null,
+          sintomas_observados: sintomasObservados.trim() || undefined,
+          notas_adicionales: notasAdicionales.trim() || undefined
+        })
+        console.log('Análisis sin imagen completado:', resultado)
       }
-
-      console.log('Llamando a saludService.crearAnalisis con:', {
-        planta_id: plantaId,
-        imagen_id: imagenId,
-        sintomas_observados: sintomasObservados.trim() || undefined,
-        notas_adicionales: notasAdicionales.trim() || undefined
-      })
-
-      // Llamar al servicio de análisis
-      const resultado = await saludService.crearAnalisis({
-        planta_id: plantaId,
-        imagen_id: imagenId,
-        sintomas_observados: sintomasObservados.trim() || undefined,
-        notas_adicionales: notasAdicionales.trim() || undefined
-      })
 
       clearInterval(intervaloProgreso)
       setProgresoAnalisis(100)

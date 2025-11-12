@@ -17,6 +17,8 @@ import logging
 from typing import List, Optional, Dict, Any, BinaryIO, Tuple
 from datetime import datetime, timedelta
 from pathlib import Path
+from io import BytesIO
+from PIL import Image
 
 from app.core.config import settings
 
@@ -203,28 +205,60 @@ class PlantNetService:
         }
         
         try:
-            # Preparar archivos - convertir a bytes si es necesario
-            from io import BytesIO
-            
+            # Preparar archivos - convertir y normalizar imágenes a formato JPEG
             archivos_preparados = []
-            for nombre_archivo, contenido in imagenes:
-                # Si contenido es BytesIO u otro stream, leerlo completamente
-                if hasattr(contenido, 'read'):
-                    if hasattr(contenido, 'seek'):
-                        contenido.seek(0)  # Asegurar posición inicial
-                    imagen_bytes = contenido.read()
-                elif isinstance(contenido, bytes):
-                    # Ya es bytes, usar directamente
-                    imagen_bytes = contenido
-                else:
-                    # Si no es ni stream ni bytes, intentar convertir
-                    logger.error(f"Tipo inesperado para contenido de imagen: {type(contenido)}")
-                    raise ValueError(f"Contenido de imagen debe ser bytes o file-like object, no {type(contenido)}")
-                
-                # Envolver bytes en BytesIO para httpx
-                imagen_stream = BytesIO(imagen_bytes)
-                imagen_stream.seek(0)  # Asegurar que está al inicio
-                archivos_preparados.append((nombre_archivo, imagen_stream))
+            for idx, (nombre_archivo, contenido) in enumerate(imagenes):
+                try:
+                    # Convertir contenido a bytes si es necesario
+                    if hasattr(contenido, 'read'):
+                        if hasattr(contenido, 'seek'):
+                            contenido.seek(0)  # Asegurar posición inicial
+                        imagen_bytes = contenido.read()
+                    elif isinstance(contenido, bytes):
+                        imagen_bytes = contenido
+                    else:
+                        logger.error(f"Tipo inesperado para contenido de imagen: {type(contenido)}")
+                        raise ValueError(f"Contenido de imagen debe ser bytes o file-like object, no {type(contenido)}")
+                    
+                    # Normalizar imagen a JPEG usando Pillow
+                    try:
+                        # Abrir imagen con Pillow
+                        img = Image.open(BytesIO(imagen_bytes))
+                        
+                        # Convertir a RGB si es necesario (algunos formatos como PNG con transparencia necesitan esto)
+                        if img.mode in ('RGBA', 'LA', 'P'):
+                            # Crear fondo blanco para transparencias
+                            background = Image.new('RGB', img.size, (255, 255, 255))
+                            if img.mode == 'P':
+                                img = img.convert('RGBA')
+                            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                            img = background
+                        elif img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        
+                        # Guardar como JPEG en BytesIO
+                        imagen_stream = BytesIO()
+                        img.save(imagen_stream, format='JPEG', quality=95, optimize=True)
+                        imagen_stream.seek(0)
+                        
+                        # Generar nombre con extensión .jpg
+                        nombre_base = nombre_archivo.rsplit('.', 1)[0] if '.' in nombre_archivo else nombre_archivo
+                        nombre_normalizado = f"{nombre_base}.jpg"
+                        
+                        archivos_preparados.append((nombre_normalizado, imagen_stream))
+                        logger.debug(f"✅ Imagen {idx + 1} normalizada a JPEG: {nombre_normalizado}")
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Error al normalizar imagen {idx + 1}: {str(e)}")
+                        # Si falla la conversión, intentar enviar original
+                        imagen_stream = BytesIO(imagen_bytes)
+                        imagen_stream.seek(0)
+                        archivos_preparados.append((nombre_archivo, imagen_stream))
+                        logger.warning(f"⚠️  Usando imagen original sin normalizar: {nombre_archivo}")
+                        
+                except Exception as e:
+                    logger.error(f"Error procesando imagen {idx + 1}: {str(e)}")
+                    raise
             
             logger.info(
                 f"Enviando request a PlantNet API: {url} con {len(imagenes)} imagen(es) "

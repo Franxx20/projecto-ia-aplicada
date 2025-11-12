@@ -183,18 +183,118 @@ class RateLimiter:
 
 
 # Instancia global del rate limiter
+# Inicializar rate limiter
 _rate_limiter = RateLimiter()
 
 
 class GeminiService:
     """
-    Servicio para interactuar con Google Gemini AI.
+    Servicio para interactuar con Google Gemini API.
     
-    Proporciona métodos para analizar la salud de plantas usando
+    Proporciona métodos para analizar la salud de plantas mediante
     visión por computadora y procesamiento de lenguaje natural.
     """
     
-    # Plantilla del prompt principal (versión 1.0)
+    # Template de prompt para análisis INICIAL (con condiciones ambientales)
+    PROMPT_TEMPLATE_INICIAL = """
+Eres un experto botánico especializado en diagnóstico fitosanitario de plantas de interior y exterior.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                  INFORMACIÓN DE LA PLANTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 IDENTIFICACIÓN:
+   • Nombre: {nombre_personalizado}
+   • Especie: {nombre_cientifico} ({nombre_comun})
+   • Familia: {familia}
+
+📍 UBICACIÓN Y AMBIENTE:
+   • Ubicación: {ubicacion}
+   • Nivel de luz actual: {luz_actual}
+
+💧 CUIDADOS:
+   • Frecuencia de riego recomendada: cada {frecuencia_riego} días
+
+📝 NOTAS DEL USUARIO:
+{notas_usuario}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                     INSTRUCCIONES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 TAREA - ANÁLISIS INICIAL:
+Este es el PRIMER análisis de esta planta. Analiza {tiene_imagen} y proporciona:
+1. Diagnóstico del estado actual
+2. Recomendaciones de cuidado
+3. **CONDICIONES AMBIENTALES IDEALES** para esta especie específica
+
+🔍 FACTORES A EVALUAR:
+
+1. ANÁLISIS VISUAL {si_tiene_imagen}:
+   • Examina TODAS las imágenes proporcionadas (pueden ser hasta 5 imágenes de diferentes ángulos/partes)
+   • Color y textura de hojas
+   • Vigor y crecimiento
+   • Signos de plagas o enfermedades
+   • Considera la información de todas las imágenes para un diagnóstico más completo
+
+2. CONDICIONES AMBIENTALES IDEALES:
+   • ¿Qué tipo de luz necesita esta especie? (directa, indirecta brillante, sombra, etc.)
+   • ¿Cuántas horas de luz al día?
+   • ¿Rango de temperatura óptimo? (min y max en °C)
+   • ¿Nivel de humedad ideal? (porcentaje min y max)
+   • ¿Cómo mantener la humedad adecuada?
+   • ¿Con qué frecuencia debe regarse? (días entre riegos según la especie y clima)
+   • ¿Cómo saber cuándo regar? (señales de que la planta necesita agua)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                  FORMATO DE RESPUESTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
+
+{{
+  "estado": "<uno de: excelente|saludable|necesita_atencion|enfermedad|plaga|critica|desconocido>",
+  "confianza": <número entre 0 y 100>,
+  "resumen": "<2-3 oraciones describiendo el estado general>",
+  "diagnostico_completo": "<análisis detallado de todos los síntomas>",
+  "problemas_detectados": [
+    {{
+      "tipo": "<exceso_riego|falta_riego|plaga_insectos|hongo|bacteria|falta_luz|exceso_luz|nutrientes|otro>",
+      "severidad": "<leve|moderada|severa>",
+      "ubicacion": "<descripción de dónde se observa>",
+      "descripcion": "<explicación específica>"
+    }}
+  ],
+  "recomendaciones": [
+    {{
+      "tipo": "<riego|poda|fertilizante|tratamiento|ubicacion|luz|drenaje|sustrato|otro>",
+      "descripcion": "<instrucción específica y accionable>",
+      "prioridad": "<alta|media|baja>",
+      "urgencia_dias": <número de días antes de actuar, o null>
+    }}
+  ],
+  "condiciones_ambientales": {{
+    "luz_recomendada": "<descripción detallada: tipo de luz ideal para esta especie>",
+    "luz_horas_diarias": "<ej: '6-8 horas de luz indirecta', '4-6 horas'>",
+    "temperatura_min": <temperatura mínima en °C>,
+    "temperatura_max": <temperatura máxima en °C>,
+    "temperatura_ideal": "<descripción legible: ej '18-25°C (65-77°F)'>",
+    "humedad_min": <porcentaje mínimo>,
+    "humedad_max": <porcentaje máximo>,
+    "humedad_recomendaciones": "<consejos específicos para mantener humedad: rociar, humidificador, bandeja con agua, etc.>",
+    "frecuencia_riego_dias": <número de días entre riegos, ej: 7, 10, 14>,
+    "descripcion_riego": "<descripción de cuándo y cómo regar, ej: 'Regar cuando los primeros 5cm de tierra estén secos'>"
+  }}
+}}
+
+⚠️  IMPORTANTE:
+   • Las condiciones ambientales deben ser específicas para la especie {nombre_cientifico}
+   • Sé preciso en temperaturas y humedad según los requisitos botánicos reales
+   • Si no tienes imagen, reduce el nivel de confianza (máx 70%)
+   • Responde SOLO con JSON, sin texto adicional antes o después
+"""
+    
+    # Template de prompt para análisis POSTERIORES (sin condiciones ambientales)
     PROMPT_TEMPLATE_V1 = """
 Eres un experto botánico especializado en diagnóstico fitosanitario de plantas de interior y exterior.
 
@@ -252,13 +352,14 @@ un diagnóstico profesional del estado de salud de esta planta.
                   FORMATO DE RESPUESTA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
+Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta.
+⚠️ IMPORTANTE: Limita "diagnostico_completo" a máximo 500 palabras para evitar truncamiento.
 
 {{
-  "estado": "<uno de: excelente|saludable|necesita_atencion|enfermedad|plaga|critica>",
+  "estado": "<uno de: excelente|saludable|necesita_atencion|enfermedad|plaga|critica|desconocido>",
   "confianza": <número entre 0 y 100>,
   "resumen": "<2-3 oraciones describiendo el estado general>",
-  "diagnostico_completo": "<análisis detallado de todos los síntomas>",
+  "diagnostico_completo": "<análisis detallado pero conciso de todos los síntomas (máx 500 palabras)>",
   "problemas_detectados": [
     {{
       "tipo": "<exceso_riego|falta_riego|plaga_insectos|hongo|bacteria|falta_luz|exceso_luz|nutrientes|otro>",
@@ -300,7 +401,8 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
     def _construir_prompt(
         cls,
         datos_planta: Dict[str, Any],
-        tiene_imagen: bool = True
+        tiene_imagen: bool = True,
+        es_analisis_inicial: bool = False
     ) -> str:
         """
         Construir el prompt personalizado con los datos de la planta.
@@ -308,6 +410,7 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         Args:
             datos_planta: Diccionario con información de la planta
             tiene_imagen: Si se incluye imagen en el análisis
+            es_analisis_inicial: Si es el primer análisis (solicita condiciones ambientales)
             
         Returns:
             Prompt formateado listo para Gemini
@@ -331,7 +434,11 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             "si_tiene_imagen": "(Imagen disponible)" if tiene_imagen else "(Sin imagen - análisis predictivo)"
         }
         
-        return cls.PROMPT_TEMPLATE_V1.format(**defaults)
+        # Seleccionar template según si es análisis inicial o no
+        if es_analisis_inicial:
+            return cls.PROMPT_TEMPLATE_INICIAL.format(**defaults)
+        else:
+            return cls.PROMPT_TEMPLATE_V1.format(**defaults)
     
     @classmethod
     def _preparar_imagen(
@@ -363,6 +470,34 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
                 return f.read()
         
         return None
+    
+    @classmethod
+    def _preparar_imagenes_multiples(
+        cls,
+        imagenes_bytes_list: Optional[List[bytes]] = None
+    ) -> List[Any]:
+        """
+        Preparar múltiples imágenes para enviar a Gemini.
+        
+        Args:
+            imagenes_bytes_list: Lista de bytes de imágenes (máximo 5)
+            
+        Returns:
+            Lista de objetos de imagen compatibles con Gemini
+        """
+        if not imagenes_bytes_list:
+            return []
+        
+        # Limitar a máximo 5 imágenes
+        imagenes_a_procesar = imagenes_bytes_list[:5]
+        
+        imagenes_preparadas = []
+        for i, imagen_bytes in enumerate(imagenes_a_procesar):
+            if imagen_bytes:
+                imagenes_preparadas.append(imagen_bytes)
+                logger.info(f"✅ Imagen {i+1}/{len(imagenes_a_procesar)} preparada para análisis")
+        
+        return imagenes_preparadas
     
     @classmethod
     def _parsear_respuesta_json(cls, texto: str) -> Dict[str, Any]:
@@ -409,11 +544,81 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         except json.JSONDecodeError as e:
             logger.error(f"❌ Error parseando JSON: {e}")
             logger.error(f"Posición del error: línea {e.lineno}, columna {e.colno}")
+            
+            # Intentar reparar JSON truncado
+            logger.warning("🔧 Intentando reparar JSON truncado...")
+            texto_reparado = cls._reparar_json_truncado(texto)
+            
+            if texto_reparado != texto:
+                try:
+                    data = json.loads(texto_reparado)
+                    logger.info("✅ JSON reparado y parseado correctamente")
+                    return data
+                except json.JSONDecodeError as e2:
+                    logger.error(f"❌ JSON reparado sigue siendo inválido: {e2}")
+            
+            # Log del error con texto limitado
             logger.error(f"Texto completo recibido ({len(texto)} chars):")
-            logger.error(f"{texto[:1000]}{'...' if len(texto) > 1000 else ''}")
+            logger.error(f"{texto[:2000]}{'...' if len(texto) > 2000 else ''}")
             raise GeminiInvalidResponseError(
                 f"La respuesta de Gemini no es JSON válido: {str(e)}"
             )
+    
+    @classmethod
+    def _reparar_json_truncado(cls, texto: str) -> str:
+        """
+        Intenta reparar un JSON truncado cerrando strings, arrays y objetos.
+        
+        Args:
+            texto: JSON potencialmente truncado
+            
+        Returns:
+            JSON reparado (o el original si no se puede reparar)
+        """
+        texto_original = texto
+        
+        # Buscar el último carácter válido antes del truncamiento
+        # Usualmente el JSON se corta en medio de un string
+        
+        # Si termina con "... (puntos suspensivos sin cerrar string)
+        if texto.rstrip().endswith('...') and texto.count('"') % 2 != 0:
+            # Encontrar la última comilla abierta
+            ultima_comilla = texto.rfind('"')
+            # Cortar hasta la última comilla y cerrar
+            texto = texto[:ultima_comilla + 1] + '..."'
+            logger.info("🔧 Detectado truncamiento con '...', string cerrada")
+        
+        # Contar llaves, corchetes y comillas
+        llaves_abiertas = texto.count('{') - texto.count('}')
+        corchetes_abiertos = texto.count('[') - texto.count(']')
+        comillas_dobles = texto.count('"')
+        
+        # Si hay una string sin cerrar (número impar de comillas)
+        if comillas_dobles % 2 != 0:
+            # Agregar comillas de cierre y manejar posible coma
+            if texto.rstrip().endswith(','):
+                texto = texto.rstrip(',') + '"'
+            else:
+                texto = texto.rstrip() + '"'
+            logger.info("🔧 Cerrada string truncada")
+        
+        # Remover la última coma si existe (JSON inválido)
+        texto = texto.rstrip()
+        if texto.endswith(','):
+            texto = texto[:-1]
+            logger.info("🔧 Removida coma final")
+        
+        # Cerrar arrays abiertos
+        if corchetes_abiertos > 0:
+            texto = texto + ']' * corchetes_abiertos
+            logger.info(f"🔧 Cerrados {corchetes_abiertos} arrays")
+        
+        # Cerrar objetos abiertos
+        if llaves_abiertas > 0:
+            texto = texto + '}' * llaves_abiertas
+            logger.info(f"🔧 Cerrados {llaves_abiertas} objetos")
+        
+        return texto
     
     @classmethod
     def _validar_respuesta(cls, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -441,13 +646,13 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         # Validar estado
         estados_validos = [
             "excelente", "saludable", "necesita_atencion", 
-            "enfermedad", "plaga", "critica"
+            "enfermedad", "plaga", "critica", "desconocido"
         ]
         if data["estado"] not in estados_validos:
             logger.warning(
-                f"Estado inválido: {data['estado']}. Usando 'saludable'"
+                f"Estado inválido: {data['estado']}. Usando 'desconocido'"
             )
-            data["estado"] = "saludable"
+            data["estado"] = "desconocido"
         
         # Validar confianza
         try:
@@ -470,6 +675,14 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         if not isinstance(data["recomendaciones"], list):
             data["recomendaciones"] = []
         
+        # Validar condiciones ambientales (opcional)
+        if "condiciones_ambientales" not in data:
+            data["condiciones_ambientales"] = None
+        elif data["condiciones_ambientales"] is not None:
+            # Asegurar que tenga la estructura mínima
+            if not isinstance(data["condiciones_ambientales"], dict):
+                data["condiciones_ambientales"] = None
+        
         return data
     
     @classmethod
@@ -478,8 +691,10 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         datos_planta: Dict[str, Any],
         imagen_path: Optional[Union[str, Path]] = None,
         imagen_bytes: Optional[bytes] = None,
+        imagenes_bytes_list: Optional[List[bytes]] = None,
         usuario_id: Optional[int] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        es_analisis_inicial: bool = False
     ) -> Dict[str, Any]:
         """
         Analizar la salud de una planta usando Gemini.
@@ -488,8 +703,10 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             datos_planta: Información contextual de la planta
             imagen_path: Ruta a la imagen (opcional)
             imagen_bytes: Bytes de la imagen (opcional)
+            imagenes_bytes_list: Lista de bytes de imágenes para análisis múltiple (opcional, máximo 5)
             usuario_id: ID del usuario para rate limiting
             timeout: Timeout en segundos (default: config.gemini_timeout_seconds)
+            es_analisis_inicial: Si es el análisis inicial de la planta (solicita condiciones ambientales)
             
         Returns:
             Diccionario con el análisis completo:
@@ -500,6 +717,7 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
                 "diagnostico_completo": str,
                 "problemas_detectados": List[Dict],
                 "recomendaciones": List[Dict],
+                "condiciones_ambientales": Dict (solo si es_analisis_inicial=True),
                 "metadata": Dict
             }
             
@@ -530,20 +748,34 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             logger.warning(f"Rate limit alcanzado: {e}")
             raise
         
-        # Preparar imagen si existe
-        tiene_imagen = imagen_path is not None or imagen_bytes is not None
-        imagen_data = None
+        # Preparar imágenes
+        imagenes_data = []
+        tiene_imagen = False
         
-        if tiene_imagen:
+        # Prioridad: imagenes_bytes_list > imagen_bytes > imagen_path
+        if imagenes_bytes_list and len(imagenes_bytes_list) > 0:
+            # Múltiples imágenes
+            try:
+                imagenes_data = cls._preparar_imagenes_multiples(imagenes_bytes_list)
+                tiene_imagen = len(imagenes_data) > 0
+                logger.info(f"✅ {len(imagenes_data)} imágenes preparadas para análisis múltiple")
+            except Exception as e:
+                logger.error(f"Error preparando imágenes múltiples: {e}")
+                raise GeminiAPIError(f"Error al procesar las imágenes: {str(e)}")
+        elif imagen_path is not None or imagen_bytes is not None:
+            # Una sola imagen (modo legacy)
             try:
                 imagen_data = cls._preparar_imagen(imagen_path, imagen_bytes)
-                logger.info("✅ Imagen preparada para análisis")
+                if imagen_data:
+                    imagenes_data = [imagen_data]
+                    tiene_imagen = True
+                    logger.info("✅ Imagen preparada para análisis")
             except Exception as e:
                 logger.error(f"Error preparando imagen: {e}")
                 raise GeminiAPIError(f"Error al procesar la imagen: {str(e)}")
         
         # Construir prompt
-        prompt = cls._construir_prompt(datos_planta, tiene_imagen)
+        prompt = cls._construir_prompt(datos_planta, tiene_imagen, es_analisis_inicial)
         
         # Configurar modelo
         try:
@@ -561,12 +793,18 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
         
         # Hacer request a Gemini
         try:
-            if imagen_data:
-                # Análisis con imagen
-                logger.info("🖼️  Enviando análisis con imagen...")
-                response = model.generate_content(
-                    [prompt, {"mime_type": "image/jpeg", "data": imagen_data}]
-                )
+            if len(imagenes_data) > 0:
+                # Análisis con imágenes (una o múltiples)
+                num_imagenes = len(imagenes_data)
+                logger.info(f"🖼️  Enviando análisis con {num_imagenes} imagen(es)...")
+                
+                # Construir contenido: [prompt, imagen1, imagen2, ...]
+                contenido = [prompt]
+                for i, imagen_data in enumerate(imagenes_data):
+                    contenido.append({"mime_type": "image/jpeg", "data": imagen_data})
+                    logger.debug(f"  📎 Imagen {i+1}/{num_imagenes} agregada al contenido")
+                
+                response = model.generate_content(contenido)
             else:
                 # Análisis solo con contexto
                 logger.info("📝 Enviando análisis sin imagen...")
@@ -649,9 +887,17 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
             
             logger.info(f"📄 Longitud de respuesta: {len(texto_respuesta)} caracteres")
             logger.debug(f"Primeros 200 chars: {texto_respuesta[:200]}")
+            
+            # 📋 LOG: Respuesta RAW completa de Gemini
+            logger.info("=" * 80)
+            logger.info("📡 RESPUESTA RAW DE GEMINI (antes de parsear)")
+            logger.info("=" * 80)
+            logger.info(texto_respuesta)
+            logger.info("=" * 80)
                 
             data = cls._parsear_respuesta_json(texto_respuesta)
             data = cls._validar_respuesta(data)
+
             
         except GeminiInvalidResponseError:
             raise

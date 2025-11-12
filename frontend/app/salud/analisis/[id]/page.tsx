@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Carousel, CarouselContent, CarouselItem, CarouselApi } from '@/components/ui/carousel'
 import { useAuth } from '@/hooks/useAuth'
 import saludService from '@/lib/salud.service'
 import type { DetalleAnalisisSaludResponse } from '@/models/salud'
@@ -26,6 +27,71 @@ import {
   obtenerColorEstado,
   obtenerEmojiEstado
 } from '@/models/salud'
+
+/**
+ * Componente para mostrar carrusel de imágenes
+ */
+interface ImageCarouselProps {
+  imagenes: Array<{
+    id: number
+    url: string
+    nombre_archivo: string
+    organ?: string | null
+  }>
+}
+
+function ImageCarousel({ imagenes }: ImageCarouselProps) {
+  const [api, setApi] = useState<CarouselApi>()
+  const [current, setCurrent] = useState(0)
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (!api) return
+
+    setCount(api.scrollSnapList().length)
+    setCurrent(api.selectedScrollSnap() + 1)
+
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap() + 1)
+    })
+  }, [api])
+
+  return (
+    <div className="relative">
+      <Carousel setApi={setApi} className="w-full">
+        <CarouselContent>
+          {imagenes.map((imagen, index) => (
+            <CarouselItem key={`analisis-img-${imagen.id}-${index}`}>
+              <div className="relative">
+                <img
+                  src={imagen.url}
+                  alt={imagen.nombre_archivo}
+                  className="w-full max-h-96 object-contain rounded-lg border"
+                />
+                {imagen.organ && imagen.organ !== 'sin_especificar' && (
+                  <div className="absolute bottom-3 left-3">
+                    <Badge variant="secondary" className="bg-black/50 text-white backdrop-blur-sm">
+                      {imagen.organ}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+      </Carousel>
+
+      {/* Indicador de posición */}
+      {count > 1 && (
+        <div className="absolute bottom-4 right-4">
+          <Badge variant="secondary" className="bg-black/50 text-white backdrop-blur-sm">
+            {current} / {count}
+          </Badge>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /**
  * Formatea una fecha a texto legible
@@ -214,18 +280,48 @@ export default function DetalleAnalisisPage() {
           </CardHeader>
         </Card>
 
-        {/* Imagen analizada */}
-        {analisis.imagen_url && (
+        {/* Imágenes analizadas */}
+        {((analisis.imagenes && analisis.imagenes.length > 0) || analisis.imagen_url) && (
           <Card>
             <CardHeader>
-              <CardTitle>Imagen Analizada</CardTitle>
+              <CardTitle>
+                {analisis.imagenes && analisis.imagenes.length > 1 
+                  ? `Imágenes Analizadas (${analisis.imagenes.length})`
+                  : 'Imagen Analizada'
+                }
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <img
-                src={analisis.imagen_url}
-                alt="Imagen analizada"
-                className="w-full max-h-96 object-contain rounded-lg border"
-              />
+              {analisis.imagenes && analisis.imagenes.length > 0 ? (
+                // Múltiples imágenes - Mostrar carrusel
+                analisis.imagenes.length === 1 ? (
+                  // Una sola imagen - Mostrar sin carrusel
+                  <div className="relative">
+                    <img
+                      src={analisis.imagenes[0].url}
+                      alt={analisis.imagenes[0].nombre_archivo}
+                      className="w-full max-h-96 object-contain rounded-lg border"
+                    />
+                    {analisis.imagenes[0].organ && analisis.imagenes[0].organ !== 'sin_especificar' && (
+                      <div className="absolute bottom-3 left-3">
+                        <Badge variant="secondary" className="bg-black/50 text-white backdrop-blur-sm">
+                          {analisis.imagenes[0].organ}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Múltiples imágenes - Mostrar carrusel
+                  <ImageCarousel imagenes={analisis.imagenes} />
+                )
+              ) : analisis.imagen_url ? (
+                // Fallback para análisis antiguos con imagen_url
+                <img
+                  src={analisis.imagen_url}
+                  alt="Imagen analizada"
+                  className="w-full max-h-96 object-contain rounded-lg border"
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

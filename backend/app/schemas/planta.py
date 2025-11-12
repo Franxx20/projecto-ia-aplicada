@@ -31,9 +31,9 @@ class PlantaBase(BaseModel):
         ge=1
     )
     estado_salud: str = Field(
-        default="buena",
+        default="desconocido",
         description="Estado de salud de la planta",
-        examples=["excelente", "saludable", "buena", "necesita_atencion", "critica"]
+        examples=["excelente", "saludable", "necesita_atencion", "enfermedad", "plaga", "critica", "desconocido"]
     )
     ubicacion: Optional[str] = Field(
         None,
@@ -65,6 +65,10 @@ class PlantaBase(BaseModel):
         description="Nivel de luz que recibe",
         examples=["baja", "media", "alta", "directa"]
     )
+    condiciones_ambientales_recomendadas: Optional[str] = Field(
+        None,
+        description="JSON con condiciones ambientales ideales del análisis inicial"
+    )
     fecha_adquisicion: Optional[datetime] = Field(
         None,
         description="Fecha de adquisición de la planta"
@@ -74,13 +78,12 @@ class PlantaBase(BaseModel):
     @classmethod
     def validar_estado_salud(cls, v: str) -> str:
         """Valida que el estado de salud sea uno de los valores permitidos."""
-        estados_validos = ['excelente', 'saludable', 'buena', 'necesita_atencion', 'critica']
+        estados_validos = ['excelente', 'saludable', 'necesita_atencion', 'enfermedad', 'plaga', 'critica', 'desconocido']
         v_norm = v.strip().lower()
         if v_norm not in estados_validos:
             raise ValueError(f'Estado de salud debe ser uno de: {", ".join(estados_validos)}')
-        # Devolver el valor tal cual (permitimos mayúsculas iniciales),
-        # la validación es case-insensitive.
-        return v
+        # Devolver el valor normalizado en minúsculas para consistencia
+        return v_norm
     
     @field_validator('luz_actual')
     @classmethod
@@ -172,11 +175,12 @@ class PlantaUpdate(BaseModel):
         """Valida que el estado de salud sea uno de los valores permitidos."""
         if v is None:
             return v
-        estados_validos = ['excelente', 'saludable', 'buena', 'necesita_atencion', 'critica']
+        estados_validos = ['excelente', 'saludable', 'necesita_atencion', 'enfermedad', 'plaga', 'critica', 'desconocido']
         v_norm = v.strip().lower()
         if v_norm not in estados_validos:
             raise ValueError(f'Estado de salud debe ser uno de: {", ".join(estados_validos)}')
-        return v
+        # Devolver el valor normalizado en minúsculas para consistencia
+        return v_norm
     
     @field_validator('luz_actual')
     @classmethod
@@ -204,7 +208,7 @@ class PlantaResponse(PlantaBase):
         ...,
         description="ID del usuario propietario"
     )
-    proxima_riego: Optional[datetime] = Field(
+    proximo_riego: Optional[datetime] = Field(
         None,
         description="Fecha y hora del próximo riego"
     )
@@ -235,6 +239,10 @@ class PlantaResponse(PlantaBase):
     fue_regada_hoy: bool = Field(
         default=False,
         description="Indica si la planta fue regada hoy"
+    )
+    condiciones_ambientales_recomendadas: Optional[dict] = Field(
+        None,
+        description="Condiciones ambientales ideales según análisis inicial"
     )
     
     class Config:

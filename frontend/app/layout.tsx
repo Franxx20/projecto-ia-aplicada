@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/toaster";
+import { ChatWidget } from "@/components/ChatWidget";
 
 /**
  * Metadata de la aplicación
@@ -55,6 +56,8 @@ export default function RootLayout({
           {/* Provider de autenticación global */}
           <AuthProvider>
             {children}
+            {/* Chat Widget flotante (solo visible para usuarios autenticados) */}
+            <ChatWidget />
           </AuthProvider>
         </div>
         {/* Toaster para notificaciones globales */}

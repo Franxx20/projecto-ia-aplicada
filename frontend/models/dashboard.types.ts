@@ -9,8 +9,16 @@
 
 /**
  * Tipo para el estado de salud de una planta
+ * Sincronizado con el backend y el módulo de salud
  */
-export type EstadoSalud = 'excelente' | 'saludable' | 'buena' | 'necesita_atencion' | 'enfermedad' | 'plaga' | 'critica' | 'desconocido';
+export type EstadoSalud = 
+  | 'excelente' 
+  | 'saludable' 
+  | 'necesita_atencion' 
+  | 'enfermedad' 
+  | 'plaga' 
+  | 'critica' 
+  | 'desconocido';
 
 /**
  * Tipo para el nivel de luz que recibe una planta
@@ -42,6 +50,18 @@ export interface Planta {
   necesita_riego: boolean;
   es_favorita: boolean;
   fue_regada_hoy: boolean;
+  condiciones_ambientales_recomendadas?: {
+    luz_recomendada: string;
+    luz_horas_diarias?: string;
+    temperatura_min?: number;
+    temperatura_max?: number;
+    temperatura_ideal?: string;
+    humedad_min?: number;
+    humedad_max?: number;
+    humedad_recomendaciones?: string;
+    frecuencia_riego_dias?: number;
+    descripcion_riego?: string;
+  } | null;
 }
 
 /**
@@ -110,6 +130,21 @@ export interface RegistrarRiegoRequest {
 }
 
 /**
+ * Interfaz para imagen de planta
+ * Representa una imagen asociada a una planta (principal, identificación, o análisis)
+ */
+export interface ImagenPlanta {
+  id: number;
+  nombre_archivo: string;
+  url_blob: string; // URL con SAS token incluido
+  tamano_bytes: number;
+  content_type: string;
+  descripcion?: string | null;
+  organ?: string | null;
+  created_at?: string | null; // ISO datetime string
+}
+
+/**
  * Interfaz para datos de una tarjeta de planta en el UI
  * Extensión de Planta con información computada para mostrar
  */
@@ -132,7 +167,6 @@ export const estadoSaludToBadgeVariant = (estado: EstadoSalud): 'default' | 'des
   switch (estadoNormalizado) {
     case 'excelente':
     case 'saludable':
-    case 'buena':
       return 'default'; // Verde
     case 'necesita_atencion':
       return 'secondary'; // Amarillo/Warning
@@ -149,6 +183,7 @@ export const estadoSaludToBadgeVariant = (estado: EstadoSalud): 'default' | 'des
 
 /**
  * Mapeo de estados de salud a texto legible
+ * Sincronizado con el módulo de salud para consistencia
  */
 export const estadoSaludToLabel = (estado: EstadoSalud): string => {
   // Normalizar a minúsculas para comparación case-insensitive
@@ -158,21 +193,99 @@ export const estadoSaludToLabel = (estado: EstadoSalud): string => {
     case 'excelente':
       return 'Excelente';
     case 'saludable':
-    case 'buena':
       return 'Saludable';
     case 'necesita_atencion':
       return 'Necesita Atención';
     case 'enfermedad':
-      return 'Enferma';
+      return 'Enfermedad Detectada';
     case 'plaga':
-      return 'Con Plaga';
+      return 'Plaga Detectada';
     case 'critica':
       return 'Estado Crítico';
     case 'desconocido':
-      return 'Desconocido';
+      return 'Estado Desconocido';
     default:
       // Si viene capitalizado, devolverlo tal cual
       return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase();
+  }
+};
+
+/**
+ * Mapeo de estados de salud a emojis
+ */
+export const estadoSaludToEmoji = (estado: EstadoSalud): string => {
+  const estadoNormalizado = estado.toLowerCase() as EstadoSalud
+  
+  switch (estadoNormalizado) {
+    case 'excelente':
+      return '🌟';
+    case 'saludable':
+      return '✅';
+    case 'necesita_atencion':
+      return '⚠️';
+    case 'enfermedad':
+      return '🦠';
+    case 'plaga':
+      return '🐛';
+    case 'critica':
+      return '🚨';
+    case 'desconocido':
+      return '❓';
+    default:
+      return '🌱';
+  }
+};
+
+/**
+ * Mapeo de estados de salud a clases CSS personalizadas para badges
+ * Con fondos opacos y sombras para mejor legibilidad sobre cualquier imagen
+ */
+export const estadoSaludToBadgeClasses = (estado: EstadoSalud): string => {
+  const estadoNormalizado = estado.toLowerCase() as EstadoSalud
+  
+  switch (estadoNormalizado) {
+    case 'excelente':
+      return 'bg-green-600 hover:bg-green-700 text-white border-2 border-green-700 font-semibold backdrop-blur-sm shadow-md';
+    case 'saludable':
+      return 'bg-green-500 hover:bg-green-600 text-white border-2 border-green-600 font-semibold backdrop-blur-sm shadow-md';
+    case 'necesita_atencion':
+      return 'bg-yellow-600 hover:bg-yellow-700 text-white border-2 border-yellow-700 font-semibold backdrop-blur-sm shadow-md';
+    case 'enfermedad':
+      return 'bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 font-semibold backdrop-blur-sm shadow-md';
+    case 'plaga':
+      return 'bg-orange-600 hover:bg-orange-700 text-white border-2 border-orange-700 font-semibold backdrop-blur-sm shadow-md';
+    case 'critica':
+      return 'bg-red-700 hover:bg-red-800 text-white border-2 border-red-800 font-semibold backdrop-blur-sm shadow-md';
+    case 'desconocido':
+      return 'bg-gray-600 hover:bg-gray-700 text-white border-2 border-gray-700 font-semibold backdrop-blur-sm shadow-md';
+    default:
+      return 'bg-gray-600 hover:bg-gray-700 text-white border-2 border-gray-700 font-semibold backdrop-blur-sm shadow-md';
+  }
+};
+
+/**
+ * Mapeo de estados de salud a estilos inline para garantizar colores consistentes
+ */
+export const estadoSaludToBadgeStyle = (estado: EstadoSalud): React.CSSProperties => {
+  const estadoNormalizado = estado.toLowerCase() as EstadoSalud
+  
+  switch (estadoNormalizado) {
+    case 'excelente':
+      return { backgroundColor: 'rgb(22 163 74)', borderColor: 'rgb(21 128 61)' }; // green-600/green-700
+    case 'saludable':
+      return { backgroundColor: 'rgb(34 197 94)', borderColor: 'rgb(22 163 74)' }; // green-500/green-600
+    case 'necesita_atencion':
+      return { backgroundColor: 'rgb(202 138 4)', borderColor: 'rgb(161 98 7)' }; // yellow-600/yellow-700
+    case 'enfermedad':
+      return { backgroundColor: 'rgb(220 38 38)', borderColor: 'rgb(185 28 28)' }; // red-600/red-700
+    case 'plaga':
+      return { backgroundColor: 'rgb(234 88 12)', borderColor: 'rgb(194 65 12)' }; // orange-600/orange-700
+    case 'critica':
+      return { backgroundColor: 'rgb(185 28 28)', borderColor: 'rgb(153 27 27)' }; // red-700/red-800
+    case 'desconocido':
+      return { backgroundColor: 'rgb(75 85 99)', borderColor: 'rgb(55 65 81)' }; // gray-600/gray-700
+    default:
+      return { backgroundColor: 'rgb(75 85 99)', borderColor: 'rgb(55 65 81)' }; // gray-600/gray-700
   }
 };
 

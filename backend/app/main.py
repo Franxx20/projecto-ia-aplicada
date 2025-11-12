@@ -175,6 +175,14 @@ def crear_aplicacion() -> FastAPI:
         tags=["Salud de Plantas"]
     )
     
+    # Registrar router de chat (Chat Asistente IA)
+    from .api.chat import router as chat_router
+    aplicacion.include_router(
+        chat_router,
+        prefix="/api/chat",
+        tags=["Chat Asistente"]
+    )
+    
     # TODO: Agregar más routers cuando se implementen
     # from .api import usuarios_router
     # aplicacion.include_router(usuarios_router, prefix="/api/usuarios", tags=["Usuarios"])

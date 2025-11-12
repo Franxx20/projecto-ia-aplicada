@@ -15,6 +15,7 @@ import type {
   DashboardStats,
   PlantaListResponse,
   RegistrarRiegoRequest,
+  ImagenPlanta,
 } from '@/models/dashboard.types';
 
 const BASE_PATH = '/api/plantas';
@@ -234,6 +235,34 @@ class DashboardService {
       return response.data;
     } catch (error) {
       console.error('Error al obtener plantas que necesitan riego:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene todas las imágenes asociadas a una planta específica
+   * 
+   * Incluye:
+   * - Imagen principal de la planta
+   * - Imágenes de identificación
+   * - Imágenes de análisis de salud
+   * 
+   * @param {number} plantaId - ID de la planta
+   * @returns {Promise<ImagenPlanta[]>} Lista de imágenes con URLs y metadatos
+   * @throws {Error} Si hay error en la petición
+   * 
+   * @example
+   * ```typescript
+   * const imagenes = await dashboardService.obtenerImagenesPlanta(123);
+   * console.log(`${imagenes.length} fotos encontradas`);
+   * ```
+   */
+  async obtenerImagenesPlanta(plantaId: number): Promise<ImagenPlanta[]> {
+    try {
+      const response = await axios.get<ImagenPlanta[]>(`${BASE_PATH}/${plantaId}/imagenes`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error al obtener imágenes de planta ${plantaId}:`, error);
       throw error;
     }
   }

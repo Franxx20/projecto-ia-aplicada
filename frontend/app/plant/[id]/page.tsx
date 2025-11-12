@@ -41,10 +41,17 @@ import {
   Leaf,
   X,
   Check,
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Stethoscope,
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import dashboardService from "@/lib/dashboard.service"
+import saludService from "@/lib/salud.service"
 import type { Planta } from "@/models/dashboard.types"
+import type { HistorialSaludItem } from "@/models/salud"
 import { estadoSaludToBadgeVariant, estadoSaludToLabel } from "@/models/dashboard.types"
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel"
 import { cn } from "@/lib/utils"
@@ -148,7 +155,7 @@ function PlantImageCarousel({
       <Carousel setApi={setApi} className="w-full">
         <CarouselContent>
           {imagesToShow.map((imagen, index) => (
-            <CarouselItem key={imagen.id || index}>
+            <CarouselItem key={`carousel-${imagen.id}-${index}`}>
               <div className="aspect-square relative">
                 <img
                   src={imagen.url_imagen || "/placeholder.svg"}
@@ -194,6 +201,11 @@ export default function PlantDetailPage() {
   const [nombreEditado, setNombreEditado] = useState("")
   const [isSavingName, setIsSavingName] = useState(false)
   const [isCheckingHealth, setIsCheckingHealth] = useState(false)
+  const [analisisRecientes, setAnalisisRecientes] = useState<HistorialSaludItem[]>([])
+  const [cargandoAnalisis, setCargandoAnalisis] = useState(false)
+  const [ultimoAnalisisDetalle, setUltimoAnalisisDetalle] = useState<any>(null)
+  const [imagenesPlanta, setImagenesPlanta] = useState<any[]>([])
+  const [cargandoImagenes, setCargandoImagenes] = useState(false)
 
   // Redirigir si no está autenticado
   useEffect(() => {
@@ -224,6 +236,56 @@ export default function PlantDetailPage() {
 
     cargarPlanta()
   }, [estaAutenticado, plantId])
+
+  // Cargar análisis recientes de la planta
+  useEffect(() => {
+    if (!estaAutenticado || !plantId || !planta) return
+
+    const cargarAnalisis = async () => {
+      try {
+        setCargandoAnalisis(true)
+        const historial = await saludService.obtenerHistorial({
+          planta_id: parseInt(plantId),
+          limite: 3,
+          offset: 0
+        })
+        setAnalisisRecientes(historial.analisis)
+        
+        // Cargar detalle completo del último análisis si existe
+        if (historial.analisis && historial.analisis.length > 0) {
+          const detalle = await saludService.obtenerAnalisis(historial.analisis[0].id)
+          setUltimoAnalisisDetalle(detalle)
+        }
+      } catch (err) {
+        console.error("Error al cargar análisis recientes:", err)
+        // No mostrar error al usuario, solo falla silenciosamente
+      } finally {
+        setCargandoAnalisis(false)
+      }
+    }
+
+    cargarAnalisis()
+  }, [estaAutenticado, plantId, planta])
+
+  // Cargar imágenes de la planta
+  useEffect(() => {
+    if (!estaAutenticado || !plantId || !planta) return
+
+    const cargarImagenes = async () => {
+      try {
+        setCargandoImagenes(true)
+        const imagenes = await dashboardService.obtenerImagenesPlanta(parseInt(plantId))
+        setImagenesPlanta(imagenes)
+      } catch (err) {
+        console.error("Error al cargar imágenes de la planta:", err)
+        // No mostrar error al usuario, solo falla silenciosamente
+      } finally {
+        setCargandoImagenes(false)
+      }
+    }
+
+    cargarImagenes()
+  }, [estaAutenticado, plantId, planta])
 
   // Handler para marcar como regada
   const handleMarcarComoRegada = async () => {
@@ -364,10 +426,37 @@ export default function PlantDetailPage() {
 
   const healthScore = calcularHealthScore(planta)
 
-  // Determinar imágenes a mostrar (por ahora solo mostramos placeholder si hay URL)
-  const imagenesParaMostrar: Array<{id?: number; url_imagen?: string; url_blob?: string}> = planta.imagen_principal_url 
-    ? [{ url_imagen: planta.imagen_principal_url }]
-    : []
+  // Determinar imágenes a mostrar (sin duplicados)
+  const imagenesParaMostrar = imagenesPlanta.length > 0 
+    ? (() => {
+        // Crear un Map para eliminar duplicados por ID
+        const imagenesUnicas = new Map()
+        
+        imagenesPlanta.forEach(img => {
+          if (img.id && !imagenesUnicas.has(img.id)) {
+            imagenesUnicas.set(img.id, {
+              id: img.id,
+              url_imagen: img.url_blob, // url_blob ya incluye el SAS token
+              organ: img.organ,
+              nombre_archivo: img.nombre_archivo,
+              fecha_subida: img.created_at,
+              tamano_bytes: img.tamano_bytes
+            })
+          }
+        })
+        
+        return Array.from(imagenesUnicas.values())
+      })()
+    : planta.imagen_principal_url 
+      ? [{ 
+          id: `principal-${planta.id}`, // Clave única para imagen principal
+          url_imagen: planta.imagen_principal_url,
+          organ: undefined,
+          nombre_archivo: undefined,
+          fecha_subida: undefined,
+          tamano_bytes: undefined
+        }]
+      : []
 
   return (
     <div className="min-h-screen bg-background">
@@ -554,6 +643,111 @@ export default function PlantDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Análisis Recientes Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
+                    <CardTitle className="text-lg">Análisis Recientes</CardTitle>
+                  </div>
+                  {analisisRecientes.length > 0 && (
+                    <Link href="/salud/historial">
+                      <Button variant="ghost" size="sm">
+                        Ver todos
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+                <CardDescription>Últimos diagnósticos de salud</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {cargandoAnalisis ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : analisisRecientes.length > 0 ? (
+                  <div className="space-y-3">
+                    {analisisRecientes.map((analisis) => (
+                      <Link 
+                        key={analisis.id}
+                        href={`/salud/analisis/${analisis.id}`}
+                        className="block"
+                      >
+                        <Card className="hover:shadow-md transition-shadow cursor-pointer border">
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              {/* Estado Icon */}
+                              <div className={cn(
+                                "p-2 rounded-full",
+                                analisis.estado === 'excelente' || analisis.estado === 'saludable' 
+                                  ? "bg-green-100" 
+                                  : analisis.estado === 'necesita_atencion'
+                                  ? "bg-yellow-100"
+                                  : "bg-red-100"
+                              )}>
+                                {analisis.estado === 'excelente' || analisis.estado === 'saludable' ? (
+                                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                ) : analisis.estado === 'necesita_atencion' ? (
+                                  <AlertCircle className="w-4 h-4 text-yellow-600" />
+                                ) : (
+                                  <AlertCircle className="w-4 h-4 text-red-600" />
+                                )}
+                              </div>
+
+                              {/* Contenido */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <Badge variant={estadoSaludToBadgeVariant(analisis.estado)}>
+                                    {estadoSaludToLabel(analisis.estado)}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatearFechaRelativa(analisis.fecha_analisis)}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-sm font-medium text-foreground line-clamp-2 mb-1">
+                                  {analisis.resumen_diagnostico}
+                                </p>
+
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <Leaf className="w-3 h-3" />
+                                    <span>Confianza: {Math.round(analisis.confianza)}%</span>
+                                  </div>
+                                  {analisis.con_imagen && (
+                                    <div className="flex items-center gap-1">
+                                      <Camera className="w-3 h-3" />
+                                      <span>Con imagen</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground mb-4">
+                      No hay análisis registrados
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleVerificarSalud}
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Realizar primer análisis
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Right Column - Detailed Information */}
@@ -654,36 +848,96 @@ export default function PlantDetailPage() {
                   <CardHeader>
                     <CardTitle>Consejos de Cuidado</CardTitle>
                     <CardDescription>
-                      Recomendaciones personalizadas para tu planta
+                      {ultimoAnalisisDetalle?.recomendaciones?.length > 0
+                        ? `Recomendaciones personalizadas basadas en el último análisis (${new Date(ultimoAnalisisDetalle.fecha_analisis).toLocaleDateString('es-ES')})`
+                        : "Recomendaciones personalizadas para tu planta"}
                     </CardDescription>
                   </CardHeader>
                     <CardContent>
-                      <ul className="space-y-3">
-                        <li className="flex items-start gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-sm leading-relaxed">
-                            Riega cuando los primeros 5 cm de tierra estén secos
-                          </span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-sm leading-relaxed">
-                            Limpia las hojas mensualmente para quitar el polvo
-                          </span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-sm leading-relaxed">
-                            Rota la planta semanalmente para un crecimiento uniforme
-                          </span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-sm leading-relaxed">
-                            Proporciona soporte para el crecimiento trepador
-                          </span>
-                        </li>
-                      </ul>
+                      {cargandoAnalisis ? (
+                        <div className="space-y-3">
+                          {[1, 2, 3].map((i) => (
+                            <div key={i} className="flex items-start gap-3">
+                              <div className="w-5 h-5 bg-muted rounded-full animate-pulse flex-shrink-0" />
+                              <div className="flex-1 space-y-2">
+                                <div className="h-4 bg-muted rounded animate-pulse w-3/4" />
+                                <div className="h-3 bg-muted rounded animate-pulse w-1/2" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : ultimoAnalisisDetalle?.recomendaciones?.length > 0 ? (
+                        <ul className="space-y-3">
+                          {ultimoAnalisisDetalle.recomendaciones.map((rec: any, index: number) => {
+                            // Definir color según prioridad
+                            const prioridadColor = rec.prioridad === 'alta' 
+                              ? 'text-red-600' 
+                              : rec.prioridad === 'media' 
+                              ? 'text-yellow-600' 
+                              : 'text-green-600'
+                            
+                            const prioridadBg = rec.prioridad === 'alta'
+                              ? 'bg-red-50 border-red-200'
+                              : rec.prioridad === 'media'
+                              ? 'bg-yellow-50 border-yellow-200'
+                              : 'bg-green-50 border-green-200'
+                            
+                            return (
+                              <li 
+                                key={index} 
+                                className={cn(
+                                  "flex items-start gap-3 p-3 rounded-lg border",
+                                  prioridadBg
+                                )}
+                              >
+                                <CheckCircle2 className={cn("w-5 h-5 mt-0.5 flex-shrink-0", prioridadColor)} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <span className="text-sm font-medium">
+                                      {rec.tipo}
+                                    </span>
+                                    {rec.prioridad && (
+                                      <span className={cn(
+                                        "text-xs px-2 py-0.5 rounded-full font-medium",
+                                        rec.prioridad === 'alta' 
+                                          ? 'bg-red-100 text-red-700'
+                                          : rec.prioridad === 'media'
+                                          ? 'bg-yellow-100 text-yellow-700'
+                                          : 'bg-green-100 text-green-700'
+                                      )}>
+                                        {rec.prioridad.charAt(0).toUpperCase() + rec.prioridad.slice(1)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm leading-relaxed text-muted-foreground">
+                                    {rec.descripcion}
+                                  </p>
+                                  {rec.urgencia_dias && (
+                                    <p className="text-xs mt-1 text-muted-foreground italic">
+                                      ⏱ Actuar en los próximos {rec.urgencia_dias} días
+                                    </p>
+                                  )}
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : (
+                        <div className="text-center py-8">
+                          <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-sm text-muted-foreground mb-4">
+                            No hay análisis de salud disponibles todavía
+                          </p>
+                          <Button
+                            onClick={handleVerificarSalud}
+                            className="gap-2"
+                            variant="outline"
+                          >
+                            <Stethoscope className="w-4 h-4" />
+                            Realizar Análisis de Salud
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
               </TabsContent>
@@ -697,6 +951,11 @@ export default function PlantDetailPage() {
                       <Sun className="w-5 h-5 text-accent" />
                       <CardTitle>Requisitos de Luz</CardTitle>
                     </div>
+                    {planta.condiciones_ambientales_recomendadas && (
+                      <CardDescription>
+                        Recomendaciones personalizadas para esta especie
+                      </CardDescription>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {planta.luz_actual && (
@@ -724,10 +983,23 @@ export default function PlantDetailPage() {
                       </>
                     )}
                     <div className="bg-muted p-4 rounded-lg">
-                      <p className="text-sm leading-relaxed">
-                        La mayoría de las plantas prosperan con luz brillante indirecta. Mantenlas cerca de una ventana
-                        con luz solar filtrada para un crecimiento óptimo.
-                      </p>
+                      {planta.condiciones_ambientales_recomendadas?.luz_recomendada ? (
+                        <>
+                          <p className="text-sm leading-relaxed mb-2">
+                            {planta.condiciones_ambientales_recomendadas.luz_recomendada}
+                          </p>
+                          {planta.condiciones_ambientales_recomendadas.luz_horas_diarias && (
+                            <p className="text-sm text-muted-foreground">
+                              ⏱ {planta.condiciones_ambientales_recomendadas.luz_horas_diarias}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm leading-relaxed">
+                          La mayoría de las plantas prosperan con luz brillante indirecta. Mantenlas cerca de una ventana
+                          con luz solar filtrada para un crecimiento óptimo.
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -741,10 +1013,27 @@ export default function PlantDetailPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Rango Ideal</p>
-                      <p className="font-semibold">18-29°C (65-85°F)</p>
-                    </div>
+                    {planta.condiciones_ambientales_recomendadas?.temperatura_ideal ? (
+                      <>
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Rango Ideal</p>
+                          <p className="font-semibold">{planta.condiciones_ambientales_recomendadas.temperatura_ideal}</p>
+                        </div>
+                        {(planta.condiciones_ambientales_recomendadas.temperatura_min || 
+                          planta.condiciones_ambientales_recomendadas.temperatura_max) && (
+                          <div className="mt-2">
+                            <p className="text-sm text-muted-foreground">
+                              Rango: {planta.condiciones_ambientales_recomendadas.temperatura_min}°C - {planta.condiciones_ambientales_recomendadas.temperatura_max}°C
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Rango Ideal</p>
+                        <p className="font-semibold">18-29°C (65-85°F)</p>
+                      </div>
+                    )}
                     <div className="bg-muted p-4 rounded-lg mt-4">
                       <p className="text-sm leading-relaxed">
                         Mantén temperaturas consistentes y evita colocar cerca de rejillas de calefacción 
@@ -763,15 +1052,31 @@ export default function PlantDetailPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Rango Recomendado</p>
-                      <p className="font-semibold">60-80%</p>
-                    </div>
+                    {planta.condiciones_ambientales_recomendadas?.humedad_min && 
+                     planta.condiciones_ambientales_recomendadas?.humedad_max ? (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Rango Recomendado</p>
+                        <p className="font-semibold">
+                          {planta.condiciones_ambientales_recomendadas.humedad_min}% - {planta.condiciones_ambientales_recomendadas.humedad_max}%
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Rango Recomendado</p>
+                        <p className="font-semibold">60-80%</p>
+                      </div>
+                    )}
                     <div className="bg-muted p-4 rounded-lg">
-                      <p className="text-sm leading-relaxed">
-                        Rocía las hojas regularmente o usa un humidificador para mantener 
-                        niveles óptimos de humedad para plantas tropicales.
-                      </p>
+                      {planta.condiciones_ambientales_recomendadas?.humedad_recomendaciones ? (
+                        <p className="text-sm leading-relaxed">
+                          {planta.condiciones_ambientales_recomendadas.humedad_recomendaciones}
+                        </p>
+                      ) : (
+                        <p className="text-sm leading-relaxed">
+                          Rocía las hojas regularmente o usa un humidificador para mantener 
+                          niveles óptimos de humedad para plantas tropicales.
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -855,7 +1160,7 @@ export default function PlantDetailPage() {
                     {imagenesParaMostrar.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {imagenesParaMostrar.map((imagen, index) => (
-                          <div key={imagen.id || index} className="space-y-2">
+                          <div key={`imagen-${imagen.id}-${index}`} className="space-y-2">
                             <div className="aspect-square relative rounded-lg overflow-hidden">
                               <img
                                 src={imagen.url_imagen || "/placeholder.svg"}

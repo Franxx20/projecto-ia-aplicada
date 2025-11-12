@@ -11,6 +11,7 @@ Sprint: Sprint 1 - T-002, T-004
 
 from datetime import datetime
 from typing import Optional
+import json
 from sqlalchemy import Boolean, Column, Integer, String, DateTime, Index, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -610,8 +611,8 @@ class Planta(Base):
     estado_salud = Column(
         String(50),
         nullable=False,
-        default="buena",
-        comment="Estado de salud: excelente, buena, necesita_atencion, critica"
+        default="desconocido",
+        comment="Estado de salud: excelente, saludable, necesita_atencion, enfermedad, plaga, critica, desconocido"
     )
     
     ubicacion = Column(
@@ -638,7 +639,7 @@ class Planta(Base):
         comment="Fecha y hora del último riego"
     )
     
-    proxima_riego = Column(
+    proximo_riego = Column(
         DateTime,
         nullable=True,
         comment="Fecha y hora del próximo riego recomendado"
@@ -655,6 +656,12 @@ class Planta(Base):
         String(20),
         nullable=True,
         comment="Nivel de luz que recibe: baja, media, alta, directa"
+    )
+    
+    condiciones_ambientales_recomendadas = Column(
+        Text,
+        nullable=True,
+        comment="JSON con condiciones ambientales ideales (luz, temperatura, humedad) según análisis inicial"
     )
     
     fecha_adquisicion = Column(
@@ -708,7 +715,7 @@ class Planta(Base):
     __table_args__ = (
         Index('idx_usuario_plantas_activas', 'usuario_id', 'is_active'),
         Index('idx_usuario_estado_salud', 'usuario_id', 'estado_salud'),
-        Index('idx_proxima_riego', 'proxima_riego'),
+        Index('idx_proximo_riego', 'proximo_riego'),
         Index('idx_created_at_plantas', 'created_at'),
     )
     
@@ -750,9 +757,10 @@ class Planta(Base):
             'notas': self.notas,
             'imagen_principal_id': self.imagen_principal_id,
             'fecha_ultimo_riego': self.fecha_ultimo_riego.isoformat() if self.fecha_ultimo_riego else None,
-            'proxima_riego': self.proxima_riego.isoformat() if self.proxima_riego else None,
+            'proximo_riego': self.proximo_riego.isoformat() if self.proximo_riego else None,
             'frecuencia_riego_dias': self.frecuencia_riego_dias,
             'luz_actual': self.luz_actual,
+            'condiciones_ambientales_recomendadas': json.loads(self.condiciones_ambientales_recomendadas) if self.condiciones_ambientales_recomendadas else None,
             'fecha_adquisicion': self.fecha_adquisicion.isoformat() if self.fecha_adquisicion else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -790,7 +798,7 @@ class Planta(Base):
         # Calcular próximo riego si hay frecuencia definida
         if self.frecuencia_riego_dias:
             from datetime import timedelta
-            self.proxima_riego = fecha_riego + timedelta(days=self.frecuencia_riego_dias)
+            self.proximo_riego = fecha_riego + timedelta(days=self.frecuencia_riego_dias)
         
         self.updated_at = datetime.utcnow()
     
@@ -799,12 +807,12 @@ class Planta(Base):
         Verifica si la planta necesita riego.
         
         Returns:
-            bool: True si necesita riego (fecha actual >= proxima_riego), False en caso contrario
+            bool: True si necesita riego (fecha actual >= proximo_riego), False en caso contrario
         """
-        if not self.proxima_riego:
+        if not self.proximo_riego:
             return False
         
-        return datetime.utcnow() >= self.proxima_riego
+        return datetime.utcnow() >= self.proximo_riego
     
     def soft_delete(self) -> None:
         """
@@ -1299,8 +1307,8 @@ class AnalisisSalud(Base):
         recomendaciones (str): JSON con lista de recomendaciones personalizadas
         problemas_detectados (str): JSON con lista de problemas identificados
         notas_usuario (str): Notas adicionales proporcionadas por el usuario
-        fecha_analisis (datetime): Fecha y hora en que se realizó el análisis
         metadatos_ia (str): JSON con metadatos adicionales de la respuesta de Gemini
+        fecha_analisis (datetime): Fecha y hora en que se realizó el análisis
         created_at (datetime): Fecha de creación del registro
         updated_at (datetime): Fecha de última actualización
         
@@ -1424,6 +1432,12 @@ class AnalisisSalud(Base):
         Text,
         nullable=True,
         comment="Notas o síntomas adicionales proporcionados por el usuario"
+    )
+    
+    metadatos_ia = Column(
+        Text,
+        nullable=True,
+        comment="JSON con metadatos adicionales de la respuesta de Gemini (ej: imagenes_ids, tokens usados, etc.)"
     )
     
     fecha_analisis = Column(
@@ -1610,3 +1624,196 @@ class AnalisisSalud(Base):
             'critica': '#991b1b'          # Rojo muy oscuro
         }
         return colores.get(self.estado, '#6b7280')  # Gris por defecto
+
+
+class ChatConversacion(Base):
+    """
+    Modelo para conversaciones de chat con el asistente de jardinería.
+    
+    Almacena las conversaciones entre usuarios y el LLM (Gemini AI).
+    Cada conversación puede contener múltiples mensajes.
+    
+    Attributes:
+        id (int): Identificador único de la conversación
+        usuario_id (int): ID del usuario propietario
+        titulo (str): Título de la conversación (auto-generado o personalizado)
+        created_at (datetime): Fecha de creación
+        updated_at (datetime): Última actualización (último mensaje)
+        is_active (bool): Si la conversación está activa (no archivada)
+    """
+    
+    __tablename__ = "chat_conversaciones"
+    
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único de la conversación"
+    )
+    
+    usuario_id = Column(
+        Integer,
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID del usuario propietario de la conversación"
+    )
+    
+    titulo = Column(
+        String(255),
+        nullable=False,
+        default="Nueva conversación",
+        comment="Título de la conversación"
+    )
+    
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True,
+        comment="Fecha y hora de creación de la conversación"
+    )
+    
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        comment="Fecha y hora de última actualización"
+    )
+    
+    is_active = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="Indica si la conversación está activa (no archivada)"
+    )
+    
+    # Relaciones
+    mensajes = relationship(
+        "ChatMensaje",
+        back_populates="conversacion",
+        cascade="all, delete-orphan",
+        order_by="ChatMensaje.created_at"
+    )
+    
+    usuario = relationship("Usuario", backref="chat_conversaciones")
+    
+    def __repr__(self) -> str:
+        return f"<ChatConversacion(id={self.id}, usuario_id={self.usuario_id}, titulo='{self.titulo}')>"
+    
+    def to_dict(self) -> dict:
+        """Convierte la conversación a diccionario."""
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'titulo': self.titulo,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'is_active': self.is_active,
+            'total_mensajes': len(self.mensajes) if hasattr(self, 'mensajes') else 0
+        }
+
+
+class ChatMensaje(Base):
+    """
+    Modelo para mensajes individuales dentro de una conversación de chat.
+    
+    Almacena cada mensaje del usuario y del asistente (Gemini AI).
+    Incluye tracking de tokens para control de costos y contexto.
+    
+    Attributes:
+        id (int): Identificador único del mensaje
+        conversacion_id (int): ID de la conversación a la que pertenece
+        rol (str): 'user' o 'assistant'
+        contenido (Text): Contenido del mensaje
+        planta_id (int): ID de planta si el mensaje está relacionado con una planta específica
+        tokens_usados (int): Número de tokens consumidos en la respuesta del LLM
+        metadata_json (Text): JSON con información adicional (modelo usado, latencia, etc.)
+        created_at (datetime): Fecha y hora de creación del mensaje
+    """
+    
+    __tablename__ = "chat_mensajes"
+    
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único del mensaje"
+    )
+    
+    conversacion_id = Column(
+        Integer,
+        ForeignKey("chat_conversaciones.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="ID de la conversación a la que pertenece el mensaje"
+    )
+    
+    rol = Column(
+        String(20),
+        nullable=False,
+        comment="Rol del emisor: 'user' o 'assistant'"
+    )
+    
+    contenido = Column(
+        Text,
+        nullable=False,
+        comment="Contenido del mensaje"
+    )
+    
+    planta_id = Column(
+        Integer,
+        ForeignKey("plantas.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID de planta relacionada (opcional)"
+    )
+    
+    tokens_usados = Column(
+        Integer,
+        nullable=True,
+        default=0,
+        comment="Tokens consumidos por el LLM (solo para mensajes del asistente)"
+    )
+    
+    metadata_json = Column(
+        Text,
+        nullable=True,
+        comment="JSON con metadata adicional (modelo, latencia, contexto usado, etc.)"
+    )
+    
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True,
+        comment="Fecha y hora de creación del mensaje"
+    )
+    
+    # Relaciones
+    conversacion = relationship("ChatConversacion", back_populates="mensajes")
+    planta = relationship("Planta", backref="chat_mensajes")
+    
+    # Índices compuestos para queries eficientes
+    __table_args__ = (
+        Index('idx_conversacion_created', 'conversacion_id', 'created_at'),
+        Index('idx_conversacion_rol', 'conversacion_id', 'rol'),
+    )
+    
+    def __repr__(self) -> str:
+        preview = self.contenido[:50] + "..." if len(self.contenido) > 50 else self.contenido
+        return f"<ChatMensaje(id={self.id}, rol='{self.rol}', contenido='{preview}')>"
+    
+    def to_dict(self) -> dict:
+        """Convierte el mensaje a diccionario."""
+        return {
+            'id': self.id,
+            'conversacion_id': self.conversacion_id,
+            'rol': self.rol,
+            'contenido': self.contenido,
+            'planta_id': self.planta_id,
+            'tokens_usados': self.tokens_usados,
+            'metadata': self.metadata_json,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }

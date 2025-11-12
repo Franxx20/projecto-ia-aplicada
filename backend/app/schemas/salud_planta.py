@@ -163,6 +163,85 @@ class RecomendacionItem(BaseModel):
         use_enum_values = True
 
 
+class CondicionesAmbientalesRecomendadas(BaseModel):
+    """
+    Schema para las condiciones ambientales ideales de la planta.
+    
+    Representa los requisitos óptimos de luz, temperatura y humedad
+    específicos para la especie y su estado actual.
+    """
+    luz_recomendada: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Descripción detallada de los requisitos de luz",
+        examples=["Luz brillante indirecta, cerca de una ventana orientada al este"]
+    )
+    luz_horas_diarias: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Horas de luz recomendadas",
+        examples=["6-8 horas de luz indirecta", "4-6 horas"]
+    )
+    temperatura_min: Optional[int] = Field(
+        None,
+        ge=-10,
+        le=50,
+        description="Temperatura mínima recomendada en °C",
+        examples=[15, 18, 20]
+    )
+    temperatura_max: Optional[int] = Field(
+        None,
+        ge=-10,
+        le=50,
+        description="Temperatura máxima recomendada en °C",
+        examples=[25, 28, 30]
+    )
+    temperatura_ideal: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Descripción del rango ideal de temperatura",
+        examples=["18-25°C (65-77°F)", "Temperaturas cálidas entre 22-28°C"]
+    )
+    humedad_min: Optional[int] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Humedad mínima recomendada en porcentaje",
+        examples=[40, 50, 60]
+    )
+    humedad_max: Optional[int] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Humedad máxima recomendada en porcentaje",
+        examples=[70, 80, 90]
+    )
+    humedad_recomendaciones: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Consejos para mantener la humedad adecuada",
+        examples=["Rocía las hojas regularmente o coloca cerca de un humidificador"]
+    )
+    frecuencia_riego_dias: Optional[int] = Field(
+        None,
+        ge=1,
+        le=365,
+        description="Frecuencia de riego recomendada en días",
+        examples=[7, 10, 14, 21]
+    )
+    descripcion_riego: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Descripción de cuándo y cómo regar",
+        examples=["Regar cuando los primeros 5cm de tierra estén secos", "Mantener el sustrato ligeramente húmedo"]
+    )
+    
+    class Config:
+        """Configuración del schema."""
+        from_attributes = True
+
+
 class VerificarSaludRequest(BaseModel):
     """
     Schema para solicitud de verificación de salud de una planta.
@@ -281,6 +360,10 @@ class SaludAnalisisResponse(BaseModel):
         default_factory=list,
         description="Lista de recomendaciones para mejorar la salud"
     )
+    condiciones_ambientales: Optional[dict] = Field(
+        None,
+        description="Condiciones ambientales recomendadas (luz, temperatura, humedad)"
+    )
     modelo_ia_usado: str = Field(
         ...,
         description="Modelo de IA usado para el análisis"
@@ -352,7 +435,11 @@ class DetalleAnalisisSaludResponse(SaludAnalisisResponse):
     )
     imagen_url: Optional[str] = Field(
         None,
-        description="URL de la imagen analizada"
+        description="URL de la imagen analizada (legacy - usar 'imagenes')"
+    )
+    imagenes: Optional[List[dict]] = Field(
+        None,
+        description="Lista de todas las imágenes usadas en el análisis. Cada dict contiene: id, url, nombre_archivo, organ"
     )
     
     class Config:

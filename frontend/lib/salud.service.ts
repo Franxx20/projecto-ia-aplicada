@@ -30,6 +30,83 @@ class SaludService {
   private readonly baseUrl = '/api/salud'
 
   /**
+   * Crea un nuevo análisis de salud subiendo una imagen nueva
+   * 
+   * Este método sube la imagen a Azure, la asocia con la planta (aparecerá en Photos)
+   * y realiza el análisis de salud.
+   * 
+   * @param plantaId - ID de la planta
+   * @param archivo - Archivo de imagen
+   * @param sintomasObservados - Síntomas observados (opcional)
+   * @param notasAdicionales - Notas adicionales (opcional)
+   * @returns Promise con el resultado del análisis
+   * 
+   * @throws {Error} Si la planta no existe o si falla el análisis
+   * 
+   * @example
+   * ```typescript
+   * const analisis = await saludService.crearAnalisisConImagen(
+   *   123,
+   *   imageFile,
+   *   'Hojas amarillentas',
+   *   'Apareció hace 2 días'
+   * )
+   * ```
+   */
+  async crearAnalisisConImagen(
+    plantaId: number,
+    archivo: File,
+    sintomasObservados?: string,
+    notasAdicionales?: string
+  ): Promise<AnalisisSaludResponse> {
+    try {
+      console.log('🔵 SaludService.crearAnalisisConImagen - Iniciando petición')
+      console.log('🔵 URL:', `${this.baseUrl}/analisis-con-imagen`)
+      console.log('🔵 Planta ID:', plantaId)
+      console.log('🔵 Archivo:', archivo.name, archivo.size, 'bytes')
+      
+      const formData = new FormData()
+      formData.append('planta_id', plantaId.toString())
+      formData.append('archivo', archivo)
+      
+      if (sintomasObservados) {
+        formData.append('sintomas_observados', sintomasObservados)
+      }
+      
+      if (notasAdicionales) {
+        formData.append('notas_adicionales', notasAdicionales)
+      }
+      
+      const response = await axios.post<AnalisisSaludResponse>(
+        `${this.baseUrl}/analisis-con-imagen`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      )
+      
+      console.log('🟢 SaludService.crearAnalisisConImagen - Respuesta exitosa:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('🔴 SaludService.crearAnalisisConImagen - Error completo:', error)
+      
+      if (error instanceof AxiosError) {
+        console.error('🔴 AxiosError details:', {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          data: error.response?.data,
+        })
+        const mensaje = error.response?.data?.detail || 'Error al crear análisis de salud con imagen'
+        throw new Error(mensaje)
+      }
+      throw new Error('Error al crear análisis de salud con imagen')
+    }
+  }
+
+  /**
    * Crea un nuevo análisis de salud para una planta
    * 
    * @param request - Datos del análisis (planta_id, imagen_id, notas)

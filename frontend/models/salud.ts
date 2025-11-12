@@ -41,6 +41,20 @@ export interface AnalisisSaludRequest {
 }
 
 /**
+ * Condiciones ambientales recomendadas
+ */
+export interface CondicionesAmbientales {
+  luz_recomendada: string
+  luz_horas_diarias?: string
+  temperatura_min?: number
+  temperatura_max?: number
+  temperatura_ideal?: string
+  humedad_min?: number
+  humedad_max?: number
+  humedad_recomendaciones?: string
+}
+
+/**
  * Resultado de un análisis de salud
  */
 export interface AnalisisSalud {
@@ -64,6 +78,7 @@ export interface AnalisisSalud {
     accion: string
     descripcion: string
   }>
+  condiciones_ambientales?: CondicionesAmbientales | null
   modelo_ia_usado: string
   tiempo_analisis_ms: number
   version_prompt: string
@@ -98,7 +113,13 @@ export interface DetalleAnalisisSaludResponse extends AnalisisSaludResponse {
     nombre_personal: string
     especie: string | null
   }
-  imagen_url?: string | null
+  imagen_url?: string | null // Legacy - usar 'imagenes'
+  imagenes?: Array<{
+    id: number
+    url: string
+    nombre_archivo: string
+    organ?: string | null
+  }> | null
 }
 
 /**
@@ -247,6 +268,19 @@ export const ESTADO_BG_COLORES: Record<EstadoSalud, string> = {
 
 /**
  * Mapeo de estados a textos legibles en español
+ * 
+ * IMPORTANTE: Estos textos deben estar sincronizados con:
+ * - frontend/models/dashboard.types.ts (estadoSaludToLabel)
+ * - backend (schemas de salud)
+ * 
+ * Textos estándar:
+ * - excelente: 'Excelente'
+ * - saludable: 'Saludable'
+ * - necesita_atencion: 'Necesita Atención'
+ * - enfermedad: 'Enfermedad Detectada'
+ * - plaga: 'Plaga Detectada'
+ * - critica: 'Estado Crítico'
+ * - desconocido: 'Estado Desconocido'
  */
 export const ESTADO_TEXTOS: Record<EstadoSalud, string> = {
   excelente: 'Excelente',

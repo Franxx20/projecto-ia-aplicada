@@ -56,9 +56,9 @@ class PlantaService:
             raise ValueError(f"Usuario con ID {usuario_id} no existe")
         
         # Calcular próximo riego si hay fecha de último riego
-        proxima_riego = None
+        proximo_riego = None
         if planta_data.fecha_ultimo_riego and planta_data.frecuencia_riego_dias:
-            proxima_riego = planta_data.fecha_ultimo_riego + timedelta(
+            proximo_riego = planta_data.fecha_ultimo_riego + timedelta(
                 days=planta_data.frecuencia_riego_dias
             )
         
@@ -72,7 +72,7 @@ class PlantaService:
             notas=planta_data.notas,
             imagen_principal_id=planta_data.imagen_principal_id,
             fecha_ultimo_riego=planta_data.fecha_ultimo_riego,
-            proxima_riego=proxima_riego,
+            proximo_riego=proximo_riego,
             frecuencia_riego_dias=planta_data.frecuencia_riego_dias,
             luz_actual=planta_data.luz_actual,
             fecha_adquisicion=planta_data.fecha_adquisicion,
@@ -330,7 +330,7 @@ class PlantaService:
         # Recalcular próximo riego si se actualizó fecha de último riego o frecuencia
         if 'fecha_ultimo_riego' in update_data or 'frecuencia_riego_dias' in update_data:
             if planta.fecha_ultimo_riego and planta.frecuencia_riego_dias:
-                planta.proxima_riego = planta.fecha_ultimo_riego + timedelta(
+                planta.proximo_riego = planta.fecha_ultimo_riego + timedelta(
                     days=planta.frecuencia_riego_dias
                 )
         
@@ -429,19 +429,20 @@ class PlantaService:
                 Planta.is_active == True,
                 or_(
                     func.lower(Planta.estado_salud) == 'excelente',
-                    func.lower(Planta.estado_salud) == 'buena',
                     func.lower(Planta.estado_salud) == 'saludable'
                 )
             )
         ).scalar()
         
-        # Plantas que necesitan atención (necesita_atencion o critica)
+        # Plantas que necesitan atención (necesita_atencion, enfermedad, plaga o critica)
         plantas_necesitan_atencion = db.query(func.count(Planta.id)).filter(
             and_(
                 Planta.usuario_id == usuario_id,
                 Planta.is_active == True,
                 or_(
                     func.lower(Planta.estado_salud) == 'necesita_atencion',
+                    func.lower(Planta.estado_salud) == 'enfermedad',
+                    func.lower(Planta.estado_salud) == 'plaga',
                     func.lower(Planta.estado_salud) == 'critica'
                 )
             )
@@ -453,8 +454,8 @@ class PlantaService:
             and_(
                 Planta.usuario_id == usuario_id,
                 Planta.is_active == True,
-                Planta.proxima_riego != None,
-                Planta.proxima_riego <= ahora
+                Planta.proximo_riego != None,
+                Planta.proximo_riego <= ahora
             )
         ).scalar()
         
@@ -620,7 +621,7 @@ class PlantaService:
             usuario_id=usuario_id,
             especie_id=identificacion.especie_id,
             nombre_personal=nombre_final,
-            estado_salud="buena",  # Estado inicial por defecto
+            estado_salud="desconocido",  # Estado inicial por defecto
             ubicacion=ubicacion,
             notas=notas,
             imagen_principal_id=imagen_principal_id,

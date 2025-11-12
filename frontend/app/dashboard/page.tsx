@@ -38,6 +38,9 @@ import { cn } from "@/lib/utils"
 import {
   estadoSaludToBadgeVariant,
   estadoSaludToLabel,
+  estadoSaludToEmoji,
+  estadoSaludToBadgeClasses,
+  estadoSaludToBadgeStyle,
 } from "@/models/dashboard.types"
 
 /**
@@ -89,14 +92,6 @@ function PlantImageCarousel({
             e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23f0f0f0" width="400" height="400"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagen no disponible%3C/text%3E%3C/svg%3E'
           }}
         />
-        {images[0].organ && images[0].organ !== 'sin_especificar' && (
-          <Badge 
-            className="absolute top-2 right-2 bg-black/70 text-white hover:bg-black/80"
-            variant="secondary"
-          >
-            {NOMBRES_ORGANOS[images[0].organ as keyof typeof NOMBRES_ORGANOS] || images[0].organ}
-          </Badge>
-        )}
       </div>
     )
   }
@@ -124,14 +119,6 @@ function PlantImageCarousel({
                     e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23f0f0f0" width="400" height="400"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagen no disponible%3C/text%3E%3C/svg%3E'
                   }}
                 />
-                {imagen.organ && imagen.organ !== 'sin_especificar' && (
-                  <Badge 
-                    className="absolute top-2 right-2 bg-black/70 text-white hover:bg-black/80"
-                    variant="secondary"
-                  >
-                    {NOMBRES_ORGANOS[imagen.organ as keyof typeof NOMBRES_ORGANOS] || imagen.organ}
-                  </Badge>
-                )}
               </div>
             </CarouselItem>
           ))}
@@ -267,34 +254,47 @@ export default function DashboardPage() {
 
   /**
    * Toggle regada hoy para una planta
-   * Actualiza el estado local optimísticamente sin recargar todo
+   * Usa el endpoint correcto que actualiza fecha_ultimo_riego, proxima_riego, etc.
    */
   const toggleRegadaHoy = async (plantaId: number, fueRegadaHoy: boolean) => {
+    // Solo permitir marcar como regada, no desmarcar
+    if (fueRegadaHoy) {
+      return
+    }
+
     try {
       // Actualización optimista del estado local
       setPlantasUsuario(plantas => 
         plantas.map(p => 
           p.id === plantaId 
-            ? { ...p, fue_regada_hoy: !fueRegadaHoy } 
+            ? { 
+                ...p, 
+                fue_regada_hoy: true
+              } 
             : p
         )
       )
 
-      // Actualizar en el backend
-      await plantService.actualizarPlanta(plantaId, {
-        fue_regada_hoy: !fueRegadaHoy
-      })
+      // Registrar riego en el backend
+      await dashboardService.registrarRiego(plantaId)
+      
+      // Recargar la lista completa para tener datos actualizados
+      const plantasActualizadas = await plantService.obtenerMisPlantas()
+      setPlantasUsuario(plantasActualizadas)
     } catch (err) {
-      console.error('❌ Error al actualizar regada hoy:', err)
+      console.error('❌ Error al registrar riego:', err)
       // Revertir el cambio optimista en caso de error
       setPlantasUsuario(plantas => 
         plantas.map(p => 
           p.id === plantaId 
-            ? { ...p, fue_regada_hoy: fueRegadaHoy } 
+            ? { 
+                ...p, 
+                fue_regada_hoy: fueRegadaHoy
+              } 
             : p
         )
       )
-      alert('Error al marcar la planta como regada')
+      alert('Error al registrar el riego')
     }
   }
 
@@ -553,8 +553,8 @@ export default function DashboardPage() {
                         {/* Badge de estado de salud - superior izquierda */}
                         <div className="absolute top-3 left-3 z-10">
                           <Badge
-                            variant={estadoSaludToBadgeVariant(planta.estado_salud)}
-                            className="shadow-lg"
+                            className="text-white font-semibold backdrop-blur-sm shadow-lg transition-all duration-200 border-2"
+                            style={estadoSaludToBadgeStyle(planta.estado_salud)}
                           >
                             {estadoSaludToLabel(planta.estado_salud)}
                           </Badge>

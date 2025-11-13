@@ -12,7 +12,8 @@ Sprint: Sprint 2 - T-014
 from datetime import datetime
 from typing import List, Optional
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+import threading
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -25,6 +26,7 @@ from app.schemas.planta import (
     PlantaStats,
     PlantaListResponse,
     RegistrarRiegoRequest,
+    RegistrarFertilizacionRequest,
     AgregarPlantaDesdeIdentificacionRequest,
     PlantaUsuarioResponse
 )
@@ -37,6 +39,192 @@ logger = logging.getLogger(__name__)
 
 # Crear router de plantas
 router = APIRouter()
+
+
+# ==================== FUNCIÓN DE ANÁLISIS EN BACKGROUND ====================
+
+def ejecutar_analisis_inicial_background(
+    planta_id: int,
+    usuario_id: int,
+    identificacion_id: int,
+    db_url: str
+):
+    """
+    Ejecuta el análisis inicial de Gemini en segundo plano.
+    
+    Esta función se ejecuta como tarea de background para evitar que
+    la creación de la planta se congele esperando la respuesta de Gemini.
+    
+    Args:
+        planta_id: ID de la planta recién creada
+        usuario_id: ID del usuario propietario
+        identificacion_id: ID de la identificación original
+        db_url: URL de conexión a la base de datos
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.services.gemini_service import GeminiService
+    from app.db.models import Planta, Imagen, Especie, Identificacion, AnalisisSalud
+    from app.services.imagen_service import AzureBlobService
+    import json
+    
+    # Crear nueva sesión de DB para el background task
+    engine = create_engine(db_url)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = SessionLocal()
+    
+    try:
+        logger.info(f"🔄 Iniciando análisis en background para planta {planta_id}")
+        
+        # Obtener la planta
+        planta = db.query(Planta).filter(Planta.id == planta_id).first()
+        if not planta:
+            logger.error(f"❌ Planta {planta_id} no encontrada para análisis")
+            return
+        
+        # Obtener las imágenes de la identificación
+        imagenes_bytes_list = []
+        imagenes_ids_list = []
+        azure_service = AzureBlobService()
+        
+        identificacion = db.query(Identificacion).filter(
+            Identificacion.id == identificacion_id
+        ).first()
+        
+        if identificacion:
+            imagenes = db.query(Imagen).filter(
+                Imagen.identificacion_id == identificacion.id
+            ).order_by(Imagen.created_at).limit(5).all()
+            
+            logger.info(f"📸 Encontradas {len(imagenes)} imágenes para análisis")
+            
+            for imagen in imagenes:
+                try:
+                    imagen_bytes = azure_service.descargar_blob(imagen.nombre_blob)
+                    imagenes_bytes_list.append(imagen_bytes)
+                    imagenes_ids_list.append(imagen.id)
+                    logger.info(f"✅ Imagen {imagen.id} descargada")
+                except Exception as e:
+                    logger.error(f"❌ Error descargando imagen {imagen.id}: {str(e)}")
+                    continue
+        
+        # Si no hay imágenes de identificación, usar imagen principal
+        if not imagenes_bytes_list and planta.imagen_principal_id:
+            imagen = db.query(Imagen).filter(Imagen.id == planta.imagen_principal_id).first()
+            if imagen:
+                try:
+                    imagen_bytes = azure_service.descargar_blob(imagen.nombre_blob)
+                    imagenes_bytes_list.append(imagen_bytes)
+                    imagenes_ids_list.append(imagen.id)
+                    logger.info(f"✅ Imagen principal descargada")
+                except Exception as e:
+                    logger.warning(f"⚠️  Error descargando imagen principal: {str(e)}")
+        
+        # Obtener información de la especie
+        especie_nombre = "Desconocida"
+        especie_cientifica = None
+        familia = "Desconocida"
+        
+        if planta.especie_id:
+            especie = db.query(Especie).filter(Especie.id == planta.especie_id).first()
+            if especie:
+                especie_nombre = especie.nombre_comun or "Desconocida"
+                especie_cientifica = especie.nombre_cientifico
+                familia = especie.familia or "Desconocida"
+        
+        # Construir contexto
+        contexto_planta = {
+            "nombre_personal": planta.nombre_personal,
+            "nombre_cientifico": especie_cientifica or "Desconocida",
+            "nombre_comun": especie_nombre,
+            "familia": familia,
+            "dias_desde_adquisicion": 0,
+            "ubicacion": planta.ubicacion or "No especificada",
+            "luz_actual": planta.luz_actual or "No especificada",
+            "dias_desde_riego": "N/A",
+            "frecuencia_riego_dias": planta.frecuencia_riego_dias or "N/A",
+            "estado_riego": "normal",
+            "estado_salud": "desconocido",
+            "fecha_ultimo_analisis": "Nunca",
+            "notas": f"{planta.notas or ''}\\n\\n📸 Análisis inicial automático de la planta recién agregada."
+        }
+        
+        # Ejecutar análisis con Gemini
+        logger.info(f"🤖 Llamando a Gemini para análisis de planta {planta_id}...")
+        inicio_analisis = datetime.utcnow()
+        
+        gemini_service = GeminiService()
+        resultado_gemini = gemini_service.analizar_salud_planta(
+            datos_planta=contexto_planta,
+            imagenes_bytes_list=imagenes_bytes_list if imagenes_bytes_list else None,
+            usuario_id=usuario_id,
+            es_analisis_inicial=True
+        )
+        
+        tiempo_total = (datetime.utcnow() - inicio_analisis).total_seconds()
+        logger.info(f"✅ Análisis completado en {tiempo_total:.2f}s")
+        
+        # Crear registro de análisis
+        metadata = resultado_gemini.get("metadata", {})
+        metadata["imagenes_ids"] = imagenes_ids_list
+        metadata["num_imagenes_analizadas"] = len(imagenes_ids_list)
+        metadata["ejecutado_en_background"] = True
+        
+        nuevo_analisis = AnalisisSalud(
+            planta_id=planta.id,
+            usuario_id=usuario_id,
+            imagen_id=planta.imagen_principal_id,
+            estado=resultado_gemini["estado"],
+            confianza=resultado_gemini["confianza"],
+            resumen_diagnostico=resultado_gemini["resumen"],
+            diagnostico_detallado=resultado_gemini.get("diagnostico_completo"),
+            problemas_detectados=json.dumps(resultado_gemini.get("problemas_detectados", []), ensure_ascii=False),
+            recomendaciones=json.dumps(resultado_gemini.get("recomendaciones", []), ensure_ascii=False),
+            metadatos_ia=json.dumps(metadata, ensure_ascii=False),
+            modelo_ia_usado=metadata.get("modelo", "gemini-2.5-flash"),
+            tiempo_analisis_ms=metadata.get("tiempo_analisis_ms", 0),
+            version_prompt=metadata.get("version_prompt", "v1.0"),
+            con_imagen=metadata.get("con_imagen", len(imagenes_bytes_list) > 0),
+            notas_usuario="Análisis automático al agregar la planta (background)",
+            fecha_analisis=datetime.utcnow()
+        )
+        
+        db.add(nuevo_analisis)
+        
+        # Guardar condiciones ambientales
+        condiciones_ambientales = resultado_gemini.get("condiciones_ambientales")
+        if condiciones_ambientales:
+            planta.condiciones_ambientales_recomendadas = json.dumps(
+                condiciones_ambientales,
+                ensure_ascii=False
+            )
+            
+            # Actualizar frecuencias
+            frecuencia_riego = condiciones_ambientales.get("frecuencia_riego_dias")
+            if frecuencia_riego and isinstance(frecuencia_riego, int) and frecuencia_riego > 0:
+                planta.frecuencia_riego_dias = frecuencia_riego
+                logger.info(f"✅ Frecuencia de riego: {frecuencia_riego} días")
+            
+            frecuencia_fertilizacion = condiciones_ambientales.get("frecuencia_fertilizacion_dias")
+            if frecuencia_fertilizacion and isinstance(frecuencia_fertilizacion, int) and frecuencia_fertilizacion > 0:
+                planta.frecuencia_fertilizacion_dias = frecuencia_fertilizacion
+                logger.info(f"✅ Frecuencia de fertilización: {frecuencia_fertilizacion} días")
+        
+        # Actualizar estado de salud
+        planta.estado_salud = resultado_gemini["estado"]
+        planta.updated_at = datetime.utcnow()
+        
+        db.commit()
+        logger.info(f"✅ Análisis en background completado para planta {planta_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error en análisis background para planta {planta_id}: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+# ==================== ENDPOINTS ====================
 
 
 @router.post(
@@ -549,6 +737,56 @@ async def registrar_riego(
 
 
 @router.post(
+    "/{planta_id}/fertilizacion",
+    response_model=PlantaResponse,
+    summary="Registrar fertilización",
+    description="Registra una nueva fertilización en una planta",
+    response_description="Planta con fertilización actualizada"
+)
+async def registrar_fertilizacion(
+    planta_id: int,
+    fertilizacion_data: RegistrarFertilizacionRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Registra una nueva fertilización en una planta.
+    
+    Actualiza la fecha de última fertilización y calcula automáticamente
+    la fecha de la próxima fertilización basado en la frecuencia configurada.
+    
+    Si no se provee fecha_fertilizacion, se usa la fecha y hora actual.
+    """
+    try:
+        planta_actualizada = PlantaService.registrar_fertilizacion(
+            db=db,
+            planta_id=planta_id,
+            usuario_id=current_user.id,
+            fecha_fertilizacion=fertilizacion_data.fecha_fertilizacion
+        )
+        
+        if not planta_actualizada:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Planta con ID {planta_id} no encontrada"
+            )
+        
+        # Convertir a response con campos calculados
+        planta_dict = planta_actualizada.to_dict()
+        planta_dict["necesita_riego"] = planta_actualizada.necesita_riego()
+        
+        return PlantaResponse(**planta_dict)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al registrar fertilización: {str(e)}"
+        )
+
+
+@router.post(
     "/agregar-desde-identificacion",
     response_model=PlantaResponse,
     status_code=status.HTTP_201_CREATED,
@@ -604,255 +842,61 @@ async def agregar_planta_desde_identificacion(
                 detail=f"Identificación con ID {request_data.identificacion_id} no encontrada"
             )
         
-        # 🌱 NUEVO: Crear análisis de salud automático después de agregar la planta
-        try:
-            from app.services.gemini_service import GeminiService
-            from app.db.models import Imagen, Especie, AnalisisSalud, Identificacion
-            from app.services.imagen_service import AzureBlobService
-            import json
-            
-            # 🖼️ Obtener TODAS las imágenes asociadas a la identificación (máximo 5)
-            imagenes_bytes_list = []
-            imagenes_ids_list = []  # 🆕 Guardar IDs de las imágenes
-            azure_service = AzureBlobService()
-            
-            # Buscar la identificación
-            identificacion = db.query(Identificacion).filter(
-                Identificacion.id == request_data.identificacion_id
-            ).first()
-            
-            if identificacion:
-                logger.info(f"🔍 Identificación encontrada: ID={identificacion.id}, Usuario={identificacion.usuario_id}")
-                
-                # Obtener todas las imágenes asociadas a esta identificación
-                imagenes = db.query(Imagen).filter(
-                    Imagen.identificacion_id == identificacion.id
-                ).order_by(Imagen.created_at).limit(5).all()  # Máximo 5 imágenes, ordenadas por fecha
-                
-                logger.info(f"🖼️  Encontradas {len(imagenes)} imágenes para la identificación {identificacion.id}")
-                
-                # DIAGNÓSTICO: Buscar también imágenes sin identificacion_id del mismo usuario
-                imagenes_huerfanas = db.query(Imagen).filter(
-                    Imagen.usuario_id == current_user.id,
-                    Imagen.identificacion_id == None,
-                    Imagen.created_at >= identificacion.created_at
-                ).order_by(Imagen.created_at.desc()).limit(5).all()
-                
-                if imagenes_huerfanas:
-                    logger.warning(f"⚠️  ENCONTRADAS {len(imagenes_huerfanas)} IMÁGENES HUÉRFANAS (sin identificacion_id):")
-                    for img in imagenes_huerfanas:
-                        logger.warning(f"     - ID: {img.id}, Nombre: {img.nombre_archivo}, Created: {img.created_at}")
-                
-                # Log detallado de cada imagen encontrada con identificacion_id
-                for idx, imagen in enumerate(imagenes, 1):
-                    logger.info(f"  📸 Imagen {idx}/{len(imagenes)}:")
-                    logger.info(f"     - ID: {imagen.id}")
-                    logger.info(f"     - Nombre: {imagen.nombre_archivo}")
-                    logger.info(f"     - Órgano: {imagen.organ}")
-                    logger.info(f"     - Tamaño: {imagen.tamano_bytes} bytes")
-                    logger.info(f"     - Blob: {imagen.nombre_blob}")
-                    logger.info(f"     - identificacion_id: {imagen.identificacion_id}")
-                
-                for imagen in imagenes:
-                    try:
-                        imagen_bytes = azure_service.descargar_blob(imagen.nombre_blob)
-                        imagenes_bytes_list.append(imagen_bytes)
-                        imagenes_ids_list.append(imagen.id)  # 🆕 Guardar ID
-                        logger.info(f"  ✅ Imagen {imagen.id} ({imagen.nombre_archivo}) descargada: {len(imagen_bytes)} bytes")
-                    except Exception as e:
-                        logger.error(f"  ❌ ERROR descargando imagen {imagen.id} ({imagen.nombre_archivo}): {str(e)}")
-                        continue
-            else:
-                logger.warning(f"⚠️  No se encontró identificación {request_data.identificacion_id}")
-            
-            # Si no se encontraron imágenes de la identificación, intentar con la imagen principal
-            if not imagenes_bytes_list and nueva_planta.imagen_principal_id:
-                imagen = db.query(Imagen).filter(Imagen.id == nueva_planta.imagen_principal_id).first()
-                if imagen:
-                    try:
-                        imagen_bytes = azure_service.descargar_blob(imagen.nombre_blob)
-                        imagenes_bytes_list.append(imagen_bytes)
-                        logger.info(f"✅ Imagen principal descargada: {len(imagen_bytes)} bytes")
-                    except Exception as e:
-                        logger.warning(f"⚠️  No se pudo descargar imagen principal: {str(e)}")
-            
-            logger.info(f"📊 Total de imágenes para análisis inicial: {len(imagenes_bytes_list)}")
-            
-            # Obtener información de la especie
-            especie_nombre = "Desconocida"
-            especie_cientifica = None
-            familia = "Desconocida"
-            
-            if nueva_planta.especie_id:
-                especie = db.query(Especie).filter(Especie.id == nueva_planta.especie_id).first()
-                if especie:
-                    especie_nombre = especie.nombre_comun or "Desconocida"
-                    especie_cientifica = especie.nombre_cientifico
-                    familia = especie.familia or "Desconocida"
-            
-            # Construir contexto para el análisis inicial
-            contexto_planta = {
-                "nombre_personal": nueva_planta.nombre_personal,
-                "nombre_cientifico": especie_cientifica or "Desconocida",
-                "nombre_comun": especie_nombre,
-                "familia": familia,
-                "dias_desde_adquisicion": 0,  # Recién agregada
-                "ubicacion": nueva_planta.ubicacion or "No especificada",
-                "luz_actual": nueva_planta.luz_actual or "No especificada",
-                "dias_desde_riego": "N/A",
-                "frecuencia_riego_dias": nueva_planta.frecuencia_riego_dias or "N/A",
-                "estado_riego": "normal",
-                "estado_salud": "desconocido",
-                "fecha_ultimo_analisis": "Nunca",
-                "notas": f"{nueva_planta.notas or ''}\n\n📸 Análisis inicial automático de la planta recién agregada."
-            }
-            
-            # Llamar a Gemini para análisis INICIAL (con condiciones ambientales)
-            gemini_service = GeminiService()
-            inicio = datetime.utcnow()
-            
-            # 🔍 DIAGNÓSTICO: Verificar qué se está enviando a Gemini
-            logger.info("=" * 80)
-            logger.info("🔍 DIAGNÓSTICO - DATOS ENVIADOS A GEMINI")
-            logger.info("=" * 80)
-            logger.info(f"📊 Número de imágenes en imagenes_bytes_list: {len(imagenes_bytes_list) if imagenes_bytes_list else 0}")
-            logger.info(f"🆔 IDs de imágenes: {imagenes_ids_list}")
-            logger.info(f"📋 es_analisis_inicial: True")
-            logger.info(f"👤 usuario_id: {current_user.id}")
-            
-            if imagenes_bytes_list:
-                for idx, img_bytes in enumerate(imagenes_bytes_list, 1):
-                    logger.info(f"  🖼️  Imagen {idx}: {len(img_bytes)} bytes")
-            else:
-                logger.warning("⚠️  ¡imagenes_bytes_list está VACÍO! Gemini NO recibirá imágenes")
-            logger.info("=" * 80)
-            
-            resultado_gemini = gemini_service.analizar_salud_planta(
-                datos_planta=contexto_planta,
-                imagenes_bytes_list=imagenes_bytes_list if imagenes_bytes_list else None,
-                usuario_id=current_user.id,
-                es_analisis_inicial=True  # ⭐ Solicitar condiciones ambientales
-            )
-            
-            # 📋 LOG: Respuesta completa de Gemini para debug
-            logger.info("=" * 80)
-            logger.info("📊 RESPUESTA COMPLETA DE GEMINI (Análisis Inicial)")
-            logger.info("=" * 80)
-            logger.info(f"🌱 Planta: {nueva_planta.nombre_personal}")
-            logger.info(f"🖼️  Imágenes analizadas: {len(imagenes_bytes_list)}")
-            logger.info(f"🔬 Estado: {resultado_gemini.get('estado')}")
-            logger.info(f"📈 Confianza: {resultado_gemini.get('confianza')}%")
-            logger.info(f"📝 Resumen: {resultado_gemini.get('resumen')}")
-            logger.info("-" * 80)
-            
-            if resultado_gemini.get("condiciones_ambientales"):
-                logger.info("🌍 CONDICIONES AMBIENTALES RECOMENDADAS:")
-                cond_amb = resultado_gemini["condiciones_ambientales"]
-                logger.info(f"  ☀️  Luz: {cond_amb.get('luz_recomendada', 'N/A')}")
-                logger.info(f"  🌡️  Temperatura: {cond_amb.get('temperatura_ideal', 'N/A')}")
-                logger.info(f"  💧 Humedad mín: {cond_amb.get('humedad_minima', 'N/A')}%")
-                logger.info(f"  💧 Humedad máx: {cond_amb.get('humedad_maxima', 'N/A')}%")
-                logger.info(f"  🚿 Frecuencia riego: {cond_amb.get('frecuencia_riego_dias', 'N/A')} días")
-                logger.info(f"  📖 Descripción riego: {cond_amb.get('descripcion_riego', 'N/A')}")
-            else:
-                logger.warning("⚠️  No se recibieron condiciones ambientales de Gemini")
-            
-            logger.info("-" * 80)
-            if resultado_gemini.get("recomendaciones"):
-                logger.info(f"💡 RECOMENDACIONES ({len(resultado_gemini['recomendaciones'])} items):")
-                for i, rec in enumerate(resultado_gemini["recomendaciones"][:3], 1):
-                    logger.info(f"  {i}. [{rec.get('prioridad', 'media')}] {rec.get('accion', 'N/A')}")
-            
-            if resultado_gemini.get("problemas_detectados"):
-                logger.info(f"🔍 PROBLEMAS DETECTADOS ({len(resultado_gemini['problemas_detectados'])} items):")
-                for i, prob in enumerate(resultado_gemini["problemas_detectados"][:3], 1):
-                    logger.info(f"  {i}. {prob.get('tipo', 'N/A')}: {prob.get('descripcion', 'N/A')}")
-            
-            logger.info("=" * 80)
-            
-            # Crear registro de análisis
-            metadata = resultado_gemini.get("metadata", {})
-            
-            # 🆕 Agregar IDs de todas las imágenes usadas en el análisis
-            metadata["imagenes_ids"] = imagenes_ids_list
-            metadata["num_imagenes_analizadas"] = len(imagenes_ids_list)
-            
-            nuevo_analisis = AnalisisSalud(
-                planta_id=nueva_planta.id,
-                usuario_id=current_user.id,
-                imagen_id=nueva_planta.imagen_principal_id,  # Mantener por compatibilidad
-                estado=resultado_gemini["estado"],
-                confianza=resultado_gemini["confianza"],
-                resumen_diagnostico=resultado_gemini["resumen"],
-                diagnostico_detallado=resultado_gemini.get("diagnostico_completo"),
-                problemas_detectados=json.dumps(resultado_gemini.get("problemas_detectados", []), ensure_ascii=False),
-                recomendaciones=json.dumps(resultado_gemini.get("recomendaciones", []), ensure_ascii=False),
-                metadatos_ia=json.dumps(metadata, ensure_ascii=False),  # 🆕 Incluir IDs de imágenes
-                modelo_ia_usado=metadata.get("modelo", "gemini-2.5-flash"),
-                tiempo_analisis_ms=metadata.get("tiempo_analisis_ms", 0),
-                version_prompt=metadata.get("version_prompt", "v1.0"),
-                con_imagen=metadata.get("con_imagen", len(imagenes_bytes_list) > 0),
-                notas_usuario="Análisis automático al agregar la planta",
-                fecha_analisis=datetime.utcnow()
-            )
-            
-            db.add(nuevo_analisis)
-            
-            # ⭐ Guardar condiciones ambientales en la planta (solo en análisis inicial)
-            condiciones_ambientales = resultado_gemini.get("condiciones_ambientales")
-            if condiciones_ambientales:
-                nueva_planta.condiciones_ambientales_recomendadas = json.dumps(
-                    condiciones_ambientales,
-                    ensure_ascii=False
-                )
-                
-                # ⭐ Actualizar frecuencia de riego si Gemini la proporcionó
-                frecuencia_riego = condiciones_ambientales.get("frecuencia_riego_dias")
-                if frecuencia_riego and isinstance(frecuencia_riego, int) and frecuencia_riego > 0:
-                    nueva_planta.frecuencia_riego_dias = frecuencia_riego
-                    logger.info(f"✅ Frecuencia de riego actualizada a {frecuencia_riego} días")
-                
-                logger.info(f"✅ Condiciones ambientales guardadas para planta {nueva_planta.id}")
-            
-            # Actualizar estado de la planta basándose en el análisis
-            nueva_planta.estado_salud = resultado_gemini["estado"]
-            nueva_planta.updated_at = datetime.utcnow()
-            
-            db.commit()
-            db.refresh(nueva_planta)
-            
-            # 📋 LOG: Datos finales de la planta guardada
-            logger.info("=" * 80)
-            logger.info("💾 DATOS FINALES GUARDADOS EN LA BASE DE DATOS")
-            logger.info("=" * 80)
-            logger.info(f"🆔 Planta ID: {nueva_planta.id}")
-            logger.info(f"🌱 Nombre: {nueva_planta.nombre_personal}")
-            logger.info(f"🔬 Estado salud: {nueva_planta.estado_salud}")
-            logger.info(f"🚿 Frecuencia riego: {nueva_planta.frecuencia_riego_dias} días")
-            logger.info(f"📅 Próximo riego: {nueva_planta.proximo_riego}")
-            if nueva_planta.condiciones_ambientales_recomendadas:
-                try:
-                    cond = json.loads(nueva_planta.condiciones_ambientales_recomendadas)
-                    logger.info(f"🌍 Condiciones ambientales guardadas: {list(cond.keys())}")
-                except:
-                    logger.info(f"🌍 Condiciones ambientales: {nueva_planta.condiciones_ambientales_recomendadas[:100]}...")
-            else:
-                logger.warning("⚠️  No hay condiciones ambientales guardadas en la BD")
-            logger.info("=" * 80)
-            
-            logger.info(f"✅ Análisis automático creado para planta {nueva_planta.id}: {resultado_gemini['estado']}")
-
-            
-        except Exception as e:
-            # No queremos que el análisis automático impida crear la planta
-            logger.warning(f"⚠️  No se pudo crear análisis automático: {str(e)}")
-            # Continuar sin el análisis
+        # ✅ ESTABLECER ESTADO "analizando" EN LA DB ANTES DEL THREAD
+        nueva_planta.estado_salud = "analizando"
+        db.commit()
+        db.refresh(nueva_planta)
+        logger.info(f"📝 Estado 'analizando' guardado en DB para planta {nueva_planta.id}")
         
-        # Agregar campo calculado necesita_riego
-        planta_dict = nueva_planta.to_dict()
-        planta_dict["necesita_riego"] = nueva_planta.necesita_riego()
+        # 🚀 EJECUTAR ANÁLISIS EN SEGUNDO PLANO CON THREADING
+        # Esto permite que la UI responda inmediatamente sin esperar a Gemini
+        logger.info(f"🚀 Iniciando análisis en background (thread) para planta {nueva_planta.id}")
         
-        return PlantaResponse(**planta_dict)
+        # Obtener la URL de la base de datos de la configuración
+        from app.db.session import get_database_url
+        db_url = get_database_url()
+        
+        # Crear y ejecutar thread en background (daemon=True para que no bloquee el cierre)
+        thread = threading.Thread(
+            target=ejecutar_analisis_inicial_background,
+            args=(nueva_planta.id, current_user.id, request_data.identificacion_id, db_url),
+            daemon=True,
+            name=f"analisis-planta-{nueva_planta.id}"
+        )
+        thread.start()
+        
+        logger.info(f"✅ Planta {nueva_planta.id} creada. Thread de análisis iniciado (no bloqueante)")
+        
+        # Retornar inmediatamente con estado "analizando"
+        # Crear respuesta manualmente para asegurar que estado_salud sea "analizando"
+        db.refresh(nueva_planta)
+        
+        return PlantaResponse(
+            id=nueva_planta.id,
+            usuario_id=nueva_planta.usuario_id,
+            nombre_personal=nueva_planta.nombre_personal,
+            especie_id=nueva_planta.especie_id,
+            estado_salud="analizando",  # Estado temporal mientras se analiza
+            ubicacion=nueva_planta.ubicacion,
+            notas=nueva_planta.notas,
+            imagen_principal_id=nueva_planta.imagen_principal_id,
+            imagen_principal_url=None,
+            fecha_ultimo_riego=nueva_planta.fecha_ultimo_riego,
+            proximo_riego=nueva_planta.proximo_riego,
+            frecuencia_riego_dias=nueva_planta.frecuencia_riego_dias or 7,
+            fecha_ultima_fertilizacion=nueva_planta.fecha_ultima_fertilizacion,
+            proxima_fertilizacion=nueva_planta.proxima_fertilizacion,
+            frecuencia_fertilizacion_dias=nueva_planta.frecuencia_fertilizacion_dias,
+            luz_actual=nueva_planta.luz_actual,
+            condiciones_ambientales_recomendadas=None,
+            fecha_adquisicion=nueva_planta.fecha_adquisicion,
+            created_at=nueva_planta.created_at,
+            updated_at=nueva_planta.updated_at,
+            is_active=nueva_planta.is_active,
+            necesita_riego=False,  # No puede necesitar riego si acaba de crearse
+            es_favorita=getattr(nueva_planta, 'es_favorita', False),
+            fue_regada_hoy=getattr(nueva_planta, 'fue_regada_hoy', False)
+        )
     
     except HTTPException:
         raise

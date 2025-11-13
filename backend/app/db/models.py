@@ -23,7 +23,6 @@ Base = declarative_base()
 # Configuración de contexto de encriptación de contraseñas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
 class Usuario(Base):
     """
     Modelo de usuario para autenticación y gestión de cuentas.
@@ -228,7 +227,7 @@ class Usuario(Base):
             True
         """
         self.is_active = True
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
     
     def deactivate(self) -> None:
         """
@@ -241,7 +240,7 @@ class Usuario(Base):
             False
         """
         self.is_active = False
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
     
     def update_info(self, nombre: Optional[str] = None, email: Optional[str] = None) -> None:
         """
@@ -261,7 +260,7 @@ class Usuario(Base):
             self.nombre = nombre
         if email is not None:
             self.email = email
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
 
 
 # Función de inicialización de base de datos
@@ -513,7 +512,7 @@ class Imagen(Base):
             True
         """
         self.is_deleted = True
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
     
     def restore(self) -> None:
         """
@@ -527,7 +526,7 @@ class Imagen(Base):
             False
         """
         self.is_deleted = False
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
     
     def update_description(self, descripcion: str) -> None:
         """
@@ -543,7 +542,7 @@ class Imagen(Base):
             Foto de mi planta favorita
         """
         self.descripcion = descripcion
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
 
 
 class Planta(Base):
@@ -650,6 +649,24 @@ class Planta(Base):
         nullable=True,
         default=7,
         comment="Frecuencia de riego en días"
+    )
+    
+    fecha_ultima_fertilizacion = Column(
+        DateTime,
+        nullable=True,
+        comment="Fecha y hora de la última fertilización"
+    )
+    
+    proxima_fertilizacion = Column(
+        DateTime,
+        nullable=True,
+        comment="Fecha y hora de la próxima fertilización recomendada"
+    )
+    
+    frecuencia_fertilizacion_dias = Column(
+        Integer,
+        nullable=True,
+        comment="Frecuencia de fertilización en días"
     )
     
     luz_actual = Column(
@@ -759,6 +776,9 @@ class Planta(Base):
             'fecha_ultimo_riego': self.fecha_ultimo_riego.isoformat() if self.fecha_ultimo_riego else None,
             'proximo_riego': self.proximo_riego.isoformat() if self.proximo_riego else None,
             'frecuencia_riego_dias': self.frecuencia_riego_dias,
+            'fecha_ultima_fertilizacion': self.fecha_ultima_fertilizacion.isoformat() if self.fecha_ultima_fertilizacion else None,
+            'proxima_fertilizacion': self.proxima_fertilizacion.isoformat() if self.proxima_fertilizacion else None,
+            'frecuencia_fertilizacion_dias': self.frecuencia_fertilizacion_dias,
             'luz_actual': self.luz_actual,
             'condiciones_ambientales_recomendadas': json.loads(self.condiciones_ambientales_recomendadas) if self.condiciones_ambientales_recomendadas else None,
             'fecha_adquisicion': self.fecha_adquisicion.isoformat() if self.fecha_adquisicion else None,
@@ -781,8 +801,7 @@ class Planta(Base):
             raise ValueError(f"Estado no válido. Debe ser uno de: {', '.join(estados_validos)}")
         
         self.estado_salud = nuevo_estado
-        self.updated_at = datetime.utcnow()
-    
+        self.updated_at = datetime.now()
     def registrar_riego(self, fecha_riego: Optional[datetime] = None) -> None:
         """
         Registra un nuevo riego de la planta.
@@ -791,7 +810,7 @@ class Planta(Base):
             fecha_riego (Optional[datetime]): Fecha del riego. Si no se provee, usa la fecha actual.
         """
         if fecha_riego is None:
-            fecha_riego = datetime.utcnow()
+            fecha_riego = datetime.now()
         
         self.fecha_ultimo_riego = fecha_riego
         
@@ -800,7 +819,26 @@ class Planta(Base):
             from datetime import timedelta
             self.proximo_riego = fecha_riego + timedelta(days=self.frecuencia_riego_dias)
         
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
+    
+    def registrar_fertilizacion(self, fecha_fertilizacion: Optional[datetime] = None) -> None:
+        """
+        Registra una nueva fertilización de la planta.
+        
+        Args:
+            fecha_fertilizacion (Optional[datetime]): Fecha de la fertilización. Si no se provee, usa la fecha actual.
+        """
+        if fecha_fertilizacion is None:
+            fecha_fertilizacion = datetime.now()
+        
+        self.fecha_ultima_fertilizacion = fecha_fertilizacion
+        
+        # Calcular próxima fertilización si hay frecuencia definida
+        if self.frecuencia_fertilizacion_dias:
+            from datetime import timedelta
+            self.proxima_fertilizacion = fecha_fertilizacion + timedelta(days=self.frecuencia_fertilizacion_dias)
+        
+        self.updated_at = datetime.now()
     
     def necesita_riego(self) -> bool:
         """
@@ -812,21 +850,39 @@ class Planta(Base):
         if not self.proximo_riego:
             return False
         
-        return datetime.utcnow() >= self.proximo_riego
+        # Asegurar que proximo_riego tenga timezone para comparar
+        proximo_riego_aware = self.proximo_riego
+        
+        return datetime.now() >= proximo_riego_aware
+    
+    def necesita_fertilizacion(self) -> bool:
+        """
+        Verifica si la planta necesita fertilización.
+        
+        Returns:
+            bool: True si necesita fertilización (fecha actual >= proxima_fertilizacion), False en caso contrario
+        """
+        if not self.proxima_fertilizacion:
+            return False
+        
+        # Asegurar que proxima_fertilizacion tenga timezone para comparar
+        proxima_fertilizacion_aware = self.proxima_fertilizacion
+        
+        return datetime.now() >= proxima_fertilizacion_aware
     
     def soft_delete(self) -> None:
         """
         Marca la planta como inactiva (soft delete).
         """
         self.is_active = False
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
     
     def restore(self) -> None:
         """
         Restaura una planta marcada como inactiva.
         """
         self.is_active = True
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
 
 
 # ==================== MODELO ESPECIE ====================
@@ -1205,10 +1261,10 @@ class Identificacion(Base):
             notas (Optional[str]): Notas de validación
         """
         self.validado = True
-        self.fecha_validacion = datetime.utcnow()
+        self.fecha_validacion = datetime.now()
         if notas:
             self.notas_usuario = notas
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
     
     def __repr__(self) -> str:
         """Representación en string del objeto."""

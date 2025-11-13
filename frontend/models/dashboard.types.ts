@@ -18,7 +18,8 @@ export type EstadoSalud =
   | 'enfermedad' 
   | 'plaga' 
   | 'critica' 
-  | 'desconocido';
+  | 'desconocido'
+  | 'analizando';
 
 /**
  * Tipo para el nivel de luz que recibe una planta
@@ -41,9 +42,12 @@ export interface Planta {
   imagen_principal_url: string | null;
   fecha_ultimo_riego: string | null; // ISO datetime string
   frecuencia_riego_dias: number;
+  fecha_ultima_fertilizacion: string | null; // ISO datetime string
+  proxima_fertilizacion: string | null; // ISO datetime string
+  frecuencia_fertilizacion_dias: number | null;
   luz_actual: NivelLuz | null;
   fecha_adquisicion: string | null; // ISO datetime string
-  proxima_riego: string | null; // ISO datetime string
+  proximo_riego: string | null; // ISO datetime string
   created_at: string; // ISO datetime string
   updated_at: string; // ISO datetime string
   is_active: boolean;
@@ -169,6 +173,7 @@ export const estadoSaludToBadgeVariant = (estado: EstadoSalud): 'default' | 'des
     case 'saludable':
       return 'default'; // Verde
     case 'necesita_atencion':
+    case 'analizando':
       return 'secondary'; // Amarillo/Warning
     case 'enfermedad':
     case 'plaga':
@@ -204,6 +209,8 @@ export const estadoSaludToLabel = (estado: EstadoSalud): string => {
       return 'Estado Crítico';
     case 'desconocido':
       return 'Estado Desconocido';
+    case 'analizando':
+      return 'Analizando...';
     default:
       // Si viene capitalizado, devolverlo tal cual
       return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase();
@@ -231,6 +238,8 @@ export const estadoSaludToEmoji = (estado: EstadoSalud): string => {
       return '🚨';
     case 'desconocido':
       return '❓';
+    case 'analizando':
+      return '🔍';
     default:
       return '🌱';
   }
@@ -258,6 +267,8 @@ export const estadoSaludToBadgeClasses = (estado: EstadoSalud): string => {
       return 'bg-red-700 hover:bg-red-800 text-white border-2 border-red-800 font-semibold backdrop-blur-sm shadow-md';
     case 'desconocido':
       return 'bg-gray-600 hover:bg-gray-700 text-white border-2 border-gray-700 font-semibold backdrop-blur-sm shadow-md';
+    case 'analizando':
+      return 'bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-700 font-semibold backdrop-blur-sm shadow-md animate-pulse';
     default:
       return 'bg-gray-600 hover:bg-gray-700 text-white border-2 border-gray-700 font-semibold backdrop-blur-sm shadow-md';
   }
@@ -284,6 +295,8 @@ export const estadoSaludToBadgeStyle = (estado: EstadoSalud): React.CSSPropertie
       return { backgroundColor: 'rgb(185 28 28)', borderColor: 'rgb(153 27 27)' }; // red-700/red-800
     case 'desconocido':
       return { backgroundColor: 'rgb(75 85 99)', borderColor: 'rgb(55 65 81)' }; // gray-600/gray-700
+    case 'analizando':
+      return { backgroundColor: 'rgb(37 99 235)', borderColor: 'rgb(29 78 216)' }; // blue-600/blue-700
     default:
       return { backgroundColor: 'rgb(75 85 99)', borderColor: 'rgb(55 65 81)' }; // gray-600/gray-700
   }

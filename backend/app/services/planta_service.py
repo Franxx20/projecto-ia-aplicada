@@ -121,7 +121,7 @@ class PlantaService:
         solo_activas: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        Obtiene todas las plantas de un usuario con sus imágenes de identificación.
+        Obtiene todas las plantas de un usuario con sus imágenes de identificación y análisis de salud.
         
         Para cada planta:
         1. Obtiene los datos básicos de la planta
@@ -129,6 +129,7 @@ class PlantaService:
         3. Obtiene la imagen principal
         4. Busca la identificación que originó la planta (mediante imagen_principal_id)
         5. Obtiene TODAS las imágenes asociadas a esa identificación
+        6. Obtiene TODAS las imágenes de análisis de salud de la planta
         
         Args:
             db (Session): Sesión de base de datos
@@ -140,7 +141,7 @@ class PlantaService:
         Returns:
             List[Dict[str, Any]]: Lista de plantas con toda su información
         """
-        from app.db.models import Especie, Imagen, Identificacion
+        from app.db.models import Especie, Imagen, Identificacion, AnalisisSalud
         
         # Obtener plantas del usuario
         query = db.query(Planta).filter(Planta.usuario_id == usuario_id)
@@ -163,6 +164,9 @@ class PlantaService:
                 "ubicacion": planta.ubicacion,
                 "estado_salud": planta.estado_salud,
                 "frecuencia_riego_dias": planta.frecuencia_riego_dias,
+                "fecha_ultima_fertilizacion": planta.fecha_ultima_fertilizacion,
+                "proxima_fertilizacion": planta.proxima_fertilizacion,
+                "frecuencia_fertilizacion_dias": planta.frecuencia_fertilizacion_dias,
                 "notas": planta.notas,
                 "imagen_principal_id": planta.imagen_principal_id,
                 "activa": planta.is_active,
@@ -243,6 +247,41 @@ class PlantaService:
                                         "tamano_bytes": imagen_legacy.tamano_bytes
                                     }
                                 ]
+            
+            # Obtener imágenes de análisis de salud
+            # Buscar todos los análisis de salud de esta planta que tengan imágenes
+            analisis_con_imagenes = db.query(AnalisisSalud).filter(
+                and_(
+                    AnalisisSalud.planta_id == planta.id,
+                    AnalisisSalud.imagen_id.isnot(None)
+                )
+            ).all()
+            
+            imagenes_salud = []
+            for analisis in analisis_con_imagenes:
+                if analisis.imagen_id:
+                    imagen_salud = db.query(Imagen).filter(
+                        Imagen.id == analisis.imagen_id
+                    ).first()
+                    if imagen_salud:
+                        imagenes_salud.append({
+                            "id": imagen_salud.id,
+                            "nombre_archivo": imagen_salud.nombre_archivo,
+                            "url_blob": imagen_salud.url_blob,
+                            "organ": imagen_salud.organ,
+                            "tamano_bytes": imagen_salud.tamano_bytes
+                        })
+            
+            # Combinar todas las imágenes (identificación + salud) sin duplicados
+            todas_imagenes = {}
+            for img in planta_dict["imagenes_identificacion"]:
+                todas_imagenes[img["id"]] = img
+            for img in imagenes_salud:
+                if img["id"] not in todas_imagenes:
+                    todas_imagenes[img["id"]] = img
+            
+            # Agregar campo con todas las imágenes
+            planta_dict["todas_imagenes"] = list(todas_imagenes.values())
             
             resultado.append(planta_dict)
         
@@ -334,7 +373,7 @@ class PlantaService:
                     days=planta.frecuencia_riego_dias
                 )
         
-        planta.updated_at = datetime.utcnow()
+        planta.updated_at = datetime.now()
         
         db.commit()
         db.refresh(planta)
@@ -399,6 +438,36 @@ class PlantaService:
         return planta
     
     @staticmethod
+    def registrar_fertilizacion(
+        db: Session,
+        planta_id: int,
+        usuario_id: int,
+        fecha_fertilizacion: Optional[datetime] = None
+    ) -> Optional[Planta]:
+        """
+        Registra una nueva fertilización en una planta.
+        
+        Args:
+            db (Session): Sesión de base de datos
+            planta_id (int): ID de la planta
+            usuario_id (int): ID del usuario (para verificar propiedad)
+            fecha_fertilizacion (Optional[datetime]): Fecha de la fertilización, si no se provee usa la actual
+            
+        Returns:
+            Optional[Planta]: Planta actualizada o None si no existe
+        """
+        planta = PlantaService.obtener_planta_por_id(db, planta_id, usuario_id)
+        
+        if not planta:
+            return None
+        
+        planta.registrar_fertilizacion(fecha_fertilizacion)
+        db.commit()
+        db.refresh(planta)
+        
+        return planta
+    
+    @staticmethod
     def obtener_estadisticas(
         db: Session,
         usuario_id: int
@@ -449,7 +518,7 @@ class PlantaService:
         ).scalar()
         
         # Plantas que necesitan riego hoy
-        ahora = datetime.utcnow()
+        ahora = datetime.now()
         plantas_necesitan_riego = db.query(func.count(Planta.id)).filter(
             and_(
                 Planta.usuario_id == usuario_id,
@@ -625,7 +694,7 @@ class PlantaService:
             ubicacion=ubicacion,
             notas=notas,
             imagen_principal_id=imagen_principal_id,
-            fecha_adquisicion=datetime.utcnow(),
+            fecha_adquisicion=datetime.now(),
             frecuencia_riego_dias=7  # Frecuencia por defecto
         )
         

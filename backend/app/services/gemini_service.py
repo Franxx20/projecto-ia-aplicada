@@ -283,7 +283,9 @@ Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
     "humedad_max": <porcentaje máximo>,
     "humedad_recomendaciones": "<consejos específicos para mantener humedad: rociar, humidificador, bandeja con agua, etc.>",
     "frecuencia_riego_dias": <número de días entre riegos, ej: 7, 10, 14>,
-    "descripcion_riego": "<descripción de cuándo y cómo regar, ej: 'Regar cuando los primeros 5cm de tierra estén secos'>"
+    "descripcion_riego": "<descripción de cuándo y cómo regar, ej: 'Regar cuando los primeros 5cm de tierra estén secos'>",
+    "frecuencia_fertilizacion_dias": <número de días entre fertilizaciones, ej: 14, 30, 60>,
+    "descripcion_fertilizacion": "<descripción de cuándo y cómo fertilizar, ej: 'Fertilizar cada 2 semanas durante primavera-verano, cada 2 meses en otoño-invierno'>"
   }}
 }}
 

@@ -31,15 +31,11 @@ import { useAuth } from "@/hooks/useAuth"
 import dashboardService from "@/lib/dashboard.service"
 import plantService from "@/lib/plant.service"
 import { SaludWidget } from "@/components/dashboard/SaludWidget"
-import type { Planta, DashboardStats } from "@/models/dashboard.types"
+import type { DashboardStats } from "@/models/dashboard.types"
 import type { PlantaUsuario } from "@/models/plant.types"
-import { NOMBRES_ORGANOS } from "@/models/plant.types"
 import { cn } from "@/lib/utils"
 import {
-  estadoSaludToBadgeVariant,
   estadoSaludToLabel,
-  estadoSaludToEmoji,
-  estadoSaludToBadgeClasses,
   estadoSaludToBadgeStyle,
 } from "@/models/dashboard.types"
 
@@ -156,6 +152,7 @@ export default function DashboardPage() {
   const [estadisticas, setEstadisticas] = useState<DashboardStats | null>(null)
   const [estaCargando, setEstaCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [plantasAnalizando, setPlantasAnalizando] = useState<Set<number>>(new Set())
 
   /**
    * Redirigir a login si no está autenticado
@@ -174,6 +171,76 @@ export default function DashboardPage() {
       cargarDatosDashboard()
     }
   }, [estaAutenticado])
+
+  /**
+   * Polling para plantas en estado "analizando"
+   * Verifica cada 5 segundos si el análisis terminó
+   */
+  useEffect(() => {
+    // Identificar plantas que están analizando
+    const plantasEnAnalisis = plantasUsuario.filter(p => p.estado_salud === 'analizando')
+    
+    if (plantasEnAnalisis.length === 0) {
+      setPlantasAnalizando(new Set())
+      return
+    }
+
+    // Actualizar el Set de plantas analizando
+    const idsAnalizando = new Set(plantasEnAnalisis.map(p => p.id))
+    setPlantasAnalizando(idsAnalizando)
+
+    console.log(`🔄 Iniciando polling para ${plantasEnAnalisis.length} planta(s) en análisis:`, 
+      plantasEnAnalisis.map(p => `${p.nombre_personalizado || 'Sin nombre'} (ID: ${p.id})`))
+
+    // Función para verificar el estado de una planta específica
+    const verificarEstadoPlanta = async (plantaId: number) => {
+      try {
+        const todasPlantas = await plantService.obtenerMisPlantas()
+        const plantaActualizada = todasPlantas.find(p => p.id === plantaId)
+        
+        if (!plantaActualizada) {
+          console.warn(`⚠️ Planta ${plantaId} no encontrada`)
+          return
+        }
+        
+        // Si ya no está analizando, actualizar en la lista
+        if (plantaActualizada.estado_salud !== 'analizando') {
+          console.log(`✅ Análisis completado para planta ${plantaId}: ${plantaActualizada.estado_salud}`)
+          
+          setPlantasUsuario(plantas => 
+            plantas.map(p => 
+              p.id === plantaId ? plantaActualizada : p
+            )
+          )
+          
+          // Remover del Set de plantas analizando
+          setPlantasAnalizando(prev => {
+            const nuevo = new Set(prev)
+            nuevo.delete(plantaId)
+            return nuevo
+          })
+
+          // Recargar estadísticas cuando termine el análisis
+          const nuevasEstadisticas = await dashboardService.obtenerEstadisticas()
+          setEstadisticas(nuevasEstadisticas)
+        }
+      } catch (error) {
+        console.error(`❌ Error al verificar estado de planta ${plantaId}:`, error)
+      }
+    }
+
+    // Configurar intervalo de polling (cada 5 segundos)
+    const intervalId = setInterval(() => {
+      plantasEnAnalisis.forEach(planta => {
+        verificarEstadoPlanta(planta.id)
+      })
+    }, 5000)
+
+    // Limpiar intervalo al desmontar o cuando cambien las plantas
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [plantasUsuario])
 
   /**
    * Función para cargar estadísticas y plantas desde el backend
@@ -529,9 +596,15 @@ export default function DashboardPage() {
                     .map((planta) => {
                     // Determinar qué imágenes mostrar
                     const imagenesParaMostrar = (() => {
+                      // Priorizar todas_imagenes si está disponible
+                      if (planta.todas_imagenes && planta.todas_imagenes.length > 0) {
+                        return planta.todas_imagenes
+                      }
+                      // Fallback a imagenes_identificacion
                       if (planta.imagenes_identificacion && planta.imagenes_identificacion.length > 0) {
                         return planta.imagenes_identificacion
                       }
+                      // Fallback a imagen_principal
                       if (planta.imagen_principal) {
                         return [planta.imagen_principal]
                       }

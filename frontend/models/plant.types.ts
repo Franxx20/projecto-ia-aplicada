@@ -313,6 +313,9 @@ export interface PlantaUsuario {
   ubicacion?: string;
   estado_salud: EstadoSalud;
   frecuencia_riego_dias?: number;
+  fecha_ultima_fertilizacion?: string;
+  proxima_fertilizacion?: string;
+  frecuencia_fertilizacion_dias?: number;
   notas?: string;
   imagen_principal_id?: number;
   activa: boolean;
@@ -330,6 +333,7 @@ export interface PlantaUsuario {
     tamano_bytes: number;
   };
   imagenes_identificacion?: ImagenIdentificacionResponse[];
+  todas_imagenes?: ImagenIdentificacionResponse[];
 }
 
 /**

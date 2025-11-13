@@ -33,7 +33,7 @@ class PlantaBase(BaseModel):
     estado_salud: str = Field(
         default="desconocido",
         description="Estado de salud de la planta",
-        examples=["excelente", "saludable", "necesita_atencion", "enfermedad", "plaga", "critica", "desconocido"]
+        examples=["excelente", "saludable", "necesita_atencion", "enfermedad", "plaga", "critica", "desconocido", "analizando"]
     )
     ubicacion: Optional[str] = Field(
         None,
@@ -60,6 +60,16 @@ class PlantaBase(BaseModel):
         ge=1,
         le=365
     )
+    fecha_ultima_fertilizacion: Optional[datetime] = Field(
+        None,
+        description="Fecha y hora de la última fertilización"
+    )
+    frecuencia_fertilizacion_dias: Optional[int] = Field(
+        None,
+        description="Frecuencia de fertilización en días",
+        ge=1,
+        le=365
+    )
     luz_actual: Optional[str] = Field(
         None,
         description="Nivel de luz que recibe",
@@ -78,7 +88,7 @@ class PlantaBase(BaseModel):
     @classmethod
     def validar_estado_salud(cls, v: str) -> str:
         """Valida que el estado de salud sea uno de los valores permitidos."""
-        estados_validos = ['excelente', 'saludable', 'necesita_atencion', 'enfermedad', 'plaga', 'critica', 'desconocido']
+        estados_validos = ['excelente', 'saludable', 'necesita_atencion', 'enfermedad', 'plaga', 'critica', 'desconocido', 'analizando']
         v_norm = v.strip().lower()
         if v_norm not in estados_validos:
             raise ValueError(f'Estado de salud debe ser uno de: {", ".join(estados_validos)}')
@@ -152,6 +162,16 @@ class PlantaUpdate(BaseModel):
         ge=1,
         le=365
     )
+    fecha_ultima_fertilizacion: Optional[datetime] = Field(
+        None,
+        description="Fecha y hora de la última fertilización"
+    )
+    frecuencia_fertilizacion_dias: Optional[int] = Field(
+        None,
+        description="Frecuencia de fertilización en días",
+        ge=1,
+        le=365
+    )
     luz_actual: Optional[str] = Field(
         None,
         description="Nivel de luz que recibe"
@@ -211,6 +231,10 @@ class PlantaResponse(PlantaBase):
     proximo_riego: Optional[datetime] = Field(
         None,
         description="Fecha y hora del próximo riego"
+    )
+    proxima_fertilizacion: Optional[datetime] = Field(
+        None,
+        description="Fecha y hora de la próxima fertilización"
     )
     created_at: datetime = Field(
         ...,
@@ -327,6 +351,16 @@ class RegistrarRiegoRequest(BaseModel):
     )
 
 
+class RegistrarFertilizacionRequest(BaseModel):
+    """
+    Schema para registrar una nueva fertilización en una planta.
+    """
+    fecha_fertilizacion: Optional[datetime] = Field(
+        None,
+        description="Fecha y hora de la fertilización. Si no se provee, usa la fecha actual"
+    )
+
+
 class PlantaListResponse(BaseModel):
     """
     Schema para la respuesta de lista de plantas con paginación.
@@ -411,6 +445,8 @@ class PlantaUsuarioResponse(BaseModel):
     - Información de la especie (si está identificada)
     - Imagen principal
     - TODAS las imágenes de identificación (si fue agregada desde identificación)
+    - TODAS las imágenes de análisis de salud
+    - Campo 'todas_imagenes' con la unión de identificación + salud (sin duplicados)
     """
     id: int = Field(
         ...,
@@ -444,6 +480,18 @@ class PlantaUsuarioResponse(BaseModel):
         None,
         description="Frecuencia de riego en días"
     )
+    fecha_ultima_fertilizacion: Optional[datetime] = Field(
+        None,
+        description="Fecha y hora de la última fertilización"
+    )
+    proxima_fertilizacion: Optional[datetime] = Field(
+        None,
+        description="Fecha y hora de la próxima fertilización recomendada"
+    )
+    frecuencia_fertilizacion_dias: Optional[int] = Field(
+        None,
+        description="Frecuencia de fertilización en días"
+    )
     notas: Optional[str] = Field(
         None,
         description="Notas del usuario"
@@ -476,6 +524,10 @@ class PlantaUsuarioResponse(BaseModel):
     imagenes_identificacion: List[ImagenIdentificacionSchema] = Field(
         default_factory=list,
         description="Todas las imágenes usadas para identificar esta planta"
+    )
+    todas_imagenes: Optional[List[ImagenIdentificacionSchema]] = Field(
+        default_factory=list,
+        description="Todas las imágenes de la planta (identificación + análisis de salud, sin duplicados)"
     )
     
     class Config:

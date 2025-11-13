@@ -276,7 +276,8 @@ function ResultadosPageContent() {
       
       const especieSeleccionada = resultado.resultados.results[resultIndex];
       
-      await plantService.agregarPlantaAlJardin({
+      // Llamada al backend - ahora responde inmediatamente con estado "analizando"
+      const plantaCreada = await plantService.agregarPlantaAlJardin({
         identificacion_id: resultado.id,
         nombre_personalizado: especieSeleccionada.species.commonNames[0] || 
                              especieSeleccionada.species.scientificName,
@@ -289,23 +290,26 @@ function ResultadosPageContent() {
 
       toast({
         title: '¡Planta agregada!',
-        description: `${especieSeleccionada.species.scientificName} se agregó a tu jardín`
+        description: plantaCreada.estado_salud === 'analizando' 
+          ? `${especieSeleccionada.species.scientificName} se está agregando a tu jardín. El análisis de salud se está realizando en segundo plano.`
+          : `${especieSeleccionada.species.scientificName} se agregó a tu jardín`,
+        duration: 3000
       });
 
-      // Opcional: redirigir al dashboard después de 2 segundos
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
+      // Redirigir inmediatamente al dashboard
+      // El polling detectará el estado "analizando" y actualizará cuando termine
+      router.push('/dashboard');
 
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : 'Error al agregar la planta';
       toast({
         title: 'Error',
-        description: mensaje
+        description: mensaje,
+        type: 'error'
       });
-    } finally {
-      setConfirmando(null);
+      setConfirmando(null); // Solo resetear si hay error
     }
+    // No resetear confirmando en el finally porque ya redirigimos
   };
 
   /**

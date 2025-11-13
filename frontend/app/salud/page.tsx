@@ -33,11 +33,8 @@ import dashboardService from '@/lib/dashboard.service'
 import { imageService } from '@/lib/image.service'
 import type { AnalisisSalud } from '@/models/salud'
 import type { Planta } from '@/models/dashboard.types'
-import type { ImageUploadResponse } from '@/models/image.types'
 import {
   ESTADO_TEXTOS,
-  ESTADO_COLORES,
-  ESTADO_EMOJIS,
   formatearConfianza,
   obtenerColorEstado,
   obtenerEmojiEstado

@@ -137,7 +137,6 @@ export function SaludWidget({ className }: SaludWidgetProps) {
       let necesitanAtencion = 0
       let criticas = 0
       let sumaConfianza = 0
-      const analisisTodos: HistorialSaludItem[] = []
       const criticas_list: PlantaCritica[] = []
 
       plantasConAnalisis.forEach(({ planta, stats }) => {
@@ -237,13 +236,6 @@ export function SaludWidget({ className }: SaludWidgetProps) {
    */
   const navegarAAnalisis = (analisisId: number) => {
     router.push(`/salud/analisis/${analisisId}`)
-  }
-
-  /**
-   * Navega a la página de detalle de una planta
-   */
-  const navegarAPlanta = (plantaId: number) => {
-    router.push(`/plant/${plantaId}`)
   }
 
   if (cargando) {

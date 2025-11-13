@@ -218,6 +218,41 @@ class DashboardService {
   }
 
   /**
+   * Registra una nueva fertilización en una planta
+   * 
+   * @param {number} plantaId - ID de la planta
+   * @param {Object} datos - Datos de la fertilización (opcional fecha)
+   * @returns {Promise<Planta>} Planta actualizada con nueva fecha de fertilización
+   * @throws {Error} Si hay error en la petición
+   * 
+   * @example
+   * ```typescript
+   * // Registrar fertilización con fecha actual
+   * const planta = await dashboardService.registrarFertilizacion(123, {});
+   * 
+   * // Registrar fertilización con fecha específica
+   * const planta = await dashboardService.registrarFertilizacion(123, {
+   *   fecha_fertilizacion: '2024-01-15T10:00:00Z'
+   * });
+   * ```
+   */
+  async registrarFertilizacion(
+    plantaId: number,
+    datos: { fecha_fertilizacion?: string } = {}
+  ): Promise<Planta> {
+    try {
+      const response = await axios.post<Planta>(
+        `${BASE_PATH}/${plantaId}/fertilizacion`,
+        datos
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error al registrar fertilización para planta ${plantaId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Obtiene plantas que necesitan riego hoy
    * 
    * @returns {Promise<Planta[]>} Lista de plantas que necesitan riego

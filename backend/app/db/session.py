@@ -37,6 +37,18 @@ SessionLocal = sessionmaker(
 Base = declarative_base()
 
 
+def get_database_url() -> str:
+    """
+    Retorna la URL de conexión a la base de datos.
+    
+    Útil para background tasks que necesitan crear su propia sesión.
+    
+    Returns:
+        str: URL de conexión a la base de datos
+    """
+    return configuracion.database_url
+
+
 def get_db() -> Generator[Session, None, None]:
     """
     Dependency para obtener sesión de base de datos en endpoints FastAPI

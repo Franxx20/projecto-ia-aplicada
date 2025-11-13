@@ -42,9 +42,6 @@ import {
   X,
   Check,
   Activity,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Stethoscope,
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
@@ -197,6 +194,7 @@ export default function PlantDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isWatering, setIsWatering] = useState(false)
+  const [isFertilizing, setIsFertilizing] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
   const [nombreEditado, setNombreEditado] = useState("")
   const [isSavingName, setIsSavingName] = useState(false)
@@ -206,6 +204,7 @@ export default function PlantDetailPage() {
   const [ultimoAnalisisDetalle, setUltimoAnalisisDetalle] = useState<any>(null)
   const [imagenesPlanta, setImagenesPlanta] = useState<any[]>([])
   const [cargandoImagenes, setCargandoImagenes] = useState(false)
+  const [estaAnalizando, setEstaAnalizando] = useState(false)
 
   // Redirigir si no está autenticado
   useEffect(() => {
@@ -287,22 +286,99 @@ export default function PlantDetailPage() {
     cargarImagenes()
   }, [estaAutenticado, plantId, planta])
 
+  // Polling para detectar cuando termina el análisis en background
+  useEffect(() => {
+    if (!planta || !estaAutenticado) return
+    
+    // Detectar si está en estado "analizando"
+    const estadoActual = planta.estado_salud?.toLowerCase()
+    const enAnalisis = estadoActual === 'analizando'
+    setEstaAnalizando(enAnalisis)
+    
+    if (!enAnalisis) return // Solo hacer polling si está analizando
+    
+    console.log('🔍 Planta en análisis, iniciando polling...')
+    
+    // Polling cada 5 segundos para detectar cambio de estado
+    const intervalo = setInterval(async () => {
+      try {
+        const plantaActualizada = await dashboardService.obtenerPlanta(parseInt(plantId!))
+        const nuevoEstado = plantaActualizada.estado_salud?.toLowerCase()
+        
+        if (nuevoEstado && nuevoEstado !== 'analizando') {
+          console.log('✅ Análisis completado, actualizando planta...')
+          setPlanta(plantaActualizada)
+          setEstaAnalizando(false)
+          
+          // Recargar también los análisis recientes
+          try {
+            const historial = await saludService.obtenerHistorial({
+              planta_id: parseInt(plantId!),
+              limite: 3,
+              offset: 0
+            })
+            setAnalisisRecientes(historial.analisis)
+            
+            if (historial.analisis && historial.analisis.length > 0) {
+              const detalle = await saludService.obtenerAnalisis(historial.analisis[0].id)
+              setUltimoAnalisisDetalle(detalle)
+            }
+          } catch (err) {
+            console.error('Error recargando análisis:', err)
+          }
+          
+          clearInterval(intervalo)
+        }
+      } catch (error) {
+        console.error('Error en polling de planta:', error)
+      }
+    }, 5000)
+    
+    return () => clearInterval(intervalo)
+  }, [planta, estaAutenticado, plantId])
+
   // Handler para marcar como regada
   const handleMarcarComoRegada = async () => {
     if (!planta) return
 
     try {
       setIsWatering(true)
-      await dashboardService.registrarRiego(planta.id)
-      
-      // Recargar datos de la planta
-      const plantaActualizada = await dashboardService.obtenerPlanta(planta.id)
+      // Registrar riego y usar directamente la respuesta actualizada
+      const plantaActualizada = await dashboardService.registrarRiego(planta.id)
       setPlanta(plantaActualizada)
+      
+      console.log('✅ Planta actualizada después de regar:', {
+        fecha_ultimo_riego: plantaActualizada.fecha_ultimo_riego,
+        proximo_riego: plantaActualizada.proximo_riego,
+        necesita_riego: plantaActualizada.necesita_riego
+      })
     } catch (err) {
       console.error("Error al registrar riego:", err)
       alert("Error al registrar el riego")
     } finally {
       setIsWatering(false)
+    }
+  }
+
+  // Handler para marcar como fertilizada
+  const handleMarcarComoFertilizada = async () => {
+    if (!planta) return
+
+    try {
+      setIsFertilizing(true)
+      // Registrar fertilización y usar directamente la respuesta actualizada
+      const plantaActualizada = await dashboardService.registrarFertilizacion(planta.id)
+      setPlanta(plantaActualizada)
+      
+      console.log('✅ Planta actualizada después de fertilizar:', {
+        fecha_ultima_fertilizacion: plantaActualizada.fecha_ultima_fertilizacion,
+        proxima_fertilizacion: plantaActualizada.proxima_fertilizacion
+      })
+    } catch (err) {
+      console.error("Error al registrar fertilización:", err)
+      alert("Error al registrar la fertilización")
+    } finally {
+      setIsFertilizing(false)
     }
   }
 
@@ -614,12 +690,17 @@ export default function PlantDetailPage() {
                   <Button 
                     className="w-full"
                     onClick={handleVerificarSalud}
-                    disabled={isCheckingHealth}
+                    disabled={isCheckingHealth || estaAnalizando}
                   >
                     {isCheckingHealth ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         Verificando...
+                      </>
+                    ) : estaAnalizando ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Analizando en segundo plano...
                       </>
                     ) : (
                       <>
@@ -732,18 +813,32 @@ export default function PlantDetailPage() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                    <p className="text-sm text-muted-foreground mb-4">
-                      No hay análisis registrados
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleVerificarSalud}
-                    >
-                      <Camera className="w-4 h-4 mr-2" />
-                      Realizar primer análisis
-                    </Button>
+                    {estaAnalizando ? (
+                      <>
+                        <Loader2 className="w-12 h-12 mx-auto text-primary mb-3 animate-spin" />
+                        <p className="text-sm font-medium text-foreground mb-1">
+                          Análisis en progreso
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          El primer análisis de salud se está realizando en segundo plano...
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          No hay análisis registrados
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleVerificarSalud}
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          Realizar primer análisis
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -786,7 +881,7 @@ export default function PlantDetailPage() {
                         )}>
                           {planta.necesita_riego 
                             ? "Necesita riego ahora" 
-                            : formatearFechaRelativa(planta.proxima_riego, true)
+                            : formatearFechaRelativa(planta.proximo_riego, true)
                           }
                         </p>
                       </div>
@@ -829,16 +924,34 @@ export default function PlantDetailPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Última Fertilización</p>
-                        <p className="font-semibold">Hace 2 semanas</p>
+                        <p className="font-semibold">
+                          {formatearFechaRelativa(planta.fecha_ultima_fertilizacion, false)}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Próxima Fertilización</p>
-                        <p className="font-semibold">en 2 semanas</p>
+                        <p className="font-semibold">
+                          {formatearFechaRelativa(planta.proxima_fertilizacion, true)}
+                        </p>
                       </div>
                     </div>
-                    <Button variant="outline" className="w-full bg-transparent">
-                      <Sprout className="w-4 h-4 mr-2" />
-                      Marcar como Fertilizada
+                    <Button 
+                      variant="outline" 
+                      className="w-full bg-transparent"
+                      onClick={handleMarcarComoFertilizada}
+                      disabled={isFertilizing}
+                    >
+                      {isFertilizing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Registrando...
+                        </>
+                      ) : (
+                        <>
+                          <Sprout className="w-4 h-4 mr-2" />
+                          Marcar como Fertilizada
+                        </>
+                      )}
                     </Button>
                   </CardContent>
                 </Card>

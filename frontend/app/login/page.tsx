@@ -30,6 +30,7 @@ function LoginPageContent() {
   const [isLogin, setIsLogin] = useState(modeParam !== 'register')
   const [error, setError] = useState("")
   const [mostrarRedireccion, setMostrarRedireccion] = useState(false)
+  const [intentandoRedirigir, setIntentandoRedirigir] = useState(false)
   
   // Formulario de login
   const [loginData, setLoginData] = useState({
@@ -46,12 +47,13 @@ function LoginPageContent() {
 
   /**
    * Redirigir al dashboard si ya está autenticado
-   * SOLO si NO estamos en proceso de carga inicial
+   * SOLO si NO estamos en proceso de carga inicial Y NO estamos intentando redirigir
    */
   useEffect(() => {
     // Esperar a que termine la carga inicial del AuthContext
-    if (!authLoading && estaAutenticado) {
-      console.log('Usuario ya autenticado, redirigiendo al dashboard...')
+    // Solo redirigir automáticamente si ya estaba autenticado desde antes (no por login reciente)
+    if (!authLoading && estaAutenticado && !intentandoRedirigir) {
+      console.log('Usuario ya autenticado desde antes, redirigiendo al dashboard...')
       setMostrarRedireccion(true)
       // Dar tiempo para mostrar el mensaje antes de redirigir
       const timer = setTimeout(() => {
@@ -59,7 +61,7 @@ function LoginPageContent() {
       }, 1500)
       return () => clearTimeout(timer)
     }
-  }, [estaAutenticado, authLoading, router])
+  }, [estaAutenticado, authLoading, router, intentandoRedirigir])
 
   /**
    * Si el usuario ya está autenticado, mostrar pantalla de redirección
@@ -106,13 +108,17 @@ function LoginPageContent() {
   const manejarLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIntentandoRedirigir(true)
 
     try {
       await iniciarSesion(loginData.email, loginData.password)
-      // El AuthContext manejará la navegación
+      console.log('✅ Inicio de sesión exitoso, redirigiendo al dashboard...')
+      // Redirigir inmediatamente después del login exitoso
       router.push('/dashboard')
     } catch (err) {
+      console.error('❌ Error al iniciar sesión:', err)
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
+      setIntentandoRedirigir(false)
     }
   }
 

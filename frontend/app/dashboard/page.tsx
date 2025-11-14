@@ -156,12 +156,25 @@ export default function DashboardPage() {
 
   /**
    * Redirigir a login si no está autenticado
+   * IMPORTANTE: Solo redirigir cuando terminó de cargar Y no está autenticado
    */
   useEffect(() => {
+    console.log('🔍 Dashboard - Estado de autenticación:', { 
+      estaAutenticado, 
+      estaCargandoAuth, 
+      tieneUsuario: !!usuario 
+    })
+    
+    // Solo redirigir si:
+    // 1. Ya terminó de verificar la autenticación (estaCargandoAuth = false)
+    // 2. Y el usuario NO está autenticado
     if (!estaCargandoAuth && !estaAutenticado) {
+      console.log('❌ Usuario no autenticado, redirigiendo a login...')
       router.push('/login')
+    } else if (!estaCargandoAuth && estaAutenticado) {
+      console.log('✅ Usuario autenticado correctamente')
     }
-  }, [estaAutenticado, estaCargandoAuth, router])
+  }, [estaAutenticado, estaCargandoAuth, usuario, router])
 
   /**
    * Cargar datos del dashboard al montar el componente
@@ -371,7 +384,7 @@ export default function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Leaf className="h-12 w-12 text-primary animate-pulse mx-auto mb-4" />
-          <p className="text-muted-foreground">Cargando...</p>
+          <p className="text-muted-foreground">Verificando autenticación...</p>
         </div>
       </div>
     )
@@ -379,7 +392,14 @@ export default function DashboardPage() {
 
   // No mostrar nada si no está autenticado (se está redirigiendo)
   if (!estaAutenticado || !usuario) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Leaf className="h-12 w-12 text-primary animate-pulse mx-auto mb-4" />
+          <p className="text-muted-foreground">Redirigiendo a login...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

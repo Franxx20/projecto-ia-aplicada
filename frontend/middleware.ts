@@ -1,9 +1,9 @@
 /**
  * middleware.ts - Middleware de Next.js para protección de rutas
  * 
- * NOTA: La verificación de autenticación real se maneja en el cliente con AuthContext
- * Este middleware solo previene acceso directo a rutas privadas sin considerar
- * el estado de autenticación del lado del servidor (ya que usamos localStorage)
+ * Protege rutas privadas verificando la presencia de tokens de autenticación
+ * Redirige a login si el usuario no está autenticado
+ * Permite acceso a rutas públicas
  * 
  * @author GitHub Copilot
  * @date 2025-10-10
@@ -18,16 +18,66 @@ import type { NextRequest } from 'next/server'
 const rutasPublicas = ['/', '/login', '/register']
 
 /**
- * Middleware simplificado que permite que AuthContext maneje la autenticación
+ * Rutas privadas que requieren autenticación
+ * Si el usuario intenta acceder sin token, será redirigido a /login
+ */
+const rutasPrivadas = ['/dashboard', '/upload', '/profile', '/settings', '/plants', '/diseases']
+
+/**
+ * Verifica si una ruta es pública
+ * 
+ * @param pathname - Ruta actual
+ * @returns true si la ruta es pública
+ */
+function esRutaPublica(pathname: string): boolean {
+  return rutasPublicas.some(ruta => pathname === ruta || pathname.startsWith(`${ruta}/`))
+}
+
+/**
+ * Verifica si una ruta es privada
+ * 
+ * @param pathname - Ruta actual
+ * @returns true si la ruta requiere autenticación
+ */
+function esRutaPrivada(pathname: string): boolean {
+  return rutasPrivadas.some(ruta => pathname.startsWith(ruta))
+}
+
+/**
+ * Middleware que protege rutas privadas
  * 
  * Flujo:
- * 1. Permite acceso a todas las rutas (la protección real está en los componentes)
- * 2. AuthContext redirigirá al login si es necesario
- * 3. Los componentes verifican estaAutenticado antes de renderizar
+ * 1. Verifica si la ruta es pública → permite acceso
+ * 2. Verifica si la ruta es privada y hay token → permite acceso
+ * 3. Verifica si la ruta es privada sin token → redirige a /login
+ * 4. Rutas no clasificadas → permite acceso (archivos estáticos, etc.)
  */
 export function middleware(request: NextRequest) {
-  // Permitir acceso a todas las rutas
-  // La protección real se maneja en el cliente con AuthContext
+  const { pathname } = request.nextUrl
+
+  // Permitir acceso a rutas públicas sin verificar autenticación
+  if (esRutaPublica(pathname)) {
+    return NextResponse.next()
+  }
+
+  // Verificar autenticación para rutas privadas
+  if (esRutaPrivada(pathname)) {
+    // Intentar obtener token de cookies o headers
+    const token = request.cookies.get('access_token')?.value
+
+    // Si no hay token, redirigir a login
+    if (!token) {
+      const loginUrl = new URL('/login', request.url)
+      // Guardar la URL original para redirigir después del login
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    // Si hay token, permitir acceso
+    return NextResponse.next()
+  }
+
+  // Para rutas no clasificadas (archivos estáticos, API, etc.), permitir acceso
   return NextResponse.next()
 }
 

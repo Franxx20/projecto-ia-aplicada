@@ -47,16 +47,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Cambiar a usuario no-root
 USER nextjs
 
-# Exponer puerto 4200
-EXPOSE 4200
+# Exponer puerto 3000 (estándar Next.js)
+EXPOSE 3000
 
 # Variables de entorno de runtime
-ENV PORT=4200
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Health check para verificar que Next.js responde
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:4200/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+    CMD node -e "require('http').get('http://localhost:3000/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
 # Comando por defecto - Next.js standalone server
 CMD ["node", "server.js"]

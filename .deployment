@@ -1,0 +1,26 @@
+[config]
+# =============================================================================
+# Configuración de Deployment para Azure App Service
+# Proyecto: Asistente Plantitas
+# =============================================================================
+
+# Esta configuración le indica a Azure App Service cómo deployar la aplicación
+
+# SCM_DO_BUILD_DURING_DEPLOYMENT
+# - true: Ejecuta npm install/pip install automáticamente durante el deployment
+# - false: Asume que las dependencias ya están instaladas
+# 
+# Para Node.js (Frontend): instalará dependencias de package.json
+# Para Python (Backend): instalará dependencias de requirements.txt
+SCM_DO_BUILD_DURING_DEPLOYMENT=true
+
+# PROJECT
+# Opcional: Si tu aplicación está en una subcarpeta, especifícala aquí
+# Ejemplo: PROJECT=backend (para Python apps en subcarpeta backend)
+# Ejemplo: PROJECT=frontend (para Node apps en subcarpeta frontend)
+# 
+# Por defecto, App Service buscará en la raíz del repositorio
+
+# COMMAND
+# Opcional: Comando personalizado para ejecutar después del build
+# Ejemplo: COMMAND=npm run build (para Next.js apps)

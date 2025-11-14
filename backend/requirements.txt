@@ -38,3 +38,14 @@ Pillow==10.1.0
 
 # Google Generative AI (Gemini)
 google-generativeai==0.3.2
+
+# =============================================================================
+# DEPENDENCIAS DE PRODUCCIÓN - AZURE APP SERVICE
+# =============================================================================
+
+# Servidor WSGI/ASGI para producción
+gunicorn==21.2.0
+
+# MySQL connector para Azure Database for MySQL
+pymysql==1.1.0
+cryptography>=41.0.0  # Requerido por pymysql para conexiones SSL

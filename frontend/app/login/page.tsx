@@ -10,7 +10,7 @@
  * @date 2025-10-10
  */
 
-import { useState, useEffect, Suspense } from "react"
+import React, { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,6 @@ function LoginPageContent() {
   const modeParam = searchParams?.get('mode')
   const [isLogin, setIsLogin] = useState(modeParam !== 'register')
   const [error, setError] = useState("")
-  const [mostrarRedireccion, setMostrarRedireccion] = useState(false)
   
   // Formulario de login
   const [loginData, setLoginData] = useState({
@@ -46,58 +45,23 @@ function LoginPageContent() {
 
   /**
    * Redirigir al dashboard si ya está autenticado
-   * SOLO si NO estamos en proceso de carga inicial
+   * Solo se ejecuta una vez al cargar la página
    */
   useEffect(() => {
-    // Esperar a que termine la carga inicial del AuthContext
+    // Solo redirigir si ya estaba autenticado desde antes (no después de login)
     if (!authLoading && estaAutenticado) {
-      console.log('Usuario ya autenticado, redirigiendo al dashboard...')
-      setMostrarRedireccion(true)
-      // Dar tiempo para mostrar el mensaje antes de redirigir
-      const timer = setTimeout(() => {
-        router.push('/dashboard')
-      }, 1500)
-      return () => clearTimeout(timer)
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get('redirect') || '/dashboard'
+      
+      // Usar replace para no agregar a historial
+      window.location.replace(redirect)
     }
-  }, [estaAutenticado, authLoading, router])
+  }, [authLoading, estaAutenticado])
 
   /**
-   * Si el usuario ya está autenticado, mostrar pantalla de redirección
+   * Estado para prevenir doble submit
    */
-  if (mostrarRedireccion) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-secondary/20 to-background">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <div className="bg-primary/10 p-3 rounded-full">
-                <Leaf className="w-10 h-10 text-primary" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">Ya estás autenticado</CardTitle>
-            <CardDescription>
-              Redirigiendo al dashboard...
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-center text-muted-foreground">
-              Si no deseas continuar con esta sesión, puedes{' '}
-              <button 
-                onClick={async () => {
-                  await cerrarSesion()
-                  setMostrarRedireccion(false)
-                }}
-                className="text-primary hover:underline font-medium"
-                type="button"
-              >
-                cerrar sesión aquí
-              </button>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   /**
    * Maneja el envío del formulario de login
@@ -105,15 +69,30 @@ function LoginPageContent() {
    */
   const manejarLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Prevenir doble submit
+    if (isSubmitting) {
+      console.log('Ya hay un login en proceso, ignorando...')
+      return
+    }
+
     setError("")
+    setIsSubmitting(true)
 
     try {
       await iniciarSesion(loginData.email, loginData.password)
-      // El AuthContext manejará la navegación
-      router.push('/dashboard')
+      
+      // Obtener URL de redirección de query params o usar dashboard por defecto
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get('redirect') || '/dashboard'
+      
+      // Redirigir usando window.location para forzar recarga completa
+      window.location.href = redirect
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
+      setIsSubmitting(false) // Solo resetear en caso de error
     }
+    // No resetear isSubmitting en caso de éxito porque ya estamos redirigiendo
   }
 
   /**
@@ -257,10 +236,15 @@ function LoginPageContent() {
             )}
 
             {/* Botón submit */}
-            <Button className="w-full" size="lg" type="submit" disabled={authLoading}>
-              {authLoading && "Procesando..."}
-              {!authLoading && isLogin && "Iniciar Sesión"}
-              {!authLoading && !isLogin && "Crear Cuenta"}
+            <Button 
+              className="w-full" 
+              size="lg" 
+              type="submit" 
+              disabled={authLoading || isSubmitting}
+            >
+              {(authLoading || isSubmitting) && "Procesando..."}
+              {!authLoading && !isSubmitting && isLogin && "Iniciar Sesión"}
+              {!authLoading && !isSubmitting && !isLogin && "Crear Cuenta"}
             </Button>
           </CardContent>
         </form>

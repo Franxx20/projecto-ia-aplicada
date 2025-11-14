@@ -10,24 +10,24 @@ import { ChatWidget } from "@/components/ChatWidget";
  */
 export const metadata: Metadata = {
   title: {
-    default: "Asistente Plantitas - Identificación y Cuidado de Plantas",
-    template: "%s | Asistente Plantitas"
+    default: "NatureTag - Identificación y Cuidado de Plantas con IA",
+    template: "%s | NatureTag"
   },
   description: "Identifica tus plantas con IA, recibe consejos personalizados de cuidado y mantén un registro de tu jardín.",
   keywords: ["plantas", "jardinería", "identificación", "IA", "cuidado de plantas", "botánica"],
-  authors: [{ name: "Equipo Asistente Plantitas" }],
-  creator: "Asistente Plantitas",
+  authors: [{ name: "Equipo NatureTag" }],
+  creator: "NatureTag",
   openGraph: {
     type: "website",
     locale: "es_ES",
-    url: "https://asistenteplantitas.com",
-    title: "Asistente Plantitas",
+    url: "https://naturetag.com",
+    title: "NatureTag",
     description: "Tu asistente personal de jardinería con IA",
-    siteName: "Asistente Plantitas",
+    siteName: "NatureTag",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Asistente Plantitas",
+    title: "NatureTag",
     description: "Tu asistente personal de jardinería con IA",
   },
   robots: {

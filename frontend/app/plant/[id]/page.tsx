@@ -352,6 +352,10 @@ export default function PlantDetailPage() {
         proximo_riego: plantaActualizada.proximo_riego,
         necesita_riego: plantaActualizada.necesita_riego
       })
+      
+      // Recargar la planta para actualizar todas las vistas
+      const plantaRefrescada = await dashboardService.obtenerPlanta(planta.id)
+      setPlanta(plantaRefrescada)
     } catch (err) {
       console.error("Error al registrar riego:", err)
       alert("Error al registrar el riego")
@@ -374,6 +378,10 @@ export default function PlantDetailPage() {
         fecha_ultima_fertilizacion: plantaActualizada.fecha_ultima_fertilizacion,
         proxima_fertilizacion: plantaActualizada.proxima_fertilizacion
       })
+      
+      // Recargar la planta para actualizar todas las vistas
+      const plantaRefrescada = await dashboardService.obtenerPlanta(planta.id)
+      setPlanta(plantaRefrescada)
     } catch (err) {
       console.error("Error al registrar fertilización:", err)
       alert("Error al registrar la fertilización")
@@ -652,7 +660,7 @@ export default function PlantDetailPage() {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Health Score</span>
+                      <span className="text-sm text-muted-foreground">Puntuación de Salud</span>
                       <span className="text-sm font-semibold">{healthScore}%</span>
                     </div>
                     <Progress value={healthScore} className="h-2" />
@@ -849,10 +857,10 @@ export default function PlantDetailPage() {
           <div className="lg:col-span-2">
             <Tabs defaultValue="care" className="w-full">
               <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="care">Care</TabsTrigger>
-                <TabsTrigger value="environment">Environment</TabsTrigger>
-                <TabsTrigger value="activity">Activity</TabsTrigger>
-                <TabsTrigger value="photos">Photos</TabsTrigger>
+                <TabsTrigger value="care">Cuidados</TabsTrigger>
+                <TabsTrigger value="environment">Ambiente</TabsTrigger>
+                <TabsTrigger value="activity">Actividad</TabsTrigger>
+                <TabsTrigger value="photos">Fotos</TabsTrigger>
               </TabsList>
 
               {/* Care Tab */}
@@ -862,19 +870,19 @@ export default function PlantDetailPage() {
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Droplets className="w-5 h-5 text-primary" />
-                      <CardTitle>Watering Schedule</CardTitle>
+                      <CardTitle>Calendario de Riego</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Last Watered</p>
+                        <p className="text-sm text-muted-foreground mb-1">Último Riego</p>
                         <p className="font-semibold">
                           {formatearFechaRelativa(planta.fecha_ultimo_riego)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Next Watering</p>
+                        <p className="text-sm text-muted-foreground mb-1">Próximo Riego</p>
                         <p className={cn(
                           "font-semibold",
                           planta.necesita_riego ? "text-destructive" : "text-accent"
@@ -888,8 +896,8 @@ export default function PlantDetailPage() {
                     </div>
                     {planta.frecuencia_riego_dias && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Frequency</p>
-                        <p className="font-semibold">Every {planta.frecuencia_riego_dias} days</p>
+                        <p className="text-sm text-muted-foreground mb-1">Frecuencia</p>
+                        <p className="font-semibold">Cada {planta.frecuencia_riego_dias} días</p>
                       </div>
                     )}
                     <Button 
@@ -1204,30 +1212,90 @@ export default function PlantDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {planta.fecha_ultimo_riego && (
-                        <div className="flex items-start gap-4">
-                          <div className="bg-primary/10 p-2 rounded-full">
-                            <Droplets className="w-4 h-4 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-semibold text-sm">Regada</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatearFechaRelativa(planta.fecha_ultimo_riego)}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-start gap-4">
-                        <div className="bg-primary/10 p-2 rounded-full">
-                          <Sprout className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm">Planta agregada</p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatearFechaRelativa(planta.created_at)}
-                          </p>
-                        </div>
-                      </div>
+                      {/* Construir timeline de actividades ordenadas por fecha */}
+                      {(() => {
+                        const actividades: Array<{
+                          tipo: string;
+                          fecha: string;
+                          icono: typeof Droplets;
+                          texto: string;
+                        }> = [];
+
+                        // Agregar riego
+                        if (planta.fecha_ultimo_riego) {
+                          actividades.push({
+                            tipo: 'riego',
+                            fecha: planta.fecha_ultimo_riego,
+                            icono: Droplets,
+                            texto: 'Regada'
+                          });
+                        }
+
+                        // Agregar fertilización
+                        if (planta.fecha_ultima_fertilizacion) {
+                          actividades.push({
+                            tipo: 'fertilizacion',
+                            fecha: planta.fecha_ultima_fertilizacion,
+                            icono: Sprout,
+                            texto: 'Fertilizada'
+                          });
+                        }
+
+                        // Agregar análisis de salud
+                        if (analisisRecientes && analisisRecientes.length > 0) {
+                          analisisRecientes.forEach((analisis) => {
+                            actividades.push({
+                              tipo: 'analisis_salud',
+                              fecha: analisis.fecha_analisis,
+                              icono: Stethoscope,
+                              texto: `Análisis de salud: ${estadoSaludToLabel(analisis.estado)}`
+                            });
+                          });
+                        }
+
+                        // Agregar creación de planta
+                        actividades.push({
+                          tipo: 'creacion',
+                          fecha: planta.created_at,
+                          icono: Leaf,
+                          texto: 'Planta agregada'
+                        });
+
+                        // Ordenar por fecha (más reciente primero)
+                        actividades.sort((a, b) => 
+                          new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+                        );
+
+                        // Mostrar solo las 10 más recientes
+                        return actividades.slice(0, 10).map((actividad, index) => {
+                          const IconoComponente = actividad.icono;
+                          return (
+                            <div key={`${actividad.tipo}-${index}`} className="flex items-start gap-4">
+                              <div className={cn(
+                                "p-2 rounded-full",
+                                actividad.tipo === 'riego' ? "bg-blue-100" :
+                                actividad.tipo === 'fertilizacion' ? "bg-green-100" :
+                                actividad.tipo === 'analisis_salud' ? "bg-purple-100" :
+                                "bg-primary/10"
+                              )}>
+                                <IconoComponente className={cn(
+                                  "w-4 h-4",
+                                  actividad.tipo === 'riego' ? "text-blue-600" :
+                                  actividad.tipo === 'fertilizacion' ? "text-green-600" :
+                                  actividad.tipo === 'analisis_salud' ? "text-purple-600" :
+                                  "text-primary"
+                                )} />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-semibold text-sm">{actividad.texto}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {formatearFechaRelativa(actividad.fecha)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
@@ -1243,20 +1311,57 @@ export default function PlantDetailPage() {
                       onClick={handleMarcarComoRegada}
                       disabled={isWatering}
                     >
-                      <Droplets className="w-4 h-4 mr-2" />
-                      Registrar Riego
+                      {isWatering ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Registrando...
+                        </>
+                      ) : (
+                        <>
+                          <Droplets className="w-4 h-4 mr-2" />
+                          Registrar Riego
+                        </>
+                      )}
                     </Button>
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <Sprout className="w-4 h-4 mr-2" />
-                      Registrar Fertilización
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start bg-transparent"
+                      onClick={handleMarcarComoFertilizada}
+                      disabled={isFertilizing}
+                    >
+                      {isFertilizing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Registrando...
+                        </>
+                      ) : (
+                        <>
+                          <Sprout className="w-4 h-4 mr-2" />
+                          Registrar Fertilización
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start bg-transparent"
+                      onClick={handleVerificarSalud}
+                      disabled={isCheckingHealth}
+                    >
+                      {isCheckingHealth ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Redirigiendo...
+                        </>
+                      ) : (
+                        <>
+                          <Stethoscope className="w-4 h-4 mr-2" />
+                          Verificar Salud
+                        </>
+                      )}
                     </Button>
                     <Button variant="outline" className="w-full justify-start bg-transparent">
                       <Camera className="w-4 h-4 mr-2" />
                       Agregar Foto
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <AlertCircle className="w-4 h-4 mr-2" />
-                      Reportar Problema
                     </Button>
                   </CardContent>
                 </Card>

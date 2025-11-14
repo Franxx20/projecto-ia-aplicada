@@ -6,6 +6,8 @@ Este servicio maneja la lógica de conversación con el LLM, incluyendo:
 - Manejo de límites de tokens para evitar overflow
 - Generación de títulos de conversación
 - Integración con base de datos
+- Rate limiting de requests
+- Caché de respuestas frecuentes
 
 Autor: Equipo Backend
 Fecha: Noviembre 2025
@@ -14,7 +16,8 @@ Feature: Chat Asistente de Jardinería
 
 import json
 import logging
-from datetime import datetime
+import hashlib
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -29,7 +32,8 @@ except ImportError:
     )
 
 from app.core.config import obtener_configuracion
-from app.db.models import ChatConversacion, ChatMensaje, Planta, AnalisisSalud, Usuario
+from app.db.models import ChatConversacion, ChatMensaje, Planta, AnalisisSalud, Usuario, GeminiResponseCache
+from app.services.gemini_service import GeminiRateLimitError, _rate_limiter
 
 # Configuración
 config = obtener_configuracion()
@@ -49,6 +53,10 @@ class ChatService:
     MAX_MENSAJES_HISTORIAL = 10  # Últimos N mensajes a incluir
     MAX_TOKENS_CONTEXTO = 4000   # Tokens máximos para contexto de planta
     
+    # Configuración de caché
+    CACHE_EXPIRATION_DAYS = 30   # Días antes de que expire el caché
+    MIN_HITS_FOR_CACHE = 1       # Mínimo de hits para considerar cacheable (1 = cachear siempre)
+    
     # Configuración de seguridad (permitir contenido sobre plantas)
     SAFETY_SETTINGS = {
         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -56,6 +64,116 @@ class ChatService:
         HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
     }
+    
+    @staticmethod
+    def _generar_query_hash(pregunta: str, contexto: Optional[str] = None) -> str:
+        """
+        Genera un hash único para pregunta + contexto.
+        
+        Args:
+            pregunta: Pregunta del usuario
+            contexto: Contexto adicional (opcional)
+        
+        Returns:
+            Hash SHA-256 como string hexadecimal
+        """
+        contenido = pregunta.lower().strip()
+        if contexto:
+            # Solo incluir partes clave del contexto para aumentar hit rate
+            contenido += "|" + contexto.lower().strip()
+        
+        return hashlib.sha256(contenido.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def _buscar_en_cache(
+        db: Session,
+        pregunta: str,
+        contexto: Optional[str] = None
+    ) -> Optional[GeminiResponseCache]:
+        """
+        Busca una respuesta en caché.
+        
+        Args:
+            db: Sesión de base de datos
+            pregunta: Pregunta del usuario
+            contexto: Contexto opcional
+        
+        Returns:
+            Registro de caché si existe y no ha expirado, None en caso contrario
+        """
+        query_hash = ChatService._generar_query_hash(pregunta, contexto)
+        
+        cache = db.query(GeminiResponseCache).filter(
+            GeminiResponseCache.query_hash == query_hash
+        ).first()
+        
+        if cache and not cache.is_expired():
+            # Actualizar estadísticas de uso
+            cache.hits += 1
+            cache.last_used_at = datetime.utcnow()
+            db.commit()
+            
+            logger.info(f"✅ Cache HIT para query_hash={query_hash[:8]}... (hits={cache.hits})")
+            return cache
+        
+        logger.debug(f"❌ Cache MISS para query_hash={query_hash[:8]}...")
+        return None
+    
+    @staticmethod
+    def _guardar_en_cache(
+        db: Session,
+        pregunta: str,
+        respuesta: str,
+        contexto: Optional[str] = None,
+        tokens_estimados: int = 0
+    ) -> GeminiResponseCache:
+        """
+        Guarda una respuesta en caché.
+        
+        Args:
+            db: Sesión de base de datos
+            pregunta: Pregunta del usuario
+            respuesta: Respuesta de Gemini
+            contexto: Contexto usado (opcional)
+            tokens_estimados: Tokens usados en la respuesta
+        
+        Returns:
+            Registro de caché creado
+        """
+        query_hash = ChatService._generar_query_hash(pregunta, contexto)
+        
+        # Verificar si ya existe
+        cache_existente = db.query(GeminiResponseCache).filter(
+            GeminiResponseCache.query_hash == query_hash
+        ).first()
+        
+        if cache_existente:
+            # Actualizar respuesta existente
+            cache_existente.respuesta = respuesta
+            cache_existente.last_used_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"🔄 Cache ACTUALIZADO para query_hash={query_hash[:8]}...")
+            return cache_existente
+        
+        # Crear nuevo caché
+        nuevo_cache = GeminiResponseCache(
+            query_hash=query_hash,
+            pregunta=pregunta,
+            contexto_resumido=contexto[:200] if contexto else None,  # Solo primeros 200 chars
+            respuesta=respuesta,
+            hits=0,
+            tokens_ahorrados=0,
+            created_at=datetime.utcnow(),
+            last_used_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(days=ChatService.CACHE_EXPIRATION_DAYS)
+        )
+        
+        db.add(nuevo_cache)
+        db.commit()
+        db.refresh(nuevo_cache)
+        
+        logger.info(f"💾 Cache CREADO para query_hash={query_hash[:8]}... (expira en {ChatService.CACHE_EXPIRATION_DAYS} días)")
+        return nuevo_cache
     
     @staticmethod
     def crear_conversacion(
@@ -307,8 +425,21 @@ INSTRUCCIONES:
         
         Raises:
             ValueError: Si la conversación no existe o no pertenece al usuario
+            GeminiRateLimitError: Si se excede el límite de requests
             Exception: Si hay error al comunicarse con Gemini
         """
+        # 🔒 RATE LIMITING: Verificar límites antes de procesar
+        try:
+            _rate_limiter.check_rate_limit(
+                user_id=usuario_id,
+                per_minute=config.gemini_max_requests_per_minute,
+                per_day=config.gemini_max_requests_per_day,
+                per_user_per_day=config.gemini_max_requests_per_user_per_day
+            )
+        except GeminiRateLimitError as e:
+            logger.warning(f"⚠️ Rate limit excedido para usuario {usuario_id}: {str(e)}")
+            raise
+        
         # Validar conversación
         conversacion = db.query(ChatConversacion).filter(
             ChatConversacion.id == conversacion_id,
@@ -338,57 +469,88 @@ INSTRUCCIONES:
             if planta_id:
                 contexto_planta = ChatService._construir_contexto_planta(db, planta_id, usuario_id)
             
-            # 3. Obtener historial de mensajes (excluyendo el mensaje actual)
-            mensajes_previos = db.query(ChatMensaje).filter(
-                ChatMensaje.conversacion_id == conversacion_id,
-                ChatMensaje.id != mensaje_usuario.id
-            ).order_by(ChatMensaje.created_at).all()
+            # 💾 CACHE: Buscar respuesta en caché (solo para preguntas sin contexto de planta específica)
+            # Las preguntas con contexto de planta son muy específicas y no se cachean
+            cache_hit = None
+            if not planta_id:
+                cache_hit = ChatService._buscar_en_cache(db, contenido)
             
-            historial = ChatService._construir_historial_mensajes(
-                mensajes_previos,
-                max_mensajes=ChatService.MAX_MENSAJES_HISTORIAL
-            )
-            
-            # 4. Generar prompt del sistema
-            prompt_sistema = ChatService._generar_prompt_sistema(usuario, contexto_planta)
-            
-            # 5. Llamar a Gemini
-            logger.info(f"🤖 Llamando a Gemini para conversación {conversacion_id}")
-            
-            modelo = genai.GenerativeModel(
-                model_name=config.gemini_model,
-                safety_settings=ChatService.SAFETY_SETTINGS
-            )
-            
-            # Agregar instrucción del sistema como primer mensaje del historial
-            historial_completo = [
-                {
-                    "role": "user",
-                    "parts": [prompt_sistema]
-                },
-                {
-                    "role": "model",
-                    "parts": ["Entendido. Estoy listo para ayudarte con tus plantas. ¿En qué puedo asistirte? 🌱"]
-                }
-            ] + historial
-            
-            # Iniciar chat con historial
-            chat = modelo.start_chat(history=historial_completo)
-            
-            # Enviar mensaje y obtener respuesta
-            respuesta = chat.send_message(contenido)
+            if cache_hit:
+                # ✅ Usar respuesta del caché
+                respuesta_texto = cache_hit.respuesta
+                tokens_usados = 0  # No se usan tokens de la API
+                
+                # Actualizar estadísticas de tokens ahorrados
+                cache_hit.tokens_ahorrados += cache_hit.tokens_ahorrados or 500  # Estimación conservadora
+                db.commit()
+                
+                logger.info(f"🎯 Respuesta servida desde caché (ahorro de ~500 tokens)")
+                
+            else:
+                # ❌ Cache miss - Llamar a Gemini
+                
+                # 3. Obtener historial de mensajes (excluyendo el mensaje actual)
+                mensajes_previos = db.query(ChatMensaje).filter(
+                    ChatMensaje.conversacion_id == conversacion_id,
+                    ChatMensaje.id != mensaje_usuario.id
+                ).order_by(ChatMensaje.created_at).all()
+                
+                historial = ChatService._construir_historial_mensajes(
+                    mensajes_previos,
+                    max_mensajes=ChatService.MAX_MENSAJES_HISTORIAL
+                )
+                
+                # 4. Generar prompt del sistema
+                prompt_sistema = ChatService._generar_prompt_sistema(usuario, contexto_planta)
+                
+                # 5. Llamar a Gemini
+                logger.info(f"🤖 Llamando a Gemini para conversación {conversacion_id}")
+                
+                modelo = genai.GenerativeModel(
+                    model_name=config.gemini_model,
+                    safety_settings=ChatService.SAFETY_SETTINGS
+                )
+                
+                # Agregar instrucción del sistema como primer mensaje del historial
+                historial_completo = [
+                    {
+                        "role": "user",
+                        "parts": [prompt_sistema]
+                    },
+                    {
+                        "role": "model",
+                        "parts": ["Entendido. Estoy listo para ayudarte con tus plantas. ¿En qué puedo asistirte? 🌱"]
+                    }
+                ] + historial
+                
+                # Iniciar chat con historial
+                chat = modelo.start_chat(history=historial_completo)
+                
+                # Enviar mensaje y obtener respuesta
+                respuesta = chat.send_message(contenido)
+                respuesta_texto = respuesta.text
+                tokens_usados = respuesta.usage_metadata.total_token_count if hasattr(respuesta, 'usage_metadata') else 0
+                
+                # 💾 Guardar en caché si no es específico de una planta
+                if not planta_id:
+                    ChatService._guardar_en_cache(
+                        db=db,
+                        pregunta=contenido,
+                        respuesta=respuesta_texto,
+                        tokens_estimados=tokens_usados
+                    )
             
             # 6. Guardar respuesta del asistente
             mensaje_asistente = ChatMensaje(
                 conversacion_id=conversacion_id,
                 rol="assistant",
-                contenido=respuesta.text,
+                contenido=respuesta_texto,
                 planta_id=planta_id,
-                tokens_usados=respuesta.usage_metadata.total_token_count if hasattr(respuesta, 'usage_metadata') else 0,
+                tokens_usados=tokens_usados,
                 metadata_json=json.dumps({
                     "modelo": config.gemini_model,
-                    "prompt_tokens": respuesta.usage_metadata.prompt_token_count if hasattr(respuesta, 'usage_metadata') else 0,
-                    "completion_tokens": respuesta.usage_metadata.candidates_token_count if hasattr(respuesta, 'usage_metadata') else 0,
+                    "from_cache": cache_hit is not None,
+                    "tokens_usados": tokens_usados,
                     "timestamp": datetime.utcnow().isoformat()
                 }),
                 created_at=datetime.utcnow()
@@ -400,17 +562,21 @@ INSTRUCCIONES:
             
             # 8. Auto-generar título si es la primera interacción
             if len(mensajes_previos) == 0 and conversacion.titulo == "Nueva conversación":
-                titulo_generado = ChatService._generar_titulo_conversacion(contenido, respuesta.text)
+                titulo_generado = ChatService._generar_titulo_conversacion(contenido, respuesta_texto)
                 conversacion.titulo = titulo_generado
             
             db.commit()
             db.refresh(mensaje_usuario)
             db.refresh(mensaje_asistente)
             
-            logger.info(f"✅ Respuesta generada para conversación {conversacion_id}")
+            logger.info(f"✅ Respuesta generada para conversación {conversacion_id} (cache={cache_hit is not None})")
             
             return mensaje_usuario, mensaje_asistente
         
+        except GeminiRateLimitError:
+            # Re-raise rate limit errors sin modificar
+            db.rollback()
+            raise
         except Exception as e:
             db.rollback()
             logger.error(f"❌ Error al generar respuesta: {str(e)}")
@@ -502,3 +668,42 @@ INSTRUCCIONES:
             logger.info(f"🗑️ Conversación {conversacion_id} eliminada permanentemente")
         
         return True
+    
+    @staticmethod
+    def obtener_estadisticas_uso(usuario_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Obtiene estadísticas de uso de la API de Gemini.
+        
+        Args:
+            usuario_id: ID del usuario (opcional, para stats por usuario)
+        
+        Returns:
+            Diccionario con estadísticas de uso y límites
+        """
+        remaining = _rate_limiter.get_remaining_today(usuario_id)
+        
+        estadisticas = {
+            "global": {
+                "requests_restantes": remaining["global_remaining"],
+                "limite_diario": remaining["global_limit"],
+                "porcentaje_usado": round(
+                    100 * (1 - remaining["global_remaining"] / remaining["global_limit"]), 2
+                ) if remaining["global_limit"] > 0 else 0
+            },
+            "limites": {
+                "por_minuto": config.gemini_max_requests_per_minute,
+                "por_dia": config.gemini_max_requests_per_day,
+                "por_usuario_por_dia": config.gemini_max_requests_per_user_per_day
+            }
+        }
+        
+        if usuario_id and "user_remaining" in remaining:
+            estadisticas["usuario"] = {
+                "requests_restantes": remaining["user_remaining"],
+                "limite_diario": remaining["user_limit"],
+                "porcentaje_usado": round(
+                    100 * (1 - remaining["user_remaining"] / remaining["user_limit"]), 2
+                ) if remaining["user_limit"] > 0 else 0
+            }
+        
+        return estadisticas

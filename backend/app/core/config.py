@@ -124,6 +124,7 @@ class Configuracion(BaseSettings):
     # Google Gemini API (para Epic 3 - Sistema de Verificación de Salud)
     gemini_api_key: str = ""
     gemini_model: str = "gemini-1.5-flash"  # Modelo por defecto
+    gemini_max_requests_per_minute: int = 60  # Límite de requests por minuto (global)
     gemini_max_requests_per_day: int = 1500  # Límite diario de requests a Gemini API
     gemini_max_requests_per_user_per_day: int = 50  # Límite por usuario por día
     gemini_temperature: float = 0.7  # Temperatura para generación (0.0 - 1.0)

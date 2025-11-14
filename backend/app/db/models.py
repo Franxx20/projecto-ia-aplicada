@@ -1873,3 +1873,127 @@ class ChatMensaje(Base):
             'metadata': self.metadata_json,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+class GeminiResponseCache(Base):
+    """
+    Modelo para caché de respuestas de Gemini AI.
+    
+    Almacena respuestas de Gemini para preguntas frecuentes, reduciendo
+    costos de API y mejorando tiempos de respuesta.
+    
+    Attributes:
+        id (int): Identificador único del registro de caché
+        query_hash (str): Hash SHA-256 de la pregunta + contexto
+        pregunta (str): Pregunta original del usuario
+        contexto_resumido (str): Resumen del contexto usado
+        respuesta (Text): Respuesta cacheada de Gemini
+        hits (int): Número de veces que se ha usado este caché
+        tokens_ahorrados (int): Tokens totales ahorrados con este caché
+        created_at (datetime): Fecha de creación del caché
+        last_used_at (datetime): Última vez que se usó este caché
+        expires_at (datetime): Fecha de expiración del caché
+    """
+    
+    __tablename__ = "gemini_response_cache"
+    
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Identificador único del registro de caché"
+    )
+    
+    query_hash = Column(
+        String(64),
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="Hash SHA-256 de la pregunta + contexto para identificación única"
+    )
+    
+    pregunta = Column(
+        Text,
+        nullable=False,
+        comment="Pregunta original del usuario"
+    )
+    
+    contexto_resumido = Column(
+        Text,
+        nullable=True,
+        comment="Resumen del contexto usado (especie de planta, problema común, etc.)"
+    )
+    
+    respuesta = Column(
+        Text,
+        nullable=False,
+        comment="Respuesta cacheada de Gemini AI"
+    )
+    
+    hits = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Número de veces que se ha reutilizado este caché"
+    )
+    
+    tokens_ahorrados = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Total de tokens ahorrados con este caché"
+    )
+    
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True,
+        comment="Fecha y hora de creación del caché"
+    )
+    
+    last_used_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        comment="Última vez que se usó este caché"
+    )
+    
+    expires_at = Column(
+        DateTime,
+        nullable=True,
+        index=True,
+        comment="Fecha de expiración del caché (NULL = nunca expira)"
+    )
+    
+    # Índices para búsquedas eficientes
+    __table_args__ = (
+        Index('idx_query_hash_active', 'query_hash', 'expires_at'),
+        Index('idx_created_hits', 'created_at', 'hits'),
+    )
+    
+    def __repr__(self) -> str:
+        preview = self.pregunta[:50] + "..." if len(self.pregunta) > 50 else self.pregunta
+        return f"<GeminiResponseCache(id={self.id}, hits={self.hits}, pregunta='{preview}')>"
+    
+    def to_dict(self) -> dict:
+        """Convierte el caché a diccionario."""
+        return {
+            'id': self.id,
+            'query_hash': self.query_hash,
+            'pregunta': self.pregunta,
+            'contexto_resumido': self.contexto_resumido,
+            'respuesta': self.respuesta,
+            'hits': self.hits,
+            'tokens_ahorrados': self.tokens_ahorrados,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None
+        }
+    
+    def is_expired(self) -> bool:
+        """Verifica si el caché ha expirado."""
+        if not self.expires_at:
+            return False
+        return datetime.utcnow() > self.expires_at

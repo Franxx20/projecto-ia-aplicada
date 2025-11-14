@@ -26,6 +26,7 @@ from app.schemas.chat import (
     ConversacionUpdate
 )
 from app.services.chat_service import ChatService
+from app.services.gemini_service import GeminiRateLimitError
 from app.utils.jwt import get_current_user
 from app.db.models import Usuario
 
@@ -240,11 +241,13 @@ async def enviar_mensaje(
     Envía un mensaje del usuario y recibe respuesta del asistente.
     
     Este endpoint:
-    1. Guarda el mensaje del usuario
-    2. Construye contexto (historial + datos de planta si se especifica)
-    3. Llama a Gemini AI para generar respuesta
-    4. Guarda la respuesta del asistente
-    5. Retorna ambos mensajes
+    1. Verifica límites de rate limiting
+    2. Guarda el mensaje del usuario
+    3. Busca en caché de respuestas comunes
+    4. Construye contexto (historial + datos de planta si se especifica)
+    5. Llama a Gemini AI para generar respuesta (si no hay caché)
+    6. Guarda la respuesta del asistente
+    7. Retorna ambos mensajes
     
     Path params:
     - **conversacion_id**: ID de la conversación
@@ -255,6 +258,11 @@ async def enviar_mensaje(
     
     Returns:
         Mensaje del usuario y respuesta del asistente
+        
+    Raises:
+        429 TOO_MANY_REQUESTS: Si se excede el límite de requests
+        404 NOT_FOUND: Si la conversación no existe
+        500 INTERNAL_SERVER_ERROR: Si hay error al generar respuesta
     """
     try:
         mensaje_usuario, mensaje_asistente = await ChatService.enviar_mensaje(
@@ -287,6 +295,11 @@ async def enviar_mensaje(
             )
         )
     
+    except GeminiRateLimitError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e)
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -487,4 +500,34 @@ async def actualizar_conversacion(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al actualizar conversación: {str(e)}"
+        )
+
+
+@router.get(
+    "/estadisticas",
+    summary="Obtener estadísticas de uso",
+    description="Obtiene estadísticas de uso de la API de Gemini (rate limiting y cuotas)"
+)
+async def obtener_estadisticas_uso(
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene estadísticas de uso de la API de Gemini.
+    
+    Incluye:
+    - Requests restantes hoy (global y por usuario)
+    - Límites configurados
+    - Porcentaje de uso
+    
+    Returns:
+        Diccionario con estadísticas completas
+    """
+    try:
+        stats = ChatService.obtener_estadisticas_uso(usuario_id=current_user.id)
+        return stats
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener estadísticas: {str(e)}"
         )

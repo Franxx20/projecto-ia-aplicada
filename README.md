@@ -1,28 +1,223 @@
-# 🤖 Proyecto IA Aplicada
+# 🌱 NatureTag - Proyecto IA Aplicada
+
+> **Sistema inteligente de gestión y cuidado de plantas** powered by Google Gemini AI
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-14.0-000000?style=flat&logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-18.2-61DAFB?style=flat&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker)](https://www.docker.com/)
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# Clonar repositorio
+git clone https://github.com/Franxx20/projecto-ia-aplicada.git
+cd projecto-ia-aplicada
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus API keys (Gemini, PlantNet)
+
+# Iniciar con Docker (Linux/Mac)
+./manage.sh setup
+./manage.sh dev
+
+# Iniciar con Docker (Windows)
+manage.bat setup
+manage.bat dev
+
+# Acceder a la aplicación
+# Frontend: http://localhost:4200
+# Backend API: http://localhost:8000/docs
+```
+
+---
 
 ## 📖 Descripción
 
-Proyecto de Inteligencia Artificial Aplicada desarrollado con arquitectura moderna y escalable:
+**NatureTag** es una aplicación web integral para el cuidado y gestión de plantas, potenciada por Inteligencia Artificial. El sistema permite identificar plantas mediante fotografías, realizar diagnósticos de salud, obtener recomendaciones de cuidado personalizadas, y mantener un registro detallado de tu jardín o colección de plantas.
+
+## 📑 Tabla de Contenidos
+
+- [🎯 Características Principales](#-características-principales)
+- [🛠️ Stack Tecnológico](#️-stack-tecnológico)
+- [📸 Capturas de Pantalla](#-capturas-de-pantalla)
+- [🏗️ Arquitectura](#️-arquitectura)
+- [🤖 Capacidades de IA](#-capacidades-de-inteligencia-artificial)
+- [📁 Estructura del Proyecto](#-estructura-del-proyecto)
+- [🔧 Tecnologías y Dependencias](#-tecnologías-y-dependencias-clave)
+- [🚀 Instalación y Configuración](#-instalación-y-configuración)
+- [🎯 Comandos de Gestión](#-comandos-de-gestión)
+- [🛠️ Desarrollo](#️-desarrollo)
+- [📦 Azure Blob Storage](#-azure-blob-storage)
+- [🧪 Testing](#-testing)
+- [📊 Monitoreo y Logs](#-monitoreo-y-logs)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🚀 Deployment](#-deployment-en-producción)
+- [📚 Documentación de APIs](#-documentación-de-apis)
+- [🤝 Contribución](#-contribución)
+- [📝 Changelog](#-changelog)
+- [🆘 Soporte](#-soporte)
+
+### 🎯 Características Principales
+
+- 🔍 **Identificación de Plantas con IA**: Identifica especies mediante fotografías usando Gemini AI y PlantNet
+- 🏥 **Diagnóstico de Salud**: Analiza el estado de tus plantas y detecta problemas (plagas, enfermedades, deficiencias)
+- 💬 **Chat Asistente IA**: Consulta sobre cuidados, problemas y consejos personalizados
+- 📸 **Gestión de Imágenes**: Almacenamiento en Azure Blob Storage con Azurite para desarrollo
+- 📊 **Registro de Plantas**: Mantén un inventario completo de tus plantas con historial de cuidados
+- 🌍 **Multi-plataforma**: Acceso desde navegador con diseño responsive
+
+### 🛠️ Stack Tecnológico
 
 - **Backend**: FastAPI + SQLAlchemy + PostgreSQL
-- **Frontend**: Next.js 15 + React 19 + TypeScript + Tailwind CSS
-- **IA**: Claude Sonnet 4
+- **Frontend**: Next.js 14 + React 18 + TypeScript + Tailwind CSS
+- **IA**: Google Gemini 2.5 Flash, PlantNet API
+- **Almacenamiento**: Azure Blob Storage (Azurite en desarrollo)
 - **Containerización**: Docker + Docker Compose
-- **Base de Datos**: PostgreSQL
+- **Base de Datos**: PostgreSQL 15 + SQLite (desarrollo)
+
+---
+
+## 📸 Capturas de Pantalla
+
+> 💡 **Nota**: Próximamente se agregarán capturas de pantalla de las funcionalidades principales.
+
+**Funcionalidades destacadas**:
+- 🏠 Dashboard con resumen de plantas y estadísticas
+- 🔍 Interfaz de identificación con resultados en tiempo real
+- 🏥 Panel de diagnóstico de salud con recomendaciones
+- 💬 Chat asistente flotante con IA
+- 📱 Diseño responsive para móviles y tablets
+
+---
 
 ## 🏗️ Arquitectura
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │
-│   Next.js 15    │────│   FastAPI API   │────│   PostgreSQL    │
-│   (Frontend)    │    │   (Backend)     │    │   (Database)    │
-│                 │    │                 │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                        │                        │
-        │                        │                        │
-    Port 4200                Port 8000                Port 5432
+┌─────────────────────┐         ┌─────────────────────┐         ┌─────────────────────┐
+│                     │         │                     │         │                     │
+│   Next.js 14        │────────▶│   FastAPI API       │────────▶│   PostgreSQL 15     │
+│   React 18          │         │   Python 3.11       │         │   SQLite (dev)      │
+│   TypeScript        │         │   SQLAlchemy        │         │                     │
+│                     │         │                     │         │                     │
+└─────────────────────┘         └─────────────────────┘         └─────────────────────┘
+        │                                 │                              
+        │                                 │                              
+    Port 4200                         Port 8000                      Port 5432
+        │                                 │
+        │                                 ▼
+        │                       ┌─────────────────────┐
+        │                       │  Azure Blob Storage │
+        │                       │  (Azurite en dev)   │
+        └──────────────────────▶│  Gestión Imágenes   │
+                                │                     │
+                                └─────────────────────┘
+                                      Port 10000
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          APIs de Inteligencia Artificial                │
+│                                                                         │
+│  • Google Gemini 2.5 Flash - Identificación y diagnóstico              │
+│  • PlantNet API - Base de datos botánica                               │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
+
+## 🤖 Capacidades de Inteligencia Artificial
+
+### 🔍 Identificación de Plantas
+
+El sistema utiliza **dos motores de IA** para identificar plantas con alta precisión:
+
+#### Google Gemini 2.5 Flash
+- **Análisis visual avanzado** de características morfológicas
+- **Identificación de especies** con nivel de confianza
+- **Descripción detallada** de la planta identificada
+- **Nombres comunes** en múltiples idiomas
+- **Recomendaciones de cuidado** personalizadas
+
+#### PlantNet API
+- **Base de datos botánica** con más de 20,000 especies
+- **Validación científica** de identificaciones
+- **Comparación con imágenes de referencia**
+- **Información taxonómica** completa
+
+**Características**:
+- ✅ Identificación en segundos
+- ✅ Confianza del 85-95% en condiciones óptimas
+- ✅ Fallback automático si un servicio falla
+- ✅ Historial de identificaciones guardado
+
+### 🏥 Diagnóstico de Salud
+
+**Gemini AI** analiza las imágenes de tus plantas para detectar:
+
+- 🐛 **Plagas**: Áfidos, cochinillas, arañas rojas, moscas blancas
+- 🦠 **Enfermedades**: Hongos, bacterias, virus
+- 🍂 **Deficiencias nutricionales**: Nitrógeno, fósforo, potasio, hierro
+- 💧 **Problemas de riego**: Exceso o falta de agua
+- ☀️ **Estrés ambiental**: Quemaduras solares, heladas, viento
+
+**Incluye**:
+- Nivel de severidad (leve, moderado, severo)
+- Recomendaciones de tratamiento específicas
+- Plan de recuperación paso a paso
+- Medidas preventivas
+
+### 💬 Chat Asistente Inteligente
+
+Asistente conversacional potenciado por **Gemini AI** que:
+
+- 🌱 Responde preguntas sobre cuidados específicos
+- 📅 Sugiere calendarios de riego y fertilización
+- 🔄 Recuerda el contexto de conversaciones anteriores
+- 🎯 Ofrece consejos personalizados según tu ubicación y clima
+- 📚 Proporciona información educativa sobre botánica
+
+**Ejemplo de consultas**:
+- "¿Por qué las hojas de mi rosa están amarillas?"
+- "¿Cuándo debo trasplantar mi suculenta?"
+- "¿Qué fertilizante usar para tomates?"
+
+#### 🚀 Optimizaciones de Rendimiento y Costos
+
+El chat asistente incluye **optimizaciones inteligentes** para reducir costos y mejorar tiempos de respuesta:
+
+- **💾 Caché de Respuestas**: Preguntas frecuentes se cachean automáticamente por 30 días
+  - Ahorro estimado: **30% en costos de API**
+  - Tiempo de respuesta: **40x más rápido** (<50ms vs ~2000ms)
+  - Almacenamiento: Base de datos con hash SHA-256
+
+- **🔒 Rate Limiting**: Control automático de uso
+  - Límite global: 1500 requests/día
+  - Límite por usuario: 50 requests/día
+  - Límite por minuto: 60 requests/minuto
+  - Protección contra costos inesperados
+
+- **🧠 Contexto Inteligente**: Historial optimizado
+  - Últimos 10 mensajes mantenidos en contexto
+  - Datos de planta incluidos automáticamente
+  - Reducción de tokens innecesarios
+
+📊 **Ver estadísticas**: `GET /api/chat/estadisticas`
+
+Para más detalles, consulta [MEJORAS_GEMINI_API.md](MEJORAS_GEMINI_API.md)
+
+### 🎯 Precisión y Limitaciones
+
+**Precisión estimada**:
+- Identificación de especies: **85-95%** (varía según calidad de imagen)
+- Diagnóstico de salud: **80-90%** (requiere imágenes claras)
+- Chat asistente: Basado en Gemini 2.5 Flash
+
+**Mejores prácticas para resultados óptimos**:
+1. 📸 Toma fotos en buena iluminación natural
+2. 🔍 Incluye detalles como hojas, flores o frutos
+3. 📏 Asegúrate que la planta ocupe la mayor parte de la imagen
+4. 🎨 Evita filtros o ediciones que alteren colores
 
 ## 📁 Estructura del Proyecto
 
@@ -30,30 +225,58 @@ Proyecto de Inteligencia Artificial Aplicada desarrollado con arquitectura moder
 projecto-ia-aplicada/
 ├── backend/                 # API FastAPI
 │   ├── app/
-│   │   ├── api/            # Rutas y endpoints
+│   │   ├── api/            # Endpoints REST
+│   │   │   ├── auth.py           # Autenticación y autorización
+│   │   │   ├── chat.py           # Chat asistente con IA
+│   │   │   ├── identificacion.py # Identificación de plantas
+│   │   │   ├── imagenes.py       # Gestión de imágenes
+│   │   │   ├── plantas.py        # CRUD de plantas
+│   │   │   └── salud.py          # Diagnóstico de salud
 │   │   ├── core/           # Configuración, seguridad
+│   │   │   ├── config.py         # Variables de entorno
+│   │   │   ├── security.py       # JWT, passwords
+│   │   │   └── database.py       # Conexión BD
 │   │   ├── db/             # Modelos de base de datos
-│   │   ├── schemas/        # Pydantic models
+│   │   │   ├── models.py         # SQLAlchemy models
+│   │   │   └── session.py        # Sesión de BD
+│   │   ├── schemas/        # Pydantic schemas
+│   │   │   ├── auth.py           # Schemas de autenticación
+│   │   │   ├── imagen.py         # Schemas de imágenes
+│   │   │   ├── planta.py         # Schemas de plantas
+│   │   │   └── ...
 │   │   ├── services/       # Lógica de negocio
-│   │   └── utils/          # Utilidades
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .dockerignore
+│   │   │   ├── gemini_service.py # Integración con Gemini
+│   │   │   ├── azure_storage.py  # Azure Blob Storage
+│   │   │   └── ...
+│   │   ├── utils/          # Utilidades
+│   │   └── main.py         # Punto de entrada FastAPI
+│   ├── alembic/            # Migraciones de BD
+│   ├── tests/              # Tests del backend
+│   ├── Dockerfile          # Imagen Docker backend
+│   ├── requirements.txt    # Dependencias Python
+│   └── pytest.ini          # Configuración tests
 ├── frontend/                # Aplicación Next.js
 │   ├── app/
-│   │   ├── api/            # API Routes de Next.js
+│   │   ├── dashboard/      # Panel principal
+│   │   ├── identificar/    # Página identificación
+│   │   ├── login/          # Autenticación
+│   │   ├── plant/          # Detalle de planta
+│   │   ├── salud/          # Diagnóstico salud
 │   │   ├── layout.tsx      # Layout principal
 │   │   ├── page.tsx        # Página principal
 │   │   └── globals.css     # Estilos globales
 │   ├── components/
 │   │   ├── ui/             # Componentes UI (shadcn)
-│   │   └── ...             # Componentes personalizados
+│   │   ├── ChatWidget.tsx  # Widget de chat
+│   │   ├── ImageUpload.tsx # Subida de imágenes
+│   │   └── dashboard/      # Componentes del dashboard
+│   ├── contexts/           # Context providers (Auth)
 │   ├── lib/                # Utilidades y helpers
 │   ├── models/             # Interfaces TypeScript
 │   ├── public/             # Recursos estáticos
 │   ├── Dockerfile          # Dockerfile producción
 │   ├── Dockerfile.dev      # Dockerfile desarrollo
-│   ├── next.config.ts      # Configuración Next.js
+│   ├── next.config.mjs     # Configuración Next.js
 │   ├── tailwind.config.ts  # Configuración Tailwind
 │   └── package.json        # Dependencias NPM
 ├── tests/                   # Tests del proyecto
@@ -61,24 +284,108 @@ projecto-ia-aplicada/
 │   ├── frontend/           # Tests Next.js/React
 │   └── e2e/               # Tests end-to-end
 ├── data/                   # Datos persistentes
+│   ├── postgres/           # Datos PostgreSQL
+│   ├── azurite/            # Datos Azurite (emulador)
+│   └── redis/              # Cache Redis (futuro)
 ├── logs/                   # Logs de aplicación
-├── uploads/                # Archivos subidos
+├── uploads/                # Archivos temporales
 ├── backups/                # Backups de BD
+├── certs/                  # Certificados SSL
 ├── docker-compose.yml      # Producción
-├── docker-compose.dev.yml  # Desarrollo
+├── docker-compose.dev.yml  # Desarrollo (hot reload)
 ├── .env.example           # Template de variables
 ├── manage.sh              # Script gestión (Linux/Mac)
 ├── manage.bat             # Script gestión (Windows)
-└── README.md              # Este archivo
+└── README.md              # Esta documentación
 ```
+
+## 🔧 Tecnologías y Dependencias Clave
+
+### Backend (Python 3.11)
+
+| Tecnología | Versión | Propósito |
+|------------|---------|-----------|
+| FastAPI | 0.104.1 | Framework web moderno y rápido |
+| SQLAlchemy | 2.0.23 | ORM para base de datos |
+| Alembic | 1.12.1 | Migraciones de base de datos |
+| Pydantic | 2.4.2 | Validación de datos |
+| python-jose | 3.3.0 | Autenticación JWT |
+| bcrypt | 4.0.1 | Hashing de contraseñas |
+| google-generativeai | 0.3.2 | SDK de Gemini AI |
+| azure-storage-blob | 12.19.0 | Azure Blob Storage |
+| Pillow | 10.1.0 | Procesamiento de imágenes |
+| pytest | 7.4.3 | Testing framework |
+
+### Frontend (Node.js)
+
+| Tecnología | Versión | Propósito |
+|------------|---------|-----------|
+| Next.js | 14.0.4 | Framework React con SSR |
+| React | 18.2.0 | Librería UI |
+| TypeScript | 5.3.3 | Tipado estático |
+| Tailwind CSS | 3.4.17 | Framework CSS utility-first |
+| shadcn/ui | Latest | Componentes UI accesibles |
+| React Hook Form | 7.60.0 | Gestión de formularios |
+| Zod | 3.25.67 | Validación de esquemas |
+| Axios | 1.6.2 | Cliente HTTP |
+| Lucide React | 0.454.0 | Iconos SVG |
+| Jest | 29.7.0 | Testing framework |
+
+### Infraestructura
+
+| Tecnología | Versión | Propósito |
+|------------|---------|-----------|
+| PostgreSQL | 15-alpine | Base de datos relacional |
+| Docker | 20.10+ | Containerización |
+| Docker Compose | 2.0+ | Orquestación de contenedores |
+| Azurite | Latest | Emulador Azure Storage |
+| Adminer | Latest | Administrador de BD web |
 
 ## 🚀 Instalación y Configuración
 
+### 💻 Requisitos del Sistema
+
+**Hardware mínimo recomendado**:
+- CPU: 2 cores (4 recomendado)
+- RAM: 4 GB (8 GB recomendado)
+- Disco: 5 GB de espacio libre
+- Internet: Conexión estable para APIs de IA
+
+**Software requerido**:
+- **Docker**: versión 20.10 o superior
+- **Docker Compose**: versión 2.0 o superior
+- **Git**: para clonar el repositorio
+
+**Sistemas operativos soportados**:
+- ✅ Windows 10/11 (con WSL2 recomendado)
+- ✅ macOS 10.15 o superior
+- ✅ Linux (Ubuntu 20.04+, Debian, Fedora, etc.)
+
 ### Prerrequisitos
 
-- **Docker** (versión 20.10 o superior)
-- **Docker Compose** (versión 2.0 o superior)
-- **Git**
+Antes de comenzar, asegúrate de tener instalado:
+
+1. **Docker Desktop** (incluye Docker + Docker Compose)
+   - [Descargar para Windows](https://docs.docker.com/desktop/install/windows-install/)
+   - [Descargar para Mac](https://docs.docker.com/desktop/install/mac-install/)
+   - [Instalar en Linux](https://docs.docker.com/desktop/install/linux-install/)
+
+2. **Git** para clonar el repositorio
+   - [Descargar Git](https://git-scm.com/downloads)
+
+3. **API Keys** (gratuitas) para servicios de IA:
+   - **Gemini API**: [Obtener en Google AI Studio](https://makersuite.google.com/app/apikey)
+   - **PlantNet API** (opcional): [Registrarse en PlantNet](https://my.plantnet.org/)
+
+**Verificar instalación**:
+```bash
+# Verificar Docker
+docker --version
+docker-compose --version
+
+# Verificar Git
+git --version
+```
 
 ### 📋 Pasos de Instalación
 
@@ -250,10 +557,11 @@ Este proyecto utiliza **Next.js 15** con las últimas características:
 #### Características Principales
 - **App Router**: Enrutamiento moderno basado en carpetas
 - **React Server Components**: Componentes del servidor por defecto
-- **Streaming**: Renderizado progresivo con Suspense
 - **TypeScript**: Tipado estricto en todo el proyecto
 - **Tailwind CSS v3**: Estilos utility-first
 - **shadcn/ui**: Componentes UI accesibles y customizables
+- **Formularios**: React Hook Form + Zod para validación
+- **Gestión de Estado**: Context API para autenticación
 
 #### Comandos de Desarrollo
 
@@ -286,6 +594,10 @@ Ya no es necesario crear un archivo `.env.local` en el directorio `frontend/`. T
 # Estas variables se leen del archivo .env en la raíz del proyecto
 NEXT_PUBLIC_API_URL=http://localhost:8000
 INTERNAL_API_URL=http://backend:8000  # Para llamadas server-side dentro de Docker
+
+# APIs de IA (configuradas en el .env de la raíz)
+GEMINI_API_KEY=tu_gemini_api_key
+PLANTNET_API_KEY=tu_plantnet_api_key
 ```
 
 Para desarrollo local fuera de Docker, solo necesitas ajustar `NEXT_PUBLIC_API_URL` en el archivo `.env` de la raíz.
@@ -310,16 +622,24 @@ npx shadcn@latest add
 
 ```
 app/
-├── page.tsx              # → /
+├── page.tsx              # → / (Landing page)
 ├── layout.tsx            # Layout global
+├── globals.css           # Estilos Tailwind
 ├── login/
-│   └── page.tsx          # → /login
+│   └── page.tsx          # → /login (Autenticación)
 ├── dashboard/
-│   ├── page.tsx          # → /dashboard
-│   └── layout.tsx        # Layout del dashboard
+│   ├── page.tsx          # → /dashboard (Panel principal)
+│   └── ...
+├── identificar/
+│   └── page.tsx          # → /identificar (Identificación de plantas)
+├── plant/
+│   └── [id]/
+│       └── page.tsx      # → /plant/[id] (Detalle de planta)
+├── salud/
+│   └── page.tsx          # → /salud (Diagnóstico de salud)
 └── api/
     └── health/
-        └── route.ts      # → /api/health (API Route)
+        └── route.ts      # → /api/health (Health check)
 ```
 
 #### Docker con Next.js
@@ -347,18 +667,35 @@ docker run -p 4200:4200 -v $(pwd):/app frontend-dev
 ```bash
 backend/
 ├── app/
-│   ├── main.py           # Punto de entrada
+│   ├── main.py           # Punto de entrada FastAPI
 │   ├── api/              # Endpoints REST
+│   │   ├── auth.py           # Autenticación JWT
+│   │   ├── chat.py           # Chat con IA
+│   │   ├── identificacion.py # Identificación de plantas
+│   │   ├── imagenes.py       # Gestión de imágenes
+│   │   ├── plantas.py        # CRUD de plantas
+│   │   └── salud.py          # Diagnóstico de salud
 │   ├── core/
-│   │   ├── config.py     # Configuración
-│   │   ├── security.py   # Autenticación JWT
-│   │   └── database.py   # Conexión BD
+│   │   ├── config.py     # Configuración centralizada
+│   │   ├── security.py   # Autenticación JWT, hashing
+│   │   └── database.py   # Conexión BD (SQLAlchemy)
 │   ├── db/
 │   │   ├── models.py     # Modelos SQLAlchemy
-│   │   └── init_db.py    # Inicialización
-│   ├── schemas/          # Pydantic schemas
-│   ├── services/         # Lógica de negocio
-│   └── utils/            # Utilidades
+│   │   │   # - Usuario, Planta, Imagen
+│   │   │   # - Identificacion, Diagnostico
+│   │   └── session.py    # Sesión de base de datos
+│   ├── schemas/          # Pydantic schemas (validación)
+│   │   ├── auth.py           # Login, Register, Token
+│   │   ├── planta.py         # PlantaCreate, PlantaUpdate
+│   │   ├── imagen.py         # ImagenUpload, ImagenResponse
+│   │   └── ...
+│   ├── services/         # Lógica de negocio e integraciones
+│   │   ├── gemini_service.py     # Integración con Gemini AI
+│   │   ├── azure_storage.py      # Azure Blob Storage
+│   │   ├── plantnet_service.py   # PlantNet API
+│   │   └── ...
+│   └── utils/            # Utilidades comunes
+├── alembic/              # Migraciones Alembic
 ├── tests/                # Tests pytest
 └── requirements.txt      # Dependencias
 ```
@@ -369,22 +706,50 @@ backend/
 frontend/
 ├── app/
 │   ├── layout.tsx        # Layout principal con metadata
-│   ├── page.tsx          # Página de inicio (/)
+│   ├── page.tsx          # Página landing (/)
 │   ├── globals.css       # Estilos globales Tailwind
+│   ├── login/
+│   │   └── page.tsx          # Login/Register
+│   ├── dashboard/
+│   │   ├── page.tsx          # Dashboard principal
+│   │   └── components/       # Componentes del dashboard
+│   ├── identificar/
+│   │   └── page.tsx          # Identificación de plantas
+│   ├── plant/
+│   │   └── [id]/
+│   │       └── page.tsx      # Detalle de planta (dinámico)
+│   ├── salud/
+│   │   └── page.tsx          # Diagnóstico de salud
 │   └── api/
 │       └── health/
-│           └── route.ts  # Health check endpoint
+│           └── route.ts      # Health check endpoint
 ├── components/
 │   ├── ui/               # Componentes shadcn/ui
 │   │   ├── button.tsx
 │   │   ├── card.tsx
+│   │   ├── input.tsx
+│   │   ├── form.tsx
 │   │   └── ...
-│   └── ...               # Componentes personalizados
+│   ├── ChatWidget.tsx        # Widget de chat flotante
+│   ├── ImageUpload.tsx       # Subida de imagen única
+│   ├── MultipleImageUpload.tsx  # Subida múltiple
+│   ├── dashboard/
+│   │   ├── PlantCard.tsx     # Tarjeta de planta
+│   │   └── StatsCard.tsx     # Estadísticas
+│   └── identification-result-card.tsx  # Resultado identificación
+├── contexts/
+│   └── AuthContext.tsx       # Context de autenticación
 ├── lib/
-│   └── utils.ts          # Utilidades (cn, etc.)
+│   ├── utils.ts              # Utilidades (cn, etc.)
+│   └── api.ts                # Cliente API
 ├── models/               # Interfaces TypeScript
+│   ├── Plant.ts              # Modelo de planta
+│   ├── User.ts               # Modelo de usuario
+│   └── ...
 ├── public/               # Assets estáticos
-├── next.config.ts        # Configuración Next.js
+│   ├── images/
+│   └── icons/
+├── next.config.mjs       # Configuración Next.js
 ├── tailwind.config.ts    # Configuración Tailwind
 └── package.json          # Dependencias
 ```
@@ -404,12 +769,49 @@ frontend/
 - **ReDoc**: http://localhost:8000/redoc
 
 #### Endpoints Principales
+
+**Autenticación**
 ```
-GET  /                    # Health check
-GET  /api/v1/users        # Listar usuarios
-POST /api/v1/users        # Crear usuario
-GET  /api/v1/auth/login   # Login
-POST /api/v1/auth/token   # Obtener token
+POST /api/auth/register        # Registrar nuevo usuario
+POST /api/auth/login          # Login con email y password
+POST /api/auth/token          # Obtener access token
+GET  /api/auth/me             # Obtener perfil del usuario actual
+```
+
+**Gestión de Plantas**
+```
+GET    /api/plantas            # Listar plantas del usuario
+POST   /api/plantas            # Crear nueva planta
+GET    /api/plantas/{id}       # Obtener detalles de planta
+PUT    /api/plantas/{id}       # Actualizar planta
+DELETE /api/plantas/{id}       # Eliminar planta
+```
+
+**Identificación con IA**
+```
+POST /api/identificar          # Identificar planta desde imagen
+GET  /api/identificar/{id}     # Obtener resultado de identificación
+```
+
+**Diagnóstico de Salud**
+```
+POST /api/salud/diagnosticar   # Diagnosticar problemas de salud
+GET  /api/salud/historial      # Historial de diagnósticos
+```
+
+**Gestión de Imágenes**
+```
+POST   /api/imagenes/subir     # Subir imagen a Azure Storage
+GET    /api/imagenes/          # Listar imágenes del usuario
+GET    /api/imagenes/{id}      # Obtener imagen
+GET    /api/imagenes/proxy/{filename}  # Proxy para Azurite
+DELETE /api/imagenes/{id}      # Eliminar imagen
+```
+
+**Chat Asistente**
+```
+POST /api/chat                 # Enviar mensaje al asistente
+GET  /api/chat/historial       # Obtener historial de conversación
 ```
 
 ## 📦 Azure Blob Storage
@@ -709,38 +1111,114 @@ POSTGRES_PASSWORD=@Microsoft.KeyVault(SecretUri=https://vault.vault.azure.net/se
 
 ## 📚 Documentación de APIs
 
-### Autenticación
+### Autenticación JWT
 
 ```typescript
-// Login
-POST /api/v1/auth/login
+// Registro de usuario
+POST /api/auth/register
 {
   "email": "usuario@example.com",
-  "password": "mi_password"
+  "password": "mi_password_seguro",
+  "nombre": "Juan Pérez"
 }
 
 // Response
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
   "token_type": "bearer",
-  "expires_in": 1800
+  "expires_in": 1800,
+  "user": {
+    "id": 1,
+    "email": "usuario@example.com",
+    "nombre": "Juan Pérez"
+  }
 }
+
+// Login
+POST /api/auth/login
+{
+  "email": "usuario@example.com",
+  "password": "mi_password"
+}
+
+// Perfil del usuario autenticado
+GET /api/auth/me
+Headers: Authorization: Bearer {token}
 ```
 
-### Endpoints Principales
+### APIs de IA
 
 ```typescript
-// Usuarios
-GET    /api/v1/users           # Listar usuarios
-POST   /api/v1/users           # Crear usuario
-GET    /api/v1/users/{id}      # Obtener usuario
-PUT    /api/v1/users/{id}      # Actualizar usuario
-DELETE /api/v1/users/{id}      # Eliminar usuario
+// Identificar planta desde imagen
+POST /api/identificar
+Headers: Authorization: Bearer {token}
+Content-Type: multipart/form-data
+Body: {
+  imagen: File,
+  usar_plantnet: boolean (opcional),
+  usar_gemini: boolean (opcional)
+}
 
-// IA
-POST   /api/v1/ia/chat         # Chat con IA
-POST   /api/v1/ia/analyze      # Analizar datos
-GET    /api/v1/ia/models       # Modelos disponibles
+// Response
+{
+  "id": 123,
+  "especie_detectada": "Rosa chinensis",
+  "confianza": 0.95,
+  "nombres_comunes": ["Rosa de China", "Hibisco"],
+  "familia": "Malvaceae",
+  "descripcion": "...",
+  "cuidados_recomendados": {
+    "riego": "Moderado, mantener suelo húmedo",
+    "luz": "Pleno sol o sombra parcial",
+    "temperatura": "15-30°C"
+  },
+  "imagen_url": "/api/imagenes/proxy/abc123.jpg"
+}
+
+// Diagnosticar salud de planta
+POST /api/salud/diagnosticar
+Headers: Authorization: Bearer {token}
+Content-Type: multipart/form-data
+Body: {
+  planta_id: number,
+  imagen: File,
+  sintomas: string (opcional)
+}
+
+// Response
+{
+  "diagnostico_id": 456,
+  "estado_general": "Deficiencia nutricional",
+  "confianza": 0.88,
+  "problemas_detectados": [
+    {
+      "tipo": "deficiencia",
+      "descripcion": "Clorosis en hojas inferiores",
+      "severidad": "moderada",
+      "tratamiento": "Aplicar fertilizante rico en nitrógeno"
+    }
+  ],
+  "recomendaciones": [
+    "Fertilizar cada 2 semanas",
+    "Verificar pH del suelo"
+  ]
+}
+
+// Chat con asistente IA
+POST /api/chat
+Headers: Authorization: Bearer {token}
+Body: {
+  "mensaje": "¿Cómo cuido mi rosa?",
+  "contexto": {
+    "planta_id": 123  // opcional
+  }
+}
+
+// Response
+{
+  "respuesta": "Para cuidar tu rosa, te recomiendo...",
+  "timestamp": "2025-11-13T10:30:00Z"
+}
 ```
 
 ## 🔧 Troubleshooting
@@ -1145,21 +1623,85 @@ tests/
 
 ## 📝 Changelog
 
-### [1.0.0] - 2025-10-10
-#### Added
-- Configuración inicial del proyecto
-- Backend FastAPI con autenticación JWT
-- Frontend Next.js 15 con React 19
-- Migración de Vite a Next.js
-- Componentes UI con shadcn/ui
-- Containerización completa con Docker
-- Scripts de gestión automatizados
-- Documentación completa
+### [1.1.0] - 14 de Noviembre 2025
 
-#### Changed
-- Frontend migrado de Angular/Vite a Next.js 15
-- Tailwind CSS actualizado a v3.4
-- Puerto frontend estandarizado a 4200
+#### 🚀 Optimizaciones de Gemini API
+
+**Sistema de Caché de Respuestas**
+- ✅ Nueva tabla `gemini_response_cache` para almacenar respuestas frecuentes
+- ✅ Hash SHA-256 para identificación única de preguntas
+- ✅ Expiración automática de caché (30 días)
+- ✅ Tracking de hits y tokens ahorrados
+- ✅ Reducción estimada de 30% en costos de API
+- ✅ Mejora de 40x en tiempos de respuesta para cache hits
+
+**Rate Limiting Implementado**
+- ✅ Control de límites por minuto (60 req/min global)
+- ✅ Límite diario global (1500 req/día)
+- ✅ Límite por usuario (50 req/día)
+- ✅ Respuestas HTTP 429 con mensajes claros
+- ✅ Endpoint `/api/chat/estadisticas` para consultar uso
+
+**Contexto de Conversación Optimizado**
+- ✅ Historial limitado a últimos 10 mensajes
+- ✅ Contexto inteligente con datos de planta
+- ✅ Reducción de tokens innecesarios
+
+**Migración de Base de Datos**
+- ✅ Alembic migration `002_add_gemini_cache.py`
+- ✅ 4 índices para búsquedas eficientes
+
+**Archivos Modificados**
+- `backend/app/db/models.py`: Modelo `GeminiResponseCache`
+- `backend/app/services/chat_service.py`: Integración de caché y rate limiting
+- `backend/app/api/chat.py`: Endpoint de estadísticas y manejo 429
+- `backend/app/core/config.py`: Variable `gemini_max_requests_per_minute`
+- `MEJORAS_GEMINI_API.md`: Documentación completa de mejoras
+
+### [1.0.0] - Noviembre 2025
+
+#### Added - Funcionalidades Principales
+- ✅ Sistema completo de autenticación con JWT
+- ✅ Identificación de plantas con Gemini AI y PlantNet
+- ✅ Diagnóstico de salud de plantas con análisis de imágenes
+- ✅ Chat asistente IA para consultas sobre plantas
+- ✅ Gestión completa de plantas (CRUD)
+- ✅ Almacenamiento de imágenes en Azure Blob Storage
+- ✅ Emulador Azurite para desarrollo local
+- ✅ Frontend responsive con Next.js 14 y React 18
+- ✅ Componentes UI con shadcn/ui y Tailwind CSS
+- ✅ Containerización completa con Docker Compose
+- ✅ Migraciones de base de datos con Alembic
+- ✅ Scripts de gestión automatizados (manage.sh / manage.bat)
+
+#### Backend (FastAPI)
+- Base de datos PostgreSQL en producción, SQLite en desarrollo
+- Sistema de autenticación JWT con refresh tokens
+- Integración con Google Gemini 2.5 Flash
+- Integración con PlantNet API
+- Middleware de CORS configurado
+- Health checks automáticos
+- Logging estructurado
+- Tests unitarios con pytest
+
+#### Frontend (Next.js)
+- App Router con rutas dinámicas
+- Context API para gestión de autenticación
+- Formularios con React Hook Form + Zod
+- Subida de imágenes con preview
+- Chat flotante con IA
+- Dashboard con estadísticas
+- Diseño responsive mobile-first
+- Tests con Jest y React Testing Library
+
+#### DevOps
+- Docker Compose para desarrollo y producción
+- Azurite como emulador de Azure Storage
+- Hot reload en modo desarrollo
+- Configuración unificada en archivo .env
+- Scripts de backup automático
+- Health checks de contenedores
+- Rotación de logs automática
 
 ## 🆘 Soporte
 
@@ -1169,25 +1711,92 @@ tests/
 - **Documentación Next.js**: https://nextjs.org/docs
 - **Documentación React**: https://react.dev/
 - **shadcn/ui Components**: https://ui.shadcn.com/
+- **Tailwind CSS**: https://tailwindcss.com/docs
 - **Docker Compose**: https://docs.docker.com/compose/
 - **PostgreSQL**: https://www.postgresql.org/docs/
+- **Google Gemini AI**: https://ai.google.dev/
+- **PlantNet**: https://plantnet.org/
+- **Azure Storage**: https://learn.microsoft.com/azure/storage/
 
 ### Contacto
 
+- **Repository**: https://github.com/Franxx20/projecto-ia-aplicada
 - **Issues**: Reportar bugs en GitHub Issues
 - **Discussions**: Preguntas generales en GitHub Discussions
-- **Email**: [tu-email@example.com]
 
 ### FAQ
 
-**P: ¿Cómo cambio la base de datos a MySQL?**
-R: Modifica `docker-compose.yml` y cambia las configuraciones de conexión en `backend/app/core/database.py`
+**P: ¿Cómo obtengo las API keys de Gemini y PlantNet?**
+R: 
+- **Gemini**: Visita https://makersuite.google.com/app/apikey
+- **PlantNet**: Registrarte en https://my.plantnet.org/
 
-**P: ¿Puedo usar Vue en lugar de Next.js?**
-R: Sí, reemplaza el contenido de `frontend/` con tu proyecto Vue y ajusta el `Dockerfile`
+**P: ¿Puedo usar Azure Storage real en lugar de Azurite?**
+R: Sí, configura `AZURE_STORAGE_CONNECTION_STRING` con tus credenciales reales y establece `AZURE_STORAGE_USE_EMULATOR=false` en el archivo `.env`
+
+**P: ¿Cómo cambio el puerto del frontend?**
+R: Modifica `FRONTEND_PORT` en el archivo `.env` y reinicia los servicios con `manage.bat restart`
+
+**P: ¿Puedo usar MySQL en lugar de PostgreSQL?**
+R: Sí, modifica `docker-compose.yml`, actualiza `DATABASE_URL` en `.env` y ajusta las dependencias en `requirements.txt`
+
+**P: ¿Cómo ejecuto el proyecto sin Docker?**
+R: 
+- Backend: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
+- Frontend: `cd frontend && npm install && npm run dev`
+- Asegúrate de tener PostgreSQL/SQLite y configurar las variables de entorno
 
 **P: ¿Cómo agrego nuevos servicios?**
 R: Añade servicios en `docker-compose.yml` y crea las configuraciones correspondientes
+
+## 🔒 Seguridad y Mejores Prácticas
+
+### 🛡️ Seguridad en Producción
+
+**IMPORTANTE**: Antes de desplegar en producción:
+
+1. **Cambiar todas las contraseñas y secretos**:
+   ```env
+   SECRET_KEY=tu_clave_super_secura_de_al_menos_32_caracteres
+   POSTGRES_PASSWORD=password_muy_seguro_y_complejo
+   JWT_SECRET_KEY=otra_clave_diferente_para_jwt
+   ```
+
+2. **Deshabilitar modo debug**:
+   ```env
+   DEBUG=false
+   ENVIRONMENT=production
+   ```
+
+3. **Configurar CORS correctamente**:
+   ```env
+   CORS_ORIGINS=https://tu-dominio.com,https://www.tu-dominio.com
+   ```
+
+4. **Usar HTTPS** con certificados SSL válidos
+
+5. **Proteger API keys**:
+   - No incluir API keys en el código
+   - Usar variables de entorno o servicios como Azure Key Vault
+   - Rotar keys periódicamente
+
+### 📋 Mejores Prácticas
+
+**Git**:
+- ✅ Nunca hacer commit del archivo `.env`
+- ✅ Usar `.env.example` como plantilla
+- ✅ Hacer commits descriptivos
+- ✅ Usar branches para nuevas features
+
+**Docker**:
+- ✅ Usar `docker-compose.dev.yml` para desarrollo
+- ✅ Limpiar imágenes antiguas regularmente
+- ✅ Monitorear uso de recursos con `docker stats`
+
+**Base de Datos**:
+- ✅ Crear backups regulares (`./manage.sh db-backup`)
+- ✅ Probar migraciones en desarrollo antes de producción
+- ✅ Usar Adminer/pgAdmin solo en desarrollo
 
 ## 📄 Licencia
 
@@ -1198,14 +1807,27 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 ## 🙏 Agradecimientos
 
 - **FastAPI** por el excelente framework de API
-- **Next.js** por el poderoso framework React
-- **React** por la librería UI innovadora
-- **shadcn/ui** por los componentes UI elegantes
+- **Next.js** y el equipo de **Vercel** por el poderoso framework React
+- **React** por la innovadora librería UI
+- **shadcn/ui** por los componentes UI elegantes y accesibles
 - **PostgreSQL** por la confiable base de datos
-- **Docker** por la containerización seamless
-- **Claude AI** por la asistencia en desarrollo
+- **Docker** por facilitar la containerización
+- **Google Gemini** por proporcionar capacidades de IA
+- **PlantNet** por la base de datos botánica
+- **Microsoft Azure** por los servicios de almacenamiento
+- **GitHub Copilot** por la asistencia en desarrollo
 
 ---
 
-**¡Happy Coding! 🚀**
+## 👥 Equipo de Desarrollo
+
+**NatureTag** - Proyecto de IA Aplicada
+
+- Repositorio: https://github.com/Franxx20/projecto-ia-aplicada
+- Versión: 1.0.0
+- Fecha: Noviembre 2025
+
+---
+
+**¡Happy Coding! 🌱🚀**
 

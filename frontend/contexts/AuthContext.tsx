@@ -86,21 +86,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   /**
-   * Configura renovación automática de tokens cada 25 minutos
-   * (los tokens expiran en 30 minutos, renovamos 5 minutos antes)
+   * Configura renovación automática de tokens cada 4 horas
+   * (los tokens expiran en 8 horas, renovamos 4 horas antes por seguridad)
    */
   useEffect(() => {
     if (!usuario) return
 
     const intervalo = setInterval(async () => {
       try {
+        console.log('🔄 Renovando token automáticamente...')
         await renovarToken()
+        console.log('✅ Token renovado exitosamente')
       } catch (error) {
-        console.error('Error al renovar token automáticamente:', error)
-        // Si falla la renovación, cerrar sesión
-        await cerrarSesion()
+        console.error('❌ Error al renovar token automáticamente:', error)
+        // No cerrar sesión inmediatamente, el interceptor de axios lo manejará
       }
-    }, 25 * 60 * 1000) // 25 minutos
+    }, 4 * 60 * 60 * 1000) // 4 horas
 
     return () => clearInterval(intervalo)
   }, [usuario])

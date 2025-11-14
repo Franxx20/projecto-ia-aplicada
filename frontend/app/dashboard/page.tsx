@@ -558,7 +558,7 @@ export default function DashboardPage() {
 
               {/* Texto motivacional adicional */}
               <p className="text-sm text-gray-500 pt-4">
-                Únete a miles de jardineros que cuidan mejor sus plantas con Asistente Plantitas 🌿
+                Únete a miles de jardineros que cuidan mejor sus plantas con NatureTag 🌿
               </p>
             </div>
           </div>

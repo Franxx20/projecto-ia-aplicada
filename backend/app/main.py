@@ -1,5 +1,5 @@
 """
-Aplicación principal FastAPI - Asistente Plantitas
+Aplicación principal FastAPI - NatureTag
 
 Backend API REST para el sistema de gestión y cuidado de plantas con IA.
 Implementa arquitectura MVC con FastAPI, SQLAlchemy y Pydantic.
@@ -12,7 +12,7 @@ Estructura del proyecto:
     /services - Lógica de negocio
     /utils - Utilidades y helpers
 
-Author: Equipo Plantitas
+Author: Equipo NatureTag
 Date: Octubre 2025
 Version: 0.1.0 (Sprint 1 - T-001)
 """

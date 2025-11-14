@@ -1,14 +1,56 @@
 /**
- * Página principal de Asistente Plantitas
+ * Página principal de NatureTag
  * Landing page con información general y acceso a la aplicación
+ * 
+ * Redirige automáticamente al dashboard si el usuario ya está autenticado
  */
 
+"use client"
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Leaf, Camera, MessageSquare, ShoppingBag } from "lucide-react";
+import { Leaf, Camera, MessageSquare, ShoppingBag, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function HomePage() {
+  const { estaAutenticado, estaCargando } = useAuth();
+  const router = useRouter();
+
+  // Redirigir al dashboard si ya está autenticado
+  useEffect(() => {
+    if (!estaCargando && estaAutenticado) {
+      console.log("✅ Usuario ya autenticado, redirigiendo al dashboard...");
+      router.push("/dashboard");
+    }
+  }, [estaAutenticado, estaCargando, router]);
+
+  // Mostrar loader mientras verifica la sesión
+  if (estaCargando) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si está autenticado, no mostrar la landing (el useEffect redirigirá)
+  if (estaAutenticado) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Redirigiendo al dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col w-full">
       {/* Header */}
@@ -16,7 +58,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between max-w-7xl">
           <div className="flex items-center gap-2">
             <Leaf className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">Asistente Plantitas</span>
+            <span className="text-xl font-bold">NatureTag</span>
           </div>
           <nav className="flex items-center gap-4">
             <Link href="/login">
@@ -99,7 +141,7 @@ export default function HomePage() {
             ¿Listo para comenzar?
           </h2>
           <p className="max-w-[85%] leading-normal text-muted-foreground sm:text-lg sm:leading-7">
-            Únete a miles de jardineros que ya usan Asistente Plantitas para cuidar
+            Únete a miles de jardineros que ya usan NatureTag para cuidar
             mejor de sus plantas.
           </p>
           <Link href="/login?mode=register">
@@ -116,7 +158,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <Leaf className="h-5 w-5 text-primary" />
             <p className="text-sm text-muted-foreground">
-              © 2025 Asistente Plantitas. Todos los derechos reservados.
+              © 2025 NatureTag. Todos los derechos reservados.
             </p>
           </div>
           <div className="flex gap-4">

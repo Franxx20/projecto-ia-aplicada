@@ -62,8 +62,8 @@ class Configuracion(BaseSettings):
     # JWT Secret Key - DEBE ser sobrescrito en producción
     jwt_secret_key: str = "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION_USE_ENV_FILE"
     jwt_algorithm: str = "HS256"
-    jwt_expiracion_minutos: int = 30  # Tiempo de expiración del token
-    jwt_refresh_expiracion_dias: int = 7  # Tiempo de expiración del refresh token
+    jwt_expiracion_minutos: int = 480  # Tiempo de expiración del token (8 horas)
+    jwt_refresh_expiracion_dias: int = 30  # Tiempo de expiración del refresh token (30 días)
     
     # Password hashing
     bcrypt_rounds: int = 12  # Número de rondas para bcrypt

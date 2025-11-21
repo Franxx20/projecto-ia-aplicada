@@ -12,8 +12,6 @@ Descripción:
     - identificaciones: Identificaciones de plantas por IA
     - plantas: Plantas del usuario
     - analisis_salud: Análisis de salud de plantas con IA
-    - chat_conversaciones: Conversaciones con el asistente IA
-    - chat_mensajes: Mensajes del chat con el asistente
 """
 from alembic import op
 import sqlalchemy as sa
@@ -174,18 +172,14 @@ def upgrade() -> None:
         sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario propietario de la planta'),
         sa.Column('especie_id', sa.Integer(), nullable=True, comment='ID de la especie de la planta (opcional)'),
         sa.Column('nombre_personal', sa.String(length=255), nullable=False, comment='Nombre personalizado dado por el usuario'),
-        sa.Column('estado_salud', sa.String(length=50), nullable=False, server_default='desconocido', comment='Estado de salud: excelente, saludable, necesita_atencion, enfermedad, plaga, critica, desconocido'),
+        sa.Column('estado_salud', sa.String(length=50), nullable=False, server_default='buena', comment='Estado de salud: excelente, saludable, necesita_atencion, enfermedad, plaga, critica'),
         sa.Column('ubicacion', sa.String(length=255), nullable=True, comment='Ubicación física de la planta'),
         sa.Column('notas', sa.Text(), nullable=True, comment='Notas adicionales del usuario'),
         sa.Column('imagen_principal_id', sa.Integer(), nullable=True, comment='ID de la imagen principal de la planta'),
         sa.Column('fecha_ultimo_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del último riego'),
-        sa.Column('proximo_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del próximo riego recomendado'),
+        sa.Column('proxima_riego', sa.DateTime(), nullable=True, comment='Fecha y hora del próximo riego recomendado'),
         sa.Column('frecuencia_riego_dias', sa.Integer(), nullable=True, comment='Frecuencia de riego en días'),
-        sa.Column('fecha_ultima_fertilizacion', sa.DateTime(), nullable=True, comment='Fecha y hora de la última fertilización'),
-        sa.Column('proxima_fertilizacion', sa.DateTime(), nullable=True, comment='Fecha y hora de la próxima fertilización recomendada'),
-        sa.Column('frecuencia_fertilizacion_dias', sa.Integer(), nullable=True, comment='Frecuencia de fertilización en días'),
         sa.Column('luz_actual', sa.String(length=20), nullable=True, comment='Nivel de luz que recibe: baja, media, alta, directa'),
-        sa.Column('condiciones_ambientales_recomendadas', sa.Text(), nullable=True, comment='JSON con condiciones ambientales ideales (luz, temperatura, humedad) según análisis inicial'),
         sa.Column('fecha_adquisicion', sa.DateTime(), nullable=True, comment='Fecha en que el usuario adquirió la planta'),
         sa.Column('es_favorita', sa.Boolean(), nullable=False, server_default='false', comment='Indica si la planta ha sido marcada como favorita por el usuario'),
         sa.Column('fue_regada_hoy', sa.Boolean(), nullable=False, server_default='false', comment='Indica si la planta fue regada hoy'),
@@ -204,7 +198,7 @@ def upgrade() -> None:
     op.create_index('ix_plantas_especie_id', 'plantas', ['especie_id'], unique=False)
     op.create_index('idx_usuario_plantas_activas', 'plantas', ['usuario_id', 'is_active'], unique=False)
     op.create_index('idx_usuario_estado_salud', 'plantas', ['usuario_id', 'estado_salud'], unique=False)
-    op.create_index('idx_proximo_riego', 'plantas', ['proximo_riego'], unique=False)
+    op.create_index('idx_proxima_riego', 'plantas', ['proxima_riego'], unique=False)
     op.create_index('idx_created_at_plantas', 'plantas', ['created_at'], unique=False)
     op.create_index('idx_usuario_favoritas', 'plantas', ['usuario_id', 'es_favorita'], unique=False)
     
@@ -217,7 +211,7 @@ def upgrade() -> None:
         sa.Column('planta_id', sa.Integer(), nullable=False, comment='ID de la planta analizada'),
         sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario que solicitó el análisis'),
         sa.Column('imagen_id', sa.Integer(), nullable=True, comment='ID de la imagen analizada (opcional)'),
-        sa.Column('estado', sa.String(length=50), nullable=False, comment='Estado: excelente, saludable, necesita_atencion, enfermedad, plaga, critica'),
+        sa.Column('estado_salud', sa.String(length=50), nullable=False, comment='Estado: excelente, saludable, necesita_atencion, enfermedad, plaga, critica'),
         sa.Column('confianza', sa.Integer(), nullable=False, comment='Nivel de confianza del diagnóstico (0-100)'),
         sa.Column('resumen_diagnostico', sa.Text(), nullable=False, comment='Resumen del diagnóstico en lenguaje natural'),
         sa.Column('diagnostico_detallado', sa.Text(), nullable=True, comment='Diagnóstico técnico detallado (opcional)'),
@@ -227,8 +221,6 @@ def upgrade() -> None:
         sa.Column('tiempo_analisis_ms', sa.Integer(), nullable=False, comment='Tiempo de análisis en milisegundos'),
         sa.Column('version_prompt', sa.String(length=20), nullable=False, server_default='v1', comment='Versión del prompt usado'),
         sa.Column('con_imagen', sa.Boolean(), nullable=False, server_default=sa.false(), comment='Indica si el análisis incluyó imagen'),
-        sa.Column('notas_usuario', sa.Text(), nullable=True, comment='Notas o síntomas adicionales proporcionados por el usuario'),
-        sa.Column('metadatos_ia', sa.Text(), nullable=True, comment='JSON con metadatos adicionales de la respuesta de Gemini (ej: imagenes_ids, tokens usados, etc.)'),
         sa.Column('fecha_analisis', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha y hora del análisis'),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha de creación del registro'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha de última actualización'),
@@ -243,58 +235,11 @@ def upgrade() -> None:
     op.create_index('ix_analisis_salud_planta_id', 'analisis_salud', ['planta_id'], unique=False)
     op.create_index('ix_analisis_salud_usuario_id', 'analisis_salud', ['usuario_id'], unique=False)
     op.create_index('ix_analisis_salud_imagen_id', 'analisis_salud', ['imagen_id'], unique=False)
-    op.create_index('ix_analisis_salud_estado', 'analisis_salud', ['estado'], unique=False)
     op.create_index('ix_analisis_salud_fecha_analisis', 'analisis_salud', ['fecha_analisis'], unique=False)
     op.create_index('idx_analisis_planta_fecha', 'analisis_salud', ['planta_id', 'fecha_analisis'], unique=False)
     op.create_index('idx_analisis_usuario_fecha', 'analisis_salud', ['usuario_id', 'fecha_analisis'], unique=False)
-    op.create_index('idx_analisis_planta_estado', 'analisis_salud', ['planta_id', 'estado'], unique=False)
-    op.create_index('idx_analisis_usuario_estado', 'analisis_salud', ['usuario_id', 'estado'], unique=False)
-    
-    # ============================================================================
-    # TABLA: chat_conversaciones
-    # ============================================================================
-    op.create_table(
-        'chat_conversaciones',
-        sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único de la conversación'),
-        sa.Column('usuario_id', sa.Integer(), nullable=False, comment='ID del usuario propietario de la conversación'),
-        sa.Column('titulo', sa.String(length=255), nullable=False, server_default='Nueva conversación', comment='Título de la conversación'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha y hora de creación de la conversación'),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha y hora de última actualización'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true(), comment='Indica si la conversación está activa (no archivada)'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='CASCADE')
-    )
-    
-    # Índices para chat_conversaciones
-    op.create_index('ix_chat_conversaciones_id', 'chat_conversaciones', ['id'], unique=False)
-    op.create_index('ix_chat_conversaciones_usuario_id', 'chat_conversaciones', ['usuario_id'], unique=False)
-    op.create_index('ix_chat_conversaciones_created_at', 'chat_conversaciones', ['created_at'], unique=False)
-    
-    # ============================================================================
-    # TABLA: chat_mensajes
-    # ============================================================================
-    op.create_table(
-        'chat_mensajes',
-        sa.Column('id', sa.Integer(), nullable=False, comment='Identificador único del mensaje'),
-        sa.Column('conversacion_id', sa.Integer(), nullable=False, comment='ID de la conversación a la que pertenece el mensaje'),
-        sa.Column('rol', sa.String(length=20), nullable=False, comment="Rol del emisor: 'user' o 'assistant'"),
-        sa.Column('contenido', sa.Text(), nullable=False, comment='Contenido del mensaje'),
-        sa.Column('planta_id', sa.Integer(), nullable=True, comment='ID de planta relacionada (opcional)'),
-        sa.Column('tokens_usados', sa.Integer(), nullable=True, server_default='0', comment='Tokens consumidos por el LLM (solo para mensajes del asistente)'),
-        sa.Column('metadata_json', sa.Text(), nullable=True, comment='JSON con metadata adicional (modelo, latencia, contexto usado, etc.)'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=func.now(), comment='Fecha y hora de creación del mensaje'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['conversacion_id'], ['chat_conversaciones.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['planta_id'], ['plantas.id'], ondelete='SET NULL')
-    )
-    
-    # Índices para chat_mensajes
-    op.create_index('ix_chat_mensajes_id', 'chat_mensajes', ['id'], unique=False)
-    op.create_index('ix_chat_mensajes_conversacion_id', 'chat_mensajes', ['conversacion_id'], unique=False)
-    op.create_index('ix_chat_mensajes_planta_id', 'chat_mensajes', ['planta_id'], unique=False)
-    op.create_index('ix_chat_mensajes_created_at', 'chat_mensajes', ['created_at'], unique=False)
-    op.create_index('idx_conversacion_created', 'chat_mensajes', ['conversacion_id', 'created_at'], unique=False)
-    op.create_index('idx_conversacion_rol', 'chat_mensajes', ['conversacion_id', 'rol'], unique=False)
+    op.create_index('idx_analisis_estado', 'analisis_salud', ['estado_salud'], unique=False)
+    op.create_index('idx_analisis_planta_estado', 'analisis_salud', ['planta_id', 'estado_salud'], unique=False)
     
     print("✅ Schema inicial creado exitosamente")
     print("   - Tabla usuarios")
@@ -303,8 +248,6 @@ def upgrade() -> None:
     print("   - Tabla identificaciones")
     print("   - Tabla plantas")
     print("   - Tabla analisis_salud")
-    print("   - Tabla chat_conversaciones")
-    print("   - Tabla chat_mensajes")
 
 
 def downgrade() -> None:
@@ -314,8 +257,6 @@ def downgrade() -> None:
     ADVERTENCIA: Esta operación eliminará TODOS los datos.
     """
     # Eliminar tablas en orden inverso (respetando foreign keys)
-    op.drop_table('chat_mensajes')
-    op.drop_table('chat_conversaciones')
     op.drop_table('analisis_salud')
     op.drop_table('plantas')
     

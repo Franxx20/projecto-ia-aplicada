@@ -31,6 +31,9 @@ function LoginPageContent() {
   const [error, setError] = useState("")
   const [mostrarRedireccion, setMostrarRedireccion] = useState(false)
   
+  // ✅ NUEVO: Estado para prevenir doble submit
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
   // Formulario de login
   const [loginData, setLoginData] = useState({
     email: "",
@@ -102,17 +105,28 @@ function LoginPageContent() {
   /**
    * Maneja el envío del formulario de login
    * Usa el AuthContext para iniciar sesión
+   * ✅ NUEVO: Prevención de doble submit y navegación con window.location.href
    */
   const manejarLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // ✅ Prevenir múltiples envíos
+    if (isSubmitting || authLoading) {
+      return
+    }
+    
     setError("")
+    setIsSubmitting(true)
 
     try {
       await iniciarSesion(loginData.email, loginData.password)
-      // El AuthContext manejará la navegación
-      router.push('/dashboard')
+      
+      // ✅ Usar window.location.href para navegación completa
+      // Esto evita el loop infinito del useEffect
+      window.location.href = '/dashboard'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
+      setIsSubmitting(false) // Solo resetear en error
     }
   }
 
@@ -257,10 +271,10 @@ function LoginPageContent() {
             )}
 
             {/* Botón submit */}
-            <Button className="w-full" size="lg" type="submit" disabled={authLoading}>
-              {authLoading && "Procesando..."}
-              {!authLoading && isLogin && "Iniciar Sesión"}
-              {!authLoading && !isLogin && "Crear Cuenta"}
+            <Button className="w-full" size="lg" type="submit" disabled={authLoading || isSubmitting}>
+              {(authLoading || isSubmitting) && "Procesando..."}
+              {!authLoading && !isSubmitting && isLogin && "Iniciar Sesión"}
+              {!authLoading && !isSubmitting && !isLogin && "Crear Cuenta"}
             </Button>
           </CardContent>
         </form>

@@ -85,6 +85,7 @@ class AuthService {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // ✅ Permite envío de cookies
       body: JSON.stringify(data),
     })
 
@@ -95,10 +96,14 @@ class AuthService {
 
     const tokenData = await response.json()
     
-    // Guardar token y usuario en localStorage
+    // ✅ Guardar token en AMBOS lugares: localStorage Y cookies
     if (typeof window !== 'undefined') {
+      // localStorage para acceso desde JavaScript
       localStorage.setItem('access_token', tokenData.access_token)
       localStorage.setItem('user', JSON.stringify(tokenData.user))
+      
+      // Cookies para que el middleware de Next.js pueda acceder
+      document.cookie = `access_token=${tokenData.access_token}; path=/; max-age=1800; SameSite=Lax`
     }
 
     return tokenData
